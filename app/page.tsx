@@ -14,60 +14,98 @@ interface Stock {
   name: string;
   exchange: string;
   status: string;
+  currency?: string;
+  country?: string;
 }
 
 export default function Home() {
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]); // Filtered stocks based on search
+  const [allStocks, setAllStocks] = useState<Stock[]>([]); // Store all stocks
+  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]); // Store filtered and paginated stocks
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchQuery, setSearchQuery] = useState(""); // Search input state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedExchange, setSelectedExchange] = useState("All");
+  const [selectedType, setSelectedType] = useState("All");
+  const [exchangeOptions, setExchangeOptions] = useState<string[]>([]);
+  const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const { toast } = useToast();
+  const perPage = 50; // Stocks per page
 
+  // Fetch all stocks on initial load
   useEffect(() => {
-    fetchStocks(page);
-  }, [page]);
+    fetchStocks();
+  }, []);
 
+  // Update filtered stocks when search query, exchange, type, or page changes
   useEffect(() => {
-    // Filter stocks based on search query
-    if (searchQuery.trim() === "") {
-      setFilteredStocks(stocks);
-    } else {
+    let filtered = allStocks;
+
+    // Apply search filter (across all stocks)
+    if (searchQuery.trim() !== "") {
       const lowerQuery = searchQuery.toLowerCase();
-      const filtered = stocks.filter(
+      filtered = allStocks.filter(
         (stock) =>
           stock.symbol.toLowerCase().includes(lowerQuery) ||
           stock.name.toLowerCase().includes(lowerQuery)
       );
-      setFilteredStocks(filtered);
     }
-  }, [searchQuery, stocks]);
 
-  const fetchStocks = async (pageNum: number) => {
+    // Apply exchange filter
+    if (selectedExchange !== "All") {
+      filtered = filtered.filter((stock) => stock.exchange === selectedExchange);
+    }
+
+    // Apply type filter
+    if (selectedType !== "All") {
+      filtered = filtered.filter((stock) => stock.status === selectedType);
+    }
+
+    // Update total pages based on filtered results
+    const newTotalPages = Math.ceil(filtered.length / perPage);
+    setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+
+    // Ensure the current page is valid after filtering
+    if (page > newTotalPages) {
+      setPage(newTotalPages > 0 ? newTotalPages : 1);
+    }
+
+    // Paginate the filtered results
+    const paginatedStocks = filtered.slice((page - 1) * perPage, page * perPage);
+    setFilteredStocks(paginatedStocks);
+  }, [searchQuery, selectedExchange, selectedType, allStocks, page]);
+
+  // Fetch all stocks from the API
+  const fetchStocks = async () => {
     setLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      const response = await fetch(`/api/stocks?page=${pageNum}`);
+      const response = await fetch("/api/stocks");
       if (!response.ok) {
         const errorData = await response.json();
-        if (errorData.error.includes("rate limit")) {
-          throw new Error("Rate limit exceeded. Please wait a moment and try again.");
-        }
         throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
       }
       const data = await response.json();
       console.log("Fetched data:", data);
 
-      if (!Array.isArray(data.stocks)) {
+      if (!Array.isArray(data)) {
         throw new Error("Invalid stock data format");
       }
 
-      setStocks(data.stocks);
-      setTotalPages(data.total_pages || 1);
+      setAllStocks(data);
+      setFilteredStocks(data.slice(0, perPage));
+
+      // Populate exchange and type options
+      const exchanges = Array.from(new Set(data.map((stock: Stock) => stock.exchange))).sort();
+      const types = Array.from(new Set(data.map((stock: Stock) => stock.status))).sort();
+      setExchangeOptions(["All", ...exchanges]);
+      setTypeOptions(["All", ...types]);
+
+      // Set initial total pages
+      setTotalPages(Math.ceil(data.length / perPage));
     } catch (error) {
       console.error("Fetch error:", error.message);
-      setStocks([]);
+      setAllStocks([]);
       setFilteredStocks([]);
       toast({
         title: "Error",
@@ -79,8 +117,13 @@ export default function Home() {
     }
   };
 
+  // Search for a specific stock symbol
   const debouncedSearch = debounce(async () => {
-    if (!searchQuery.trim()) return; // Do nothing if search query is empty
+    if (!searchQuery.trim()) {
+      // If search query is cleared, reset to original list
+      fetchStocks();
+      return;
+    }
 
     setLoading(true);
     try {
@@ -88,9 +131,6 @@ export default function Home() {
       const response = await fetch(`/api/stock?symbol=${searchQuery.toUpperCase()}`);
       if (!response.ok) {
         const errorData = await response.json();
-        if (errorData.error.includes("rate limit")) {
-          throw new Error("Rate limit exceeded. Please wait a moment and try again.");
-        }
         throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
       }
       const data = await response.json();
@@ -103,14 +143,17 @@ export default function Home() {
       const stock: Stock = {
         symbol: searchQuery.toUpperCase(),
         name: data["Meta Data"]["2. Symbol"] || "Unknown Stock",
-        exchange: "N/A",
-        status: "Stock",
+        exchange: data["Meta Data"]["6. Exchange"] || "N/A",
+        status: "Common Stock", // Default value since Twelve Data's search doesn't provide type
       };
 
-      setStocks([stock]);
+      // Update allStocks and filteredStocks with the search result
+      setAllStocks([stock]);
       setFilteredStocks([stock]);
       setTotalPages(1);
       setPage(1);
+      setExchangeOptions(["All", stock.exchange]);
+      setTypeOptions(["All", stock.status]);
       toast({
         title: "Stock Found",
         description: `Showing data for ${stock.symbol}`,
@@ -126,13 +169,12 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, 1000); // Debounce for 1 second
+  }, 1000);
 
   const handleSearch = () => {
     debouncedSearch();
   };
 
-  // Generate page options for dropdown (1 to totalPages)
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
@@ -171,10 +213,11 @@ export default function Home() {
 
       <main className="max-w-l mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 gap-6">
-          {/* Search Bar */}
+          {/* Search and Filter Bar */}
           <Card className="p-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Search Bar */}
+              <div className="relative flex-1 min-w-[200px]">
                 <Input
                   type="text"
                   placeholder="Search by symbol or name (e.g., AAPL)"
@@ -187,6 +230,46 @@ export default function Home() {
               <Button onClick={handleSearch} disabled={loading}>
                 {loading ? "Searching..." : "Search Stock"}
               </Button>
+
+              {/* Exchange Filter */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="exchange-filter" className="text-sm font-medium">
+                  Exchange:
+                </label>
+                <select
+                  id="exchange-filter"
+                  value={selectedExchange}
+                  onChange={(e) => setSelectedExchange(e.target.value)}
+                  className="border rounded px-2 py-1"
+                  disabled={loading}
+                >
+                  {exchangeOptions.map((exchange) => (
+                    <option key={exchange} value={exchange}>
+                      {exchange}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="type-filter" className="text-sm font-medium">
+                  Type:
+                </label>
+                <select
+                  id="type-filter"
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="border rounded px-2 py-1"
+                  disabled={loading}
+                >
+                  {typeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </Card>
 
@@ -200,7 +283,7 @@ export default function Home() {
                 </h2>
               </div>
               <Button
-                onClick={() => fetchStocks(page)}
+                onClick={fetchStocks}
                 disabled={loading}
                 variant="outline"
               >
@@ -216,7 +299,7 @@ export default function Home() {
                     <th className="text-left py-3 px-4">Name</th>
                     <th className="text-left py-3 px-4">Exchange</th>
                     <th className="text-left py-3 px-4">Type</th>
-                    <th className="text-right py-3 px-4">Action</th>
+                    <th className="text-right py-3 px-4">Analyze</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -229,7 +312,7 @@ export default function Home() {
                         <td className="py-3 px-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              stock.status === "Stock"
+                              stock.status === "Common Stock"
                                 ? "bg-green-100 text-green-800"
                                 : "bg-blue-100 text-blue-800"
                             }`}

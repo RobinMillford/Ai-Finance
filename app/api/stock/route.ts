@@ -38,7 +38,7 @@ export async function GET(request, { retries = 2, delayMs = 15000 } = {}) {
     return NextResponse.json(cachedData.data);
   }
 
-  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
     console.log(`Fetching time series data for symbol ${symbol} from Alpha Vantage...`);

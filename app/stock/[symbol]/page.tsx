@@ -16,10 +16,12 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 interface TimeSeriesDataPoint {
   date: string;
   close: number;
+  adjustedClose: number;
 }
 
 interface StockStats {
   latestClose: number;
+  latestAdjustedClose: number;
   highestClose: number;
   lowestClose: number;
   averageVolume: number;
@@ -46,7 +48,8 @@ export default function StockPage() {
   const [stats, setStats] = useState<StockStats | null>(null);
   const [overview, setOverview] = useState<CompanyOverview | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [timeSeriesError, setTimeSeriesError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 2;
   const retryDelay = 15000; // 15 seconds delay between retries to avoid Alpha Vantage rate limit
@@ -59,25 +62,36 @@ export default function StockPage() {
 
   const fetchStockData = async (stockSymbol: string) => {
     setLoading(true);
-    setError(null);
+    setTimeSeriesError(null);
+    setOverviewError(null);
+    setTimeSeriesData([]);
+    setStats(null);
+    setOverview(null);
 
+    // Fetch company overview
+    let overviewData = null;
     try {
-      // Check if overview is cached
-      let overviewData = overviewCache.get(stockSymbol);
       const now = Date.now();
-      if (overviewData && overviewData.timestamp && (now - overviewData.timestamp < CACHE_DURATION)) {
+      const cachedOverview = overviewCache.get(stockSymbol);
+      if (cachedOverview && cachedOverview.timestamp && (now - cachedOverview.timestamp < CACHE_DURATION)) {
         console.log(`Using cached overview data for ${stockSymbol}`);
+        overviewData = cachedOverview.data;
       } else {
         const overviewResponse = await fetch(`/api/overview?symbol=${stockSymbol}`).then(res => res.json());
         if (overviewResponse.error || !overviewResponse.Symbol) {
           throw new Error(overviewResponse.error || "No company overview available for this stock");
         }
-        overviewData = { data: overviewResponse, timestamp: now };
-        overviewCache.set(stockSymbol, overviewData);
+        overviewData = overviewResponse;
+        overviewCache.set(stockSymbol, { data: overviewResponse, timestamp: now });
       }
-      setOverview(overviewData.data);
+      setOverview(overviewData);
+    } catch (error) {
+      console.error("Overview fetch error:", error.message);
+      setOverviewError(error.message || "Failed to fetch company overview");
+    }
 
-      // Fetch time series data
+    // Fetch time series data
+    try {
       const timeSeriesResponse = await fetch(`/api/stock?symbol=${stockSymbol}`).then(res => res.json());
       if (timeSeriesResponse.error) {
         throw new Error(timeSeriesResponse.error);
@@ -92,13 +106,16 @@ export default function StockPage() {
         .map(([date, values]: [string, any]) => ({
           date,
           close: parseFloat(values["4. close"]),
+          adjustedClose: parseFloat(values["5. adjusted close"]),
         }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       const closes = chartData.map(d => d.close);
-      const volumes = Object.values(timeSeries).map((v: any) => parseInt(v["5. volume"]));
+      const adjustedCloses = chartData.map(d => d.adjustedClose);
+      const volumes = Object.values(timeSeries).map((v: any) => parseInt(v["6. volume"]));
       const stats: StockStats = {
         latestClose: closes[closes.length - 1],
+        latestAdjustedClose: adjustedCloses[adjustedCloses.length - 1],
         highestClose: Math.max(...closes),
         lowestClose: Math.min(...closes),
         averageVolume: volumes.reduce((a: number, b: number) => a + b, 0) / volumes.length,
@@ -108,24 +125,26 @@ export default function StockPage() {
       setTimeSeriesData(chartData);
       setStats(stats);
     } catch (error) {
-      console.error("Fetch error:", error.message);
-      setError(error.message || "Failed to fetch stock data");
-      if (retryCount < maxRetries) {
-        toast({
-          title: "Retrying",
-          description: `Failed to fetch data. Retrying (${retryCount + 1}/${maxRetries})...`,
-          variant: "default",
-        });
-        setTimeout(() => setRetryCount(retryCount + 1), retryDelay);
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to fetch stock data",
-          variant: "destructive",
-        });
-      }
+      console.error("Time series fetch error:", error.message);
+      setTimeSeriesError(error.message || "Failed to fetch time series data");
     } finally {
       setLoading(false);
+    }
+
+    // If both fetches failed, check retries
+    if (timeSeriesError && overviewError && retryCount < maxRetries) {
+      toast({
+        title: "Retrying",
+        description: `Failed to fetch data. Retrying (${retryCount + 1}/${maxRetries})...`,
+        variant: "default",
+      });
+      setTimeout(() => setRetryCount(retryCount + 1), retryDelay);
+    } else if (timeSeriesError && overviewError) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch both company overview and time series data",
+        variant: "destructive",
+      });
     }
   };
 
@@ -183,210 +202,148 @@ export default function StockPage() {
               <span>Loading...</span>
             </div>
           </div>
-        ) : error ? (
-          <div className="text-center">
-            <p className="text-red-500">{error}</p>
-            {overview && (
-              <div className="mt-6">
-                <Card className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Company Overview</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Symbol</p>
-                      <p className="text-lg font-medium">{overview.Symbol}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Name</p>
-                      <p className="text-lg font-medium">{overview.Name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Exchange</p>
-                      <p className="text-lg font-medium">{overview.Exchange}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Market Cap</p>
-                      <p className="text-lg font-medium">
-                        {overview.MarketCapitalization !== "N/A"
-                          ? `$${parseFloat(overview.MarketCapitalization).toLocaleString()}`
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">P/E Ratio</p>
-                      <p className="text-lg font-medium">{overview.PERatio}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Dividend Yield</p>
-                      <p className="text-lg font-medium">{overview.DividendYield}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">52-Week High</p>
-                      <p className="text-lg font-medium">{overview["52WeekHigh"]}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">52-Week Low</p>
-                      <p className="text-lg font-medium">{overview["52WeekLow"]}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-sm text-muted-foreground">Description</p>
-                    <p className="text-base">{overview.Description}</p>
-                  </div>
-                </Card>
-              </div>
-            )}
-            <Button onClick={handleRefresh} variant="outline" className="mt-4">
-              Try Again
-            </Button>
-          </div>
-        ) : timeSeriesData.length > 0 && stats && overview ? (
-          <div className="grid grid-cols-1 gap-6">
-            {/* Company Overview Card */}
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Company Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Symbol</p>
-                  <p className="text-lg font-medium">{overview.Symbol}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Name</p>
-                  <p className="text-lg font-medium">{overview.Name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Exchange</p>
-                  <p className="text-lg font-medium">{overview.Exchange}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Market Cap</p>
-                  <p className="text-lg font-medium">
-                    {overview.MarketCapitalization !== "N/A"
-                      ? `$${parseFloat(overview.MarketCapitalization).toLocaleString()}`
-                      : "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">P/E Ratio</p>
-                  <p className="text-lg font-medium">{overview.PERatio}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Dividend Yield</p>
-                  <p className="text-lg font-medium">{overview.DividendYield}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">52-Week High</p>
-                  <p className="text-lg font-medium">{overview["52WeekHigh"]}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">52-Week Low</p>
-                  <p className="text-lg font-medium">{overview["52WeekLow"]}</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm text-muted-foreground">Description</p>
-                <p className="text-base">{overview.Description}</p>
-              </div>
-            </Card>
-
-            {/* Stats Card */}
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Stock Statistics</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Latest Close</p>
-                  <p className="text-lg font-medium">${stats.latestClose.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Highest Close</p>
-                  <p className="text-lg font-medium">${stats.highestClose.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Lowest Close</p>
-                  <p className="text-lg font-medium">${stats.lowestClose.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Average Volume</p>
-                  <p className="text-lg font-medium">{Math.round(stats.averageVolume).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Exchange</p>
-                  <p className="text-lg font-medium">{stats.exchange}</p>
-                </div>
-              </div>
-            </Card>
-
-            {/* Regular Closing Price Chart */}
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Daily Closing Prices</h2>
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={['auto', 'auto']} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="close" stroke="#8884d8" name="Closing Price" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </div>
         ) : (
-          <div className="text-center">
-            <p>No data available for {symbol}.</p>
-            {overview && (
-              <div className="mt-6">
+          <div className="grid grid-cols-1 gap-6">
+            {/* Show Company Overview if available */}
+            {overview && !overviewError ? (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Company Overview</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Symbol</p>
+                    <p className="text-lg font-medium">{overview.Symbol}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name</p>
+                    <p className="text-lg font-medium">{overview.Name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Exchange</p>
+                    <p className="text-lg font-medium">{overview.Exchange}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Market Cap</p>
+                    <p className="text-lg font-medium">
+                      {overview.MarketCapitalization !== "N/A"
+                        ? `$${parseFloat(overview.MarketCapitalization).toLocaleString()}`
+                        : "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">P/E Ratio</p>
+                    <p className="text-lg font-medium">{overview.PERatio}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Dividend Yield</p>
+                    <p className="text-lg font-medium">{overview.DividendYield}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">52-Week High</p>
+                    <p className="text-lg font-medium">{overview["52WeekHigh"]}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">52-Week Low</p>
+                    <p className="text-lg font-medium">{overview["52WeekLow"]}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-muted-foreground">Description</p>
+                  <p className="text-base">{overview.Description}</p>
+                </div>
+              </Card>
+            ) : (
+              overviewError && (
+                <div className="text-center text-red-500">
+                  <p>{overviewError}</p>
+                </div>
+              )
+            )}
+
+            {/* Show Stock Statistics and Charts if available */}
+            {timeSeriesData.length > 0 && stats && !timeSeriesError ? (
+              <>
+                {/* Stats Card */}
                 <Card className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Company Overview</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h2 className="text-xl font-semibold mb-4">Stock Statistics</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Symbol</p>
-                      <p className="text-lg font-medium">{overview.Symbol}</p>
+                      <p className="text-sm text-muted-foreground">Latest Close</p>
+                      <p className="text-lg font-medium">${stats.latestClose.toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Name</p>
-                      <p className="text-lg font-medium">{overview.Name}</p>
+                      <p className="text-sm text-muted-foreground">Latest Adjusted Close</p>
+                      <p className="text-lg font-medium">${stats.latestAdjustedClose.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Highest Close</p>
+                      <p className="text-lg font-medium">${stats.highestClose.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Lowest Close</p>
+                      <p className="text-lg font-medium">${stats.lowestClose.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Average Volume</p>
+                      <p className="text-lg font-medium">{Math.round(stats.averageVolume).toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Exchange</p>
-                      <p className="text-lg font-medium">{overview.Exchange}</p>
+                      <p className="text-lg font-medium">{stats.exchange}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Market Cap</p>
-                      <p className="text-lg font-medium">
-                        {overview.MarketCapitalization !== "N/A"
-                          ? `$${parseFloat(overview.MarketCapitalization).toLocaleString()}`
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">P/E Ratio</p>
-                      <p className="text-lg font-medium">{overview.PERatio}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Dividend Yield</p>
-                      <p className="text-lg font-medium">{overview.DividendYield}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">52-Week High</p>
-                      <p className="text-lg font-medium">{overview["52WeekHigh"]}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">52-Week Low</p>
-                      <p className="text-lg font-medium">{overview["52WeekLow"]}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-sm text-muted-foreground">Description</p>
-                    <p className="text-base">{overview.Description}</p>
                   </div>
                 </Card>
+
+                {/* Regular Closing Price Chart */}
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4">Daily Closing Prices</h2>
+                  <div className="h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis domain={['auto', 'auto']} />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="close" stroke="#8884d8" name="Closing Price" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                {/* Adjusted Closing Price Chart */}
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4">Daily Adjusted Closing Prices</h2>
+                  <div className="h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis domain={['auto', 'auto']} />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="adjustedClose" stroke="#82ca9d" name="Adjusted Closing Price" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              </>
+            ) : (
+              timeSeriesError && (
+                <div className="text-center text-red-500">
+                  <p>{timeSeriesError}</p>
+                </div>
+              )
+            )}
+
+            {/* Show a fallback message only if both sections are unavailable */}
+            {timeSeriesError && overviewError && (
+              <div className="text-center">
+                <p className="text-red-500">No data available for {symbol}.</p>
+                <Button onClick={handleRefresh} variant="outline" className="mt-4">
+                  Try Again
+                </Button>
               </div>
             )}
-            <Button onClick={handleRefresh} variant="outline" className="mt-4">
-              Try Again
-            </Button>
           </div>
         )}
       </main>

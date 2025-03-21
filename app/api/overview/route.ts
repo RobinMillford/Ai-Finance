@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
-import { exchangeCache } from '../stocks/route';
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
 
-// Utility function to delay execution (for retry)
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// In-memory cache for overview data (symbol -> overview)
+const overviewCache = new Map();
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-export async function GET(request, { retries = 2, delayMs = 15000 } = {}) {
-  const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-
-  if (!ALPHA_VANTAGE_API_KEY) {
-    console.error("Alpha Vantage API key is missing in environment variables");
+export async function GET(request: Request) {
+  const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY;
+  if (!TWELVE_DATA_API_KEY) {
+    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
     return NextResponse.json(
       { error: "Server configuration error: API key missing" },
       { status: 500 }
@@ -20,64 +19,72 @@ export async function GET(request, { retries = 2, delayMs = 15000 } = {}) {
 
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
+
   if (!symbol) {
-    console.error("Stock symbol is missing in the request");
     return NextResponse.json(
-      { error: "Stock symbol is required" },
+      { error: "Symbol parameter is required" },
       { status: 400 }
     );
   }
 
-  // Fetch company overview from Alpha Vantage
-  const alphaVantageUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+  // Check cache
+  const cacheKey = symbol.toUpperCase();
+  const cachedData = overviewCache.get(cacheKey);
+  const now = Date.now();
+  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+    console.log(`Returning cached overview data for symbol: ${symbol}`);
+    return NextResponse.json(cachedData.data);
+  }
 
   try {
-    console.log(`Fetching company overview for symbol ${symbol} from Alpha Vantage...`);
-    const response = await fetch(alphaVantageUrl);
-    if (!response.ok) {
-      const text = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(text);
-      } catch {
-        errorData = { Information: "Unknown error from Alpha Vantage" };
+    // Initialize response data
+    let logoData = { url: null, logo_base: null, logo_quote: null };
+
+    // Fetch logo data from Twelve Data
+    try {
+      const logoUrl = `https://api.twelvedata.com/logo?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching logo data for symbol: ${symbol} from Twelve Data...`);
+      const logoResponse = await fetch(logoUrl);
+      if (!logoResponse.ok) {
+        const errorData = await logoResponse.json();
+        console.error(`Twelve Data API error for logo (${symbol}):`, errorData);
+        throw new Error(errorData.message || "Failed to fetch logo data");
       }
-      console.error(`Alpha Vantage API error for symbol ${symbol}:`, errorData);
+      const logoResponseData = await logoResponse.json();
+      console.log(`Successfully fetched logo data for symbol: ${symbol}`);
 
-      if (errorData.Information && errorData.Information.includes("rate limit") && retries > 0) {
-        console.log(`Alpha Vantage rate limit exceeded for overview (${symbol}). Retrying in ${delayMs / 1000} seconds... (${retries} retries left)`);
-        await delay(delayMs);
-        return GET(request, { retries: retries - 1, delayMs });
+      // Handle both equity and crypto/forex logo responses
+      if (logoResponseData.url) {
+        // Equity symbol
+        logoData.url = logoResponseData.url;
+      } else if (logoResponseData.logo_base && logoResponseData.logo_quote) {
+        // Crypto/forex symbol
+        logoData.logo_base = logoResponseData.logo_base;
+        logoData.logo_quote = logoResponseData.logo_quote;
+      } else {
+        console.warn(`Unexpected logo response format for symbol ${symbol}:`, logoResponseData);
       }
-
-      throw new Error(errorData.Information || "Failed to fetch company overview from Alpha Vantage");
+    } catch (error) {
+      console.error(`Error fetching logo data for symbol ${symbol} from Twelve Data:`, error.message);
+      // Continue with default logo data (null values)
     }
 
-    const data = await response.json();
-    if (!data.Symbol) {
-      console.error(`No company overview found for symbol ${symbol} on Alpha Vantage`);
-      return NextResponse.json(
-        { error: "No company overview found for this symbol" },
-        { status: 404 }
-      );
-    }
+    // Prepare the response data (only logo-related fields)
+    const overviewData = {
+      logo: logoData.url, // For equities
+      logo_base: logoData.logo_base, // For crypto/forex
+      logo_quote: logoData.logo_quote, // For crypto/forex
+    };
 
-    // Update exchange if available in cache
-    if (exchangeCache.has(symbol)) {
-      data.Exchange = exchangeCache.get(symbol);
-    }
+    // Cache the result
+    overviewCache.set(cacheKey, { data: overviewData, timestamp: now });
+    console.log(`Successfully fetched and cached overview data for symbol: ${symbol}`);
 
-    console.log(`Successfully fetched company overview for symbol ${symbol} from Alpha Vantage`);
-    return NextResponse.json(data);
+    return NextResponse.json(overviewData);
   } catch (error) {
-    console.error(`Error fetching company overview for symbol ${symbol} from Alpha Vantage:`, error.message);
-    if (retries > 0) {
-      console.log(`Error occurred with Alpha Vantage for overview. Retrying in ${delayMs / 1000} seconds... (${retries} retries left)`);
-      await delay(delayMs);
-      return GET(request, { retries: retries - 1, delayMs });
-    }
+    console.error(`Error fetching overview data for symbol ${symbol}:`, error.message);
     return NextResponse.json(
-      { error: "Failed to fetch company overview: " + error.message },
+      { error: "Failed to fetch overview data: " + error.message },
       { status: 500 }
     );
   }

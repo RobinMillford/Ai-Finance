@@ -19,8 +19,8 @@ interface Stock {
 }
 
 export default function Home() {
-  const [allStocks, setAllStocks] = useState<Stock[]>([]); // Store all stocks
-  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]); // Store filtered and paginated stocks
+  const [allStocks, setAllStocks] = useState<Stock[]>([]);
+  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -30,18 +30,15 @@ export default function Home() {
   const [exchangeOptions, setExchangeOptions] = useState<string[]>([]);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const { toast } = useToast();
-  const perPage = 50; // Stocks per page
+  const perPage = 50;
 
-  // Fetch all stocks on initial load
   useEffect(() => {
     fetchStocks();
   }, []);
 
-  // Update filtered stocks when search query, exchange, type, or page changes
   useEffect(() => {
     let filtered = allStocks;
 
-    // Apply search filter (across all stocks)
     if (searchQuery.trim() !== "") {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = allStocks.filter(
@@ -51,31 +48,25 @@ export default function Home() {
       );
     }
 
-    // Apply exchange filter
     if (selectedExchange !== "All") {
       filtered = filtered.filter((stock) => stock.exchange === selectedExchange);
     }
 
-    // Apply type filter
     if (selectedType !== "All") {
       filtered = filtered.filter((stock) => stock.status === selectedType);
     }
 
-    // Update total pages based on filtered results
     const newTotalPages = Math.ceil(filtered.length / perPage);
     setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
 
-    // Ensure the current page is valid after filtering
     if (page > newTotalPages) {
       setPage(newTotalPages > 0 ? newTotalPages : 1);
     }
 
-    // Paginate the filtered results
     const paginatedStocks = filtered.slice((page - 1) * perPage, page * perPage);
     setFilteredStocks(paginatedStocks);
   }, [searchQuery, selectedExchange, selectedType, allStocks, page]);
 
-  // Fetch all stocks from the API
   const fetchStocks = async () => {
     setLoading(true);
     try {
@@ -95,13 +86,11 @@ export default function Home() {
       setAllStocks(data);
       setFilteredStocks(data.slice(0, perPage));
 
-      // Populate exchange and type options
       const exchanges = Array.from(new Set(data.map((stock: Stock) => stock.exchange))).sort();
       const types = Array.from(new Set(data.map((stock: Stock) => stock.status))).sort();
       setExchangeOptions(["All", ...exchanges]);
       setTypeOptions(["All", ...types]);
 
-      // Set initial total pages
       setTotalPages(Math.ceil(data.length / perPage));
     } catch (error) {
       console.error("Fetch error:", error.message);
@@ -117,10 +106,8 @@ export default function Home() {
     }
   };
 
-  // Search for a specific stock symbol
   const debouncedSearch = debounce(async () => {
     if (!searchQuery.trim()) {
-      // If search query is cleared, reset to original list
       fetchStocks();
       return;
     }
@@ -144,10 +131,9 @@ export default function Home() {
         symbol: searchQuery.toUpperCase(),
         name: data["Meta Data"]["2. Symbol"] || "Unknown Stock",
         exchange: data["Meta Data"]["6. Exchange"] || "N/A",
-        status: "Common Stock", // Default value since Twelve Data's search doesn't provide type
+        status: "Common Stock",
       };
 
-      // Update allStocks and filteredStocks with the search result
       setAllStocks([stock]);
       setFilteredStocks([stock]);
       setTotalPages(1);

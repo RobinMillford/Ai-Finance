@@ -3,17 +3,14 @@ import { NextResponse } from 'next/server';
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
 
-// In-memory cache for time series data
-const timeSeriesCache = new Map();
+// In-memory cache for stock data (symbol -> stock data)
+const stockCache = new Map();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-// Utility function to delay execution (for retry)
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-export async function GET(request, { retries = 2, delayMs = 15000 } = {}) {
-  const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-  if (!ALPHA_VANTAGE_API_KEY) {
-    console.error("ALPHA_VANTAGE_API_KEY is not set in environment variables");
+export async function GET(request: Request) {
+  const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY;
+  if (!TWELVE_DATA_API_KEY) {
+    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
     return NextResponse.json(
       { error: "Server configuration error: API key missing" },
       { status: 500 }
@@ -22,78 +19,115 @@ export async function GET(request, { retries = 2, delayMs = 15000 } = {}) {
 
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
+
   if (!symbol) {
     return NextResponse.json(
-      { error: "Stock symbol is required" },
+      { error: "Symbol parameter is required" },
       { status: 400 }
     );
   }
 
-  // Check cache first
+  // Check cache
   const cacheKey = symbol.toUpperCase();
-  const cachedData = timeSeriesCache.get(cacheKey);
+  const cachedData = stockCache.get(cacheKey);
   const now = Date.now();
-  if (cachedData && cachedData.timestamp && (now - cachedData.timestamp < CACHE_DURATION)) {
-    console.log(`Returning cached time series data for symbol: ${symbol}`);
+  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+    console.log(`Returning cached stock data for symbol: ${symbol}`);
     return NextResponse.json(cachedData.data);
   }
 
-  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-
   try {
-    console.log(`Fetching time series data for symbol ${symbol} from Alpha Vantage...`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      const text = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(text); // Try parsing as JSON (Alpha Vantage error)
-      } catch {
-        errorData = { Information: "Unknown error from Alpha Vantage" };
-      }
-      console.error("Alpha Vantage API error:", errorData);
-
-      if (errorData.Information && errorData.Information.includes("rate limit") && retries > 0) {
-        console.log(`Alpha Vantage rate limit exceeded for symbol ${symbol}. Retrying in ${delayMs / 1000} seconds... (${retries} retries left)`);
-        await delay(delayMs);
-        return GET(request, { retries: retries - 1, delayMs });
-      }
-
+    // Fetch time series data
+    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=5000&apikey=${TWELVE_DATA_API_KEY}`;
+    console.log(`Fetching time series data for symbol: ${symbol} from Twelve Data...`);
+    const timeSeriesResponse = await fetch(timeSeriesUrl);
+    if (!timeSeriesResponse.ok) {
+      const errorData = await timeSeriesResponse.json();
+      console.error(`Twelve Data API error for time series (${symbol}):`, errorData);
       return NextResponse.json(
-        { error: errorData.Information || "Failed to fetch data from Alpha Vantage" },
+        { error: errorData.message || "Failed to fetch time series data from Twelve Data" },
         { status: 500 }
       );
     }
+    const timeSeriesData = await timeSeriesResponse.json();
 
-    const data = await response.json();
-    if (data["Error Message"]) {
-      console.error(`Invalid stock symbol: ${symbol}`);
-      return NextResponse.json(
-        { error: "Invalid stock symbol" },
-        { status: 400 }
-      );
-    }
-
-    if (!data["Time Series (Daily)"]) {
+    if (!timeSeriesData.values || timeSeriesData.status !== "ok") {
       console.error(`No time series data found for symbol: ${symbol}`);
       return NextResponse.json(
-        { error: "No time series data available for this symbol" },
+        { error: "No time series data found for symbol: " + symbol },
         { status: 404 }
       );
     }
 
-    // Cache the data
-    timeSeriesCache.set(cacheKey, { data, timestamp: now });
-    console.log(`Successfully fetched and cached time series data for symbol ${symbol}`);
+    // Fetch quote data
+    let quoteData = null;
+    try {
+      const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching quote data for symbol: ${symbol} from Twelve Data...`);
+      const quoteResponse = await fetch(quoteUrl);
+      if (!quoteResponse.ok) {
+        const errorData = await quoteResponse.json();
+        console.error(`Twelve Data API error for quote (${symbol}):`, errorData);
+        throw new Error("Failed to fetch quote data");
+      }
+      quoteData = await quoteResponse.json();
+      console.log(`Successfully fetched quote data for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching quote data for symbol ${symbol}:`, error.message);
+      // Continue with null quote data
+    }
 
-    return NextResponse.json(data);
+    // Fetch current price data
+    let priceData = null;
+    try {
+      const priceUrl = `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching current price data for symbol: ${symbol} from Twelve Data...`);
+      const priceResponse = await fetch(priceUrl);
+      if (!priceResponse.ok) {
+        const errorData = await priceResponse.json();
+        console.error(`Twelve Data API error for price (${symbol}):`, errorData);
+        throw new Error("Failed to fetch price data");
+      }
+      priceData = await priceResponse.json();
+      console.log(`Successfully fetched current price data for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching current price data for symbol ${symbol}:`, error.message);
+      // Continue with null price data
+    }
+
+    // Fetch EOD data
+    let eodData = null;
+    try {
+      const eodUrl = `https://api.twelvedata.com/eod?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching EOD data for symbol: ${symbol} from Twelve Data...`);
+      const eodResponse = await fetch(eodUrl);
+      if (!eodResponse.ok) {
+        const errorData = await eodResponse.json();
+        console.error(`Twelve Data API error for EOD (${symbol}):`, errorData);
+        throw new Error("Failed to fetch EOD data");
+      }
+      eodData = await eodResponse.json();
+      console.log(`Successfully fetched EOD data for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching EOD data for symbol ${symbol}:`, error.message);
+      // Continue with null EOD data
+    }
+
+    // Combine all data
+    const stockData = {
+      timeSeries: timeSeriesData,
+      quote: quoteData,
+      price: priceData,
+      eod: eodData,
+    };
+
+    // Cache the result
+    stockCache.set(cacheKey, { data: stockData, timestamp: now });
+    console.log(`Successfully fetched and cached stock data for symbol: ${symbol}`);
+
+    return NextResponse.json(stockData);
   } catch (error) {
     console.error(`Error fetching stock data for symbol ${symbol}:`, error.message);
-    if (retries > 0) {
-      console.log(`Error occurred with Alpha Vantage. Retrying in ${delayMs / 1000} seconds... (${retries} retries left)`);
-      await delay(delayMs);
-      return GET(request, { retries: retries - 1, delayMs });
-    }
     return NextResponse.json(
       { error: "Failed to fetch stock data: " + error.message },
       { status: 500 }

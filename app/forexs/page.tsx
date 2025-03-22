@@ -4,26 +4,32 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, Newspaper, Brain, BarChart3, Search, DollarSign } from "lucide-react";
+import { TrendingUp, Newspaper, Brain, BarChart3, Search, DollarSign, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
 
-interface Stock {
+interface ForexPair {
   symbol: string;
   name: string;
   exchange: string;
-  status: string;
-  currency?: string;
-  country?: string;
+  status: string; // Now represents currency_group (e.g., "Major", "Exotic")
+  base_currency?: string;
+  quote_currency?: string;
 }
 
-export default function Home() {
-  const [allStocks, setAllStocks] = useState<Stock[]>([]);
-  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]);
+interface ForexResponse {
+  pairs: ForexPair[];
+  totalCount: number;
+}
+
+export default function Forex() {
+  const [allForexPairs, setAllForexPairs] = useState<ForexPair[]>([]);
+  const [filteredForexPairs, setFilteredForexPairs] = useState<ForexPair[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedExchange, setSelectedExchange] = useState("All");
   const [selectedType, setSelectedType] = useState("All");
@@ -33,72 +39,55 @@ export default function Home() {
   const perPage = 50;
 
   useEffect(() => {
-    fetchStocks();
-  }, []);
+    fetchForexPairs();
+  }, [page, selectedExchange, selectedType, searchQuery]); // Fetch new data when page, filters, or search query change
 
-  useEffect(() => {
-    let filtered = allStocks;
-
-    if (searchQuery.trim() !== "") {
-      const lowerQuery = searchQuery.toLowerCase();
-      filtered = allStocks.filter(
-        (stock) =>
-          stock.symbol.toLowerCase().includes(lowerQuery) ||
-          stock.name.toLowerCase().includes(lowerQuery)
-      );
-    }
-
-    if (selectedExchange !== "All") {
-      filtered = filtered.filter((stock) => stock.exchange === selectedExchange);
-    }
-
-    if (selectedType !== "All") {
-      filtered = filtered.filter((stock) => stock.status === selectedType);
-    }
-
-    const newTotalPages = Math.ceil(filtered.length / perPage);
-    setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
-
-    if (page > newTotalPages) {
-      setPage(newTotalPages > 0 ? newTotalPages : 1);
-    }
-
-    const paginatedStocks = filtered.slice((page - 1) * perPage, page * perPage);
-    setFilteredStocks(paginatedStocks);
-  }, [searchQuery, selectedExchange, selectedType, allStocks, page]);
-
-  const fetchStocks = async () => {
+  const fetchForexPairs = async () => {
     setLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      const response = await fetch("/api/stocks");
+      const response = await fetch(
+        `/api/forexs?page=${page}&perPage=${perPage}&exchange=${selectedExchange}&currencyGroup=${selectedType}&searchQuery=${encodeURIComponent(searchQuery)}`
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
       }
-      const data = await response.json();
-      console.log("Fetched data:", data);
+      const data: ForexResponse = await response.json();
 
-      if (!Array.isArray(data)) {
-        throw new Error("Invalid stock data format");
+      setAllForexPairs(data.pairs);
+      setFilteredForexPairs(data.pairs);
+      setTotalCount(data.totalCount);
+      setTotalPages(Math.ceil(data.totalCount / perPage));
+
+      // Fetch filter options from the first page (without filters) if not already set
+      if (exchangeOptions.length === 0 || typeOptions.length === 0) {
+        const optionsResponse = await fetch(`/api/forexs?page=1&perPage=${perPage}`);
+        if (optionsResponse.ok) {
+          const optionsData: ForexResponse = await optionsResponse.json();
+          const exchanges = Array.from(new Set(optionsData.pairs.map((pair: ForexPair) => pair.exchange))).sort();
+          const types = Array.from(new Set(optionsData.pairs.map((pair: ForexPair) => pair.status))).sort();
+          setExchangeOptions(["All", ...exchanges]);
+          setTypeOptions(["All", ...types]);
+        }
       }
 
-      setAllStocks(data);
-      setFilteredStocks(data.slice(0, perPage));
-
-      const exchanges = Array.from(new Set(data.map((stock: Stock) => stock.exchange))).sort();
-      const types = Array.from(new Set(data.map((stock: Stock) => stock.status))).sort();
-      setExchangeOptions(["All", ...exchanges]);
-      setTypeOptions(["All", ...types]);
-
-      setTotalPages(Math.ceil(data.length / perPage));
+      if (data.pairs.length === 0) {
+        toast({
+          title: "Warning",
+          description: "No forex pairs found. Check your API key, rate limits, or filters.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Fetch error:", error.message);
-      setAllStocks([]);
-      setFilteredStocks([]);
+      setAllForexPairs([]);
+      setFilteredForexPairs([]);
+      setTotalCount(0);
+      setTotalPages(1);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch stock listings",
+        description: error.message || "Failed to fetch forex listings",
         variant: "destructive",
       });
     } finally {
@@ -106,59 +95,23 @@ export default function Home() {
     }
   };
 
-  const debouncedSearch = debounce(async () => {
-    if (!searchQuery.trim()) {
-      fetchStocks();
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const response = await fetch(`/api/stock?symbol=${searchQuery.toUpperCase()}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-      }
-      const data = await response.json();
-
-      const timeSeries = data["Time Series (Daily)"];
-      if (!timeSeries) {
-        throw new Error("No data available for this stock");
-      }
-
-      const stock: Stock = {
-        symbol: searchQuery.toUpperCase(),
-        name: data["Meta Data"]["2. Symbol"] || "Unknown Stock",
-        exchange: data["Meta Data"]["6. Exchange"] || "N/A",
-        status: "Common Stock",
-      };
-
-      setAllStocks([stock]);
-      setFilteredStocks([stock]);
-      setTotalPages(1);
-      setPage(1);
-      setExchangeOptions(["All", stock.exchange]);
-      setTypeOptions(["All", stock.status]);
-      toast({
-        title: "Stock Found",
-        description: `Showing data for ${stock.symbol}`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Search error:", error.message);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch stock data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+  const debouncedSearch = debounce(() => {
+    setPage(1); // Reset to page 1 when search query changes
+    fetchForexPairs();
   }, 1000);
 
   const handleSearch = () => {
     debouncedSearch();
+  };
+
+  const handleExchangeChange = (value: string) => {
+    setSelectedExchange(value);
+    setPage(1); // Reset to page 1 when filter changes
+  };
+
+  const handleTypeChange = (value: string) => {
+    setSelectedType(value);
+    setPage(1); // Reset to page 1 when filter changes
   };
 
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -199,7 +152,7 @@ export default function Home() {
                 <span className="font-semibold">AI Advisor</span>
               </Link>
             </div>
-            <h1 className="text-2xl font-bold">Stock Market Analysis</h1>
+            <h1 className="text-2xl font-bold">Forex Market Analysis</h1>
           </div>
         </div>
       </header>
@@ -213,7 +166,7 @@ export default function Home() {
               <div className="relative flex-1 min-w-[200px]">
                 <Input
                   type="text"
-                  placeholder="Search by symbol or name (e.g., AAPL)"
+                  placeholder="Search by symbol, name, or currency (e.g., EUR/USD)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -221,7 +174,14 @@ export default function Home() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               </div>
               <Button onClick={handleSearch} disabled={loading}>
-                {loading ? "Searching..." : "Search Stock"}
+                {loading ? (
+                  <span className="flex items-center">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    Searching...
+                  </span>
+                ) : (
+                  "Search Forex Pair"
+                )}
               </Button>
 
               {/* Exchange Filter */}
@@ -232,7 +192,7 @@ export default function Home() {
                 <select
                   id="exchange-filter"
                   value={selectedExchange}
-                  onChange={(e) => setSelectedExchange(e.target.value)}
+                  onChange={(e) => handleExchangeChange(e.target.value)}
                   className="border rounded px-2 py-1"
                   disabled={loading}
                 >
@@ -244,15 +204,15 @@ export default function Home() {
                 </select>
               </div>
 
-              {/* Type Filter */}
+              {/* Type Filter (now Currency Group) */}
               <div className="flex items-center gap-2">
                 <label htmlFor="type-filter" className="text-sm font-medium">
-                  Type:
+                  Currency Group:
                 </label>
                 <select
                   id="type-filter"
                   value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
+                  onChange={(e) => handleTypeChange(e.target.value)}
                   className="border rounded px-2 py-1"
                   disabled={loading}
                 >
@@ -266,21 +226,28 @@ export default function Home() {
             </div>
           </Card>
 
-          {/* Stock Listings */}
+          {/* Forex Listings */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-6 w-6" />
                 <h2 className="text-2xl font-semibold">
-                  {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
+                  {searchQuery ? `Search Results (Page ${page})` : `Top Forex Listings (Page ${page})`}
                 </h2>
               </div>
               <Button
-                onClick={fetchStocks}
+                onClick={fetchForexPairs}
                 disabled={loading}
                 variant="outline"
               >
-                {loading ? "Refreshing..." : "Refresh"}
+                {loading ? (
+                  <span className="flex items-center">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    Refreshing...
+                  </span>
+                ) : (
+                  "Refresh"
+                )}
               </Button>
             </div>
 
@@ -290,31 +257,37 @@ export default function Home() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Symbol</th>
                     <th className="text-left py-3 px-4">Name</th>
+                    <th className="text-left py-3 px-4">Base Currency</th>
+                    <th className="text-left py-3 px-4">Quote Currency</th>
                     <th className="text-left py-3 px-4">Exchange</th>
-                    <th className="text-left py-3 px-4">Type</th>
+                    <th className="text-left py-3 px-4">Currency Group</th>
                     <th className="text-right py-3 px-4">Analyze</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStocks.length > 0 ? (
-                    filteredStocks.map((stock, index) => (
+                  {filteredForexPairs.length > 0 ? (
+                    filteredForexPairs.map((pair, index) => (
                       <tr key={index} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-4 font-medium">{stock.symbol}</td>
-                        <td className="py-3 px-4">{stock.name}</td>
-                        <td className="py-3 px-4">{stock.exchange}</td>
+                        <td className="py-3 px-4 font-medium">{pair.symbol}</td>
+                        <td className="py-3 px-4">{pair.name}</td>
+                        <td className="py-3 px-4">{pair.base_currency || "N/A"}</td>
+                        <td className="py-3 px-4">{pair.quote_currency || "N/A"}</td>
+                        <td className="py-3 px-4">{pair.exchange}</td>
                         <td className="py-3 px-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              stock.status === "Common Stock"
+                              pair.status === "Major"
                                 ? "bg-green-100 text-green-800"
+                                : pair.status === "Exotic"
+                                ? "bg-purple-100 text-purple-800"
                                 : "bg-blue-100 text-blue-800"
                             }`}
                           >
-                            {stock.status}
+                            {pair.status}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <Link href={`/stock/${stock.symbol}`}>
+                          <Link href={`/stock/${pair.symbol}`}>
                             <Button variant="ghost" size="sm">Analyze</Button>
                           </Link>
                         </td>
@@ -322,8 +295,15 @@ export default function Home() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-3 px-4 text-center">
-                        {loading ? "Loading..." : "No stocks found"}
+                      <td colSpan={7} className="py-3 px-4 text-center">
+                        {loading ? (
+                          <span className="flex items-center justify-center">
+                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                            Loading forex pairs...
+                          </span>
+                        ) : (
+                          "No forex pairs found"
+                        )}
                       </td>
                     </tr>
                   )}

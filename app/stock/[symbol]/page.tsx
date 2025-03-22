@@ -150,6 +150,10 @@ interface TechnicalIndicators {
     datetime: string;
     adx: string;
   }> | null;
+  max: Array<{
+    datetime: string;
+    max: string;
+  }> | null; // Added MAX indicator
 }
 
 export default function StockDetails() {
@@ -213,7 +217,7 @@ export default function StockDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>Loading...</p>
+        <p>Fetching technical indicators for {symbol}... This may take up to 2-3 minutes due to API rate limits.</p>
       </div>
     );
   }
@@ -234,7 +238,7 @@ export default function StockDetails() {
     .map((entry) => parseFloat(entry.adjusted_close || entry.close))
     .reverse();
 
-  // Prepare SMA and EMA data for overlay
+  // Prepare SMA, EMA, and BBANDS data for overlay
   const sma20Data = technicalIndicators.sma.sma20
     ? technicalIndicators.sma.sma20.map((entry) => parseFloat(entry.sma)).reverse()
     : [];
@@ -257,7 +261,7 @@ export default function StockDetails() {
     ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
     : [];
 
-  // Closing Price Chart with SMA, EMA, and BBANDS
+  // Closing Price Chart with SMA, EMA, BBANDS, and MAX
   const closingPriceData = {
     labels,
     datasets: [
@@ -665,6 +669,40 @@ export default function StockDetails() {
     },
   };
 
+  // MAX Chart (9-day Highest Value)
+  const maxLabels = technicalIndicators.max
+    ? technicalIndicators.max.map((entry) => entry.datetime).reverse()
+    : [];
+  const maxData = technicalIndicators.max
+    ? technicalIndicators.max.map((entry) => parseFloat(entry.max)).reverse()
+    : [];
+
+  const maxChartData = {
+    labels: maxLabels,
+    datasets: [
+      {
+        label: "9-Day MAX",
+        data: maxData,
+        borderColor: "rgb(255, 215, 0)",
+        backgroundColor: "rgba(255, 215, 0, 0.5)",
+        fill: false,
+      },
+    ],
+  };
+
+  const maxChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "9-Day Highest Value (MAX)",
+      },
+    },
+  };
+
   // Format the EOD date
   const eodDateFormatted = stockData.eod?.datetime
     ? new Date(stockData.eod.datetime).toLocaleString("en-US", {
@@ -747,6 +785,23 @@ export default function StockDetails() {
       adxInterpretation = "Weak Trend";
     } else {
       adxInterpretation = "Neutral";
+    }
+  }
+
+  // MAX Interpretation (using latest value)
+  const latestMax = technicalIndicators.max ? technicalIndicators.max[0] : null;
+  const maxValue = latestMax ? parseFloat(latestMax.max) : null;
+  const latestClose = stockData.quote ? parseFloat(stockData.quote.close) : null;
+  let maxInterpretation = "N/A";
+  if (maxValue !== null && latestClose !== null) {
+    const difference = latestClose - maxValue;
+    const percentDifference = (difference / maxValue) * 100;
+    if (Math.abs(percentDifference) <= 1) {
+      maxInterpretation = "Near 9-Day High";
+    } else if (percentDifference < -1) {
+      maxInterpretation = `Below 9-Day High by ${Math.abs(difference).toFixed(2)} (${Math.abs(percentDifference).toFixed(2)}%)`;
+    } else {
+      maxInterpretation = `Above 9-Day High by ${difference.toFixed(2)} (${percentDifference.toFixed(2)}%)`;
     }
   }
 
@@ -953,6 +1008,16 @@ export default function StockDetails() {
                 </p>
                 <p><strong>Interpretation:</strong> {adxInterpretation}</p>
               </div>
+
+              {/* MAX */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">9-Day Highest Value (MAX)</h3>
+                <p>
+                  <strong>9-Day MAX:</strong>{" "}
+                  {latestMax ? `$${parseFloat(latestMax.max).toFixed(2)}` : "N/A"}
+                </p>
+                <p><strong>Interpretation:</strong> {maxInterpretation}</p>
+              </div>
             </div>
           </Card>
 
@@ -1022,6 +1087,16 @@ export default function StockDetails() {
                   <Line options={adxChartOptions} data={adxChartData} />
                 ) : (
                   <p>No ADX data available for {symbol}.</p>
+                )}
+              </div>
+
+              {/* MAX Chart */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">9-Day Highest Value (MAX)</h3>
+                {technicalIndicators.max ? (
+                  <Line options={maxChartOptions} data={maxChartData} />
+                ) : (
+                  <p>No MAX data available for {symbol}.</p>
                 )}
               </div>
             </div>

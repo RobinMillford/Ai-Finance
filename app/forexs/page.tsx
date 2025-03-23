@@ -31,23 +31,21 @@ export default function Forex() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedExchange, setSelectedExchange] = useState("All");
   const [selectedType, setSelectedType] = useState("All");
-  const [exchangeOptions, setExchangeOptions] = useState<string[]>([]);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const { toast } = useToast();
   const perPage = 50;
 
   useEffect(() => {
     fetchForexPairs();
-  }, [page, selectedExchange, selectedType, searchQuery]); // Fetch new data when page, filters, or search query change
+  }, [page, selectedType, searchQuery]); // Fetch new data when page, filters, or search query change
 
   const fetchForexPairs = async () => {
     setLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
       const response = await fetch(
-        `/api/forexs?page=${page}&perPage=${perPage}&exchange=${selectedExchange}&currencyGroup=${selectedType}&searchQuery=${encodeURIComponent(searchQuery)}`
+        `/api/forexs?page=${page}&perPage=${perPage}¤cyGroup=${selectedType}&searchQuery=${encodeURIComponent(searchQuery)}`
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -61,13 +59,11 @@ export default function Forex() {
       setTotalPages(Math.ceil(data.totalCount / perPage));
 
       // Fetch filter options from the first page (without filters) if not already set
-      if (exchangeOptions.length === 0 || typeOptions.length === 0) {
+      if (typeOptions.length === 0) {
         const optionsResponse = await fetch(`/api/forexs?page=1&perPage=${perPage}`);
         if (optionsResponse.ok) {
           const optionsData: ForexResponse = await optionsResponse.json();
-          const exchanges = Array.from(new Set(optionsData.pairs.map((pair: ForexPair) => pair.exchange))).sort();
           const types = Array.from(new Set(optionsData.pairs.map((pair: ForexPair) => pair.status))).sort();
-          setExchangeOptions(["All", ...exchanges]);
           setTypeOptions(["All", ...types]);
         }
       }
@@ -104,14 +100,37 @@ export default function Forex() {
     debouncedSearch();
   };
 
-  const handleExchangeChange = (value: string) => {
-    setSelectedExchange(value);
-    setPage(1); // Reset to page 1 when filter changes
-  };
-
   const handleTypeChange = (value: string) => {
     setSelectedType(value);
     setPage(1); // Reset to page 1 when filter changes
+  };
+
+  // Function to check if a Forex pair is supported
+  const checkPairSupport = async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/forex?symbol=${symbol}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch forex data");
+      }
+      return true; // Pair is supported
+    } catch (error) {
+      console.error(`Error checking support for ${symbol}:`, error.message);
+      return false; // Pair is unsupported
+    }
+  };
+
+  // Handle the "Analyze" button click
+  const handleAnalyzeClick = async (symbol: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+    const isSupported = await checkPairSupport(symbol);
+    if (!isSupported) {
+      e.preventDefault(); // Prevent navigation
+      toast({
+        title: "Unsupported Forex Pair",
+        description: `The Forex pair ${symbol} is not supported at this time. Try a major pair like EUR/USD.`,
+        variant: "destructive",
+      });
+    }
   };
 
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -183,26 +202,6 @@ export default function Forex() {
                   "Search Forex Pair"
                 )}
               </Button>
-
-              {/* Exchange Filter */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="exchange-filter" className="text-sm font-medium">
-                  Exchange:
-                </label>
-                <select
-                  id="exchange-filter"
-                  value={selectedExchange}
-                  onChange={(e) => handleExchangeChange(e.target.value)}
-                  className="border rounded px-2 py-1"
-                  disabled={loading}
-                >
-                  {exchangeOptions.map((exchange) => (
-                    <option key={exchange} value={exchange}>
-                      {exchange}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               {/* Type Filter (now Currency Group) */}
               <div className="flex items-center gap-2">
@@ -287,7 +286,10 @@ export default function Forex() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <Link href={`/stock/${pair.symbol}`}>
+                          <Link
+                            href={`/forex/${encodeURIComponent(pair.symbol)}`}
+                            onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
+                          >
                             <Button variant="ghost" size="sm">Analyze</Button>
                           </Link>
                         </td>

@@ -15,28 +15,34 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const perPage = parseInt(searchParams.get('perPage') || '50', 10);
-  const exchange = searchParams.get('exchange') || 'All';
   const currencyGroup = searchParams.get('currencyGroup') || 'All';
   const searchQuery = searchParams.get('searchQuery') || '';
 
+  console.log("Request Parameters:", { page, perPage, currencyGroup, searchQuery });
+
   // Check cache
-  const cacheKey = `forex_pairs_page_${page}_perPage_${perPage}_exchange_${exchange}_currencyGroup_${currencyGroup}_search_${searchQuery}`;
+  const cacheKey = `forex_pairs_page_${page}_perPage_${perPage}_currencyGroup_${currencyGroup}_search_${searchQuery}`;
   const cachedData = cache.get(cacheKey);
   const now = Date.now();
   if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+    console.log("Returning cached data for key:", cacheKey);
     return NextResponse.json(cachedData.data);
   }
 
   try {
+    console.log("Fetching from Twelve Data API...");
     const response = await fetch(
       `https://api.twelvedata.com/forex_pairs?apikey=${TWELVE_DATA_API_KEY}`
     );
+    console.log("Twelve Data API Response Status:", response.status);
+
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Twelve Data API error:", errorData);
       throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
     }
     const apiResponse = await response.json();
+    console.log("Twelve Data API Response:", apiResponse);
 
     // Extract the 'data' array from the response
     const forexPairsArray = apiResponse.data;
@@ -56,6 +62,10 @@ export async function GET(request: Request) {
       base_currency: pair.currency_base,
       quote_currency: pair.currency_quote,
     }));
+    console.log("Mapped Forex Pairs (before filtering):", forexPairs.length, "pairs");
+
+    const availableCurrencyGroups = [...new Set(forexPairs.map((pair: any) => pair.status))];
+    console.log("Available Currency Groups:", availableCurrencyGroups);
 
     // Apply filters server-side
     if (searchQuery.trim() !== '') {
@@ -70,20 +80,19 @@ export async function GET(request: Request) {
           );
         }
       );
-    }
-
-    if (exchange !== "All") {
-      forexPairs = forexPairs.filter((pair: ForexPair) => pair.exchange === exchange);
+      console.log("After searchQuery filter:", forexPairs.length, "pairs");
     }
 
     if (currencyGroup !== "All") {
       forexPairs = forexPairs.filter((pair: ForexPair) => pair.status === currencyGroup);
+      console.log("After currencyGroup filter:", forexPairs.length, "pairs");
     }
 
     // Apply pagination server-side
     const totalCount = forexPairs.length;
     const start = (page - 1) * perPage;
     const paginatedPairs = forexPairs.slice(start, start + perPage);
+    console.log("After pagination:", paginatedPairs.length, "pairs (total:", totalCount, ")");
 
     // Cache the result
     const responseData = {
@@ -91,6 +100,7 @@ export async function GET(request: Request) {
       totalCount: totalCount,
     };
     cache.set(cacheKey, { data: responseData, timestamp: now });
+    console.log("Cached response for key:", cacheKey);
 
     return NextResponse.json(responseData);
   } catch (error) {

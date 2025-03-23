@@ -137,6 +137,14 @@ interface TechnicalIndicators {
     datetime: string;
     max: string;
   }> | null;
+  atr: Array<{
+    datetime: string;
+    atr: string;
+  }> | null; // New: ATR data
+  sar: Array<{
+    datetime: string;
+    sar: string;
+  }> | null; // New: SAR data for Support/Resistance
 }
 
 export default function ForexDetails() {
@@ -167,7 +175,7 @@ export default function ForexDetails() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        console.log(`Fetching data for symbol: ${symbol}`); // Debug log
+        console.log(`Fetching data for symbol: ${symbol}`);
         // Fetch overview data (logos for base and quote currencies)
         const overviewResponse = await fetch(`/api/overview?symbol=${symbol}`);
         if (!overviewResponse.ok) {
@@ -175,7 +183,7 @@ export default function ForexDetails() {
           throw new Error(errorData.error || "Failed to fetch overview data");
         }
         const overviewData = await overviewResponse.json();
-        console.log("Overview data:", overviewData); // Debug log
+        console.log("Overview data:", overviewData);
         setOverview(overviewData);
 
         // Fetch forex data (time series + quote + price + eod)
@@ -185,7 +193,7 @@ export default function ForexDetails() {
           throw new Error(errorData.error || "Failed to fetch forex data");
         }
         const forexData = await forexResponse.json();
-        console.log("Forex data:", forexData); // Debug log
+        console.log("Forex data:", forexData);
         setForexData(forexData);
 
         // Fetch technical indicators
@@ -195,7 +203,7 @@ export default function ForexDetails() {
           throw new Error(errorData.error || "Failed to fetch technical indicators");
         }
         const indicatorsData = await indicatorsResponse.json();
-        console.log("Technical indicators:", indicatorsData); // Debug log
+        console.log("Technical indicators:", indicatorsData);
         setTechnicalIndicators(indicatorsData);
       } catch (error) {
         console.error("Error fetching data:", error.message);
@@ -240,7 +248,7 @@ export default function ForexDetails() {
   const labels = timeSeries.map((entry) => entry.datetime).reverse();
   const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
 
-  // Prepare SMA, EMA, and BBANDS data for overlay
+  // Prepare SMA, EMA, BBANDS, and SAR data for overlay
   const sma20Data = technicalIndicators.sma.sma20
     ? technicalIndicators.sma.sma20.map((entry) => parseFloat(entry.sma)).reverse()
     : [];
@@ -262,8 +270,11 @@ export default function ForexDetails() {
   const bbandsLower = technicalIndicators.bbands
     ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
     : [];
+  const sarData = technicalIndicators.sar
+    ? technicalIndicators.sar.map((entry) => parseFloat(entry.sar)).reverse()
+    : [];
 
-  // Closing Price Chart with SMA, EMA, BBANDS
+  // Closing Price Chart with SMA, EMA, BBANDS, and SAR
   const closingPriceData = {
     labels,
     datasets: [
@@ -322,6 +333,15 @@ export default function ForexDetails() {
         borderColor: "rgb(128, 0, 128)",
         backgroundColor: "rgba(128, 0, 128, 0.5)",
         fill: false,
+      },
+      {
+        label: "Parabolic SAR",
+        data: sarData,
+        borderColor: "rgb(255, 0, 0)",
+        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        fill: false,
+        pointRadius: 3,
+        pointStyle: "circle",
       },
     ],
   };
@@ -692,6 +712,76 @@ export default function ForexDetails() {
     },
   };
 
+  // ATR Chart
+  const atrLabels = technicalIndicators.atr
+    ? technicalIndicators.atr.map((entry) => entry.datetime).reverse()
+    : [];
+  const atrData = technicalIndicators.atr
+    ? technicalIndicators.atr.map((entry) => parseFloat(entry.atr)).reverse()
+    : [];
+
+  const atrChartData = {
+    labels: atrLabels,
+    datasets: [
+      {
+        label: "ATR",
+        data: atrData,
+        borderColor: "rgb(255, 99, 71)",
+        backgroundColor: "rgba(255, 99, 71, 0.5)",
+        fill: false,
+      },
+    ],
+  };
+
+  const atrChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Average True Range (ATR)",
+      },
+    },
+  };
+
+  // SAR Chart (already overlaid on the closing price chart, but we can add a separate chart if needed)
+  const sarChartData = {
+    labels,
+    datasets: [
+      {
+        label: "Closing Price",
+        data: closingPrices,
+        borderColor: "rgb(75, 192, 192)",
+        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        fill: false,
+      },
+      {
+        label: "Parabolic SAR",
+        data: sarData,
+        borderColor: "rgb(255, 0, 0)",
+        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        fill: false,
+        pointRadius: 3,
+        pointStyle: "circle",
+      },
+    ],
+  };
+
+  const sarChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Parabolic SAR (Support/Resistance)",
+      },
+    },
+  };
+
   // Format the EOD date
   const eodDateFormatted = forexData.eod?.datetime
     ? new Date(forexData.eod.datetime).toLocaleString("en-US", {
@@ -791,6 +881,33 @@ export default function ForexDetails() {
       maxInterpretation = `Below 9-Day High by ${Math.abs(difference).toFixed(4)} (${Math.abs(percentDifference).toFixed(2)}%)`;
     } else {
       maxInterpretation = `Above 9-Day High by ${difference.toFixed(4)} (${percentDifference.toFixed(2)}%)`;
+    }
+  }
+
+  // ATR Interpretation (using latest value)
+  const latestAtr = technicalIndicators.atr ? technicalIndicators.atr[0] : null;
+  const atrValue = latestAtr ? parseFloat(latestAtr.atr) : null;
+  let atrInterpretation = "N/A";
+  if (atrValue !== null && latestClose !== null) {
+    const atrPercent = (atrValue / latestClose) * 100;
+    if (atrPercent > 2) {
+      atrInterpretation = `High Volatility (${atrPercent.toFixed(2)}% of price)`;
+    } else if (atrPercent < 1) {
+      atrInterpretation = `Low Volatility (${atrPercent.toFixed(2)}% of price)`;
+    } else {
+      atrInterpretation = `Moderate Volatility (${atrPercent.toFixed(2)}% of price)`;
+    }
+  }
+
+  // SAR Interpretation (using latest value)
+  const latestSar = technicalIndicators.sar ? technicalIndicators.sar[0] : null;
+  const sarValue = latestSar ? parseFloat(latestSar.sar) : null;
+  let sarInterpretation = "N/A";
+  if (sarValue !== null && latestClose !== null) {
+    if (latestClose > sarValue) {
+      sarInterpretation = `Support at ${sarValue.toFixed(4)} (Bullish)`;
+    } else {
+      sarInterpretation = `Resistance at ${sarValue.toFixed(4)} (Bearish)`;
     }
   }
 
@@ -983,6 +1100,26 @@ export default function ForexDetails() {
                 </p>
                 <p><strong>Interpretation:</strong> {maxInterpretation}</p>
               </div>
+
+              {/* ATR */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
+                <p>
+                  <strong>14-Day ATR:</strong>{" "}
+                  {latestAtr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
+                </p>
+                <p><strong>Interpretation:</strong> {atrInterpretation}</p>
+              </div>
+
+              {/* SAR (Support/Resistance) */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Parabolic SAR (Support/Resistance)</h3>
+                <p>
+                  <strong>Latest SAR:</strong>{" "}
+                  {latestSar ? parseFloat(latestSar.sar).toFixed(4) : "N/A"}
+                </p>
+                <p><strong>Interpretation:</strong> {sarInterpretation}</p>
+              </div>
             </div>
           </Card>
 
@@ -991,7 +1128,7 @@ export default function ForexDetails() {
             <h2 className="text-xl font-semibold mb-4">Time Series Data</h2>
             <div className="grid grid-cols-1 gap-6">
               <div>
-                <h3 className="text-lg font-medium mb-2">Daily Closing Prices with SMA, EMA, and BBANDS</h3>
+                <h3 className="text-lg font-medium mb-2">Daily Closing Prices with SMA, EMA, BBANDS, and SAR</h3>
                 <Line options={chartOptions} data={closingPriceData} />
               </div>
             </div>
@@ -1058,6 +1195,26 @@ export default function ForexDetails() {
                   <Line options={maxChartOptions} data={maxChartData} />
                 ) : (
                   <p>No MAX data available for {symbol}.</p>
+                )}
+              </div>
+
+              {/* ATR Chart */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
+                {technicalIndicators.atr ? (
+                  <Line options={atrChartOptions} data={atrChartData} />
+                ) : (
+                  <p>No ATR data available for {symbol}.</p>
+                )}
+              </div>
+
+              {/* SAR Chart */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Parabolic SAR (Support/Resistance)</h3>
+                {technicalIndicators.sar ? (
+                  <Line options={sarChartOptions} data={sarChartData} />
+                ) : (
+                  <p>No SAR data available for {symbol}.</p>
                 )}
               </div>
             </div>

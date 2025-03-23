@@ -84,6 +84,8 @@ export async function GET(request: Request) {
     let bbandsData = null;
     let adxData = null;
     let maxData = null;
+    let atrData = null; // New: ATR data
+    let sarData = null; // New: SAR data for Support/Resistance
 
     // Fetch STOCH (Stochastic Oscillator)
     try {
@@ -94,9 +96,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched STOCH for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching STOCH for symbol ${symbol}:`, error.message);
-      // Continue with null STOCH data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch 20-day SMA
     try {
@@ -107,9 +108,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched 20-day SMA for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching 20-day SMA for symbol ${symbol}:`, error.message);
-      // Continue with null SMA 20 data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch 50-day SMA
     try {
@@ -120,9 +120,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched 50-day SMA for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching 50-day SMA for symbol ${symbol}:`, error.message);
-      // Continue with null SMA 50 data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch 20-day EMA
     try {
@@ -133,9 +132,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched 20-day EMA for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching 20-day EMA for symbol ${symbol}:`, error.message);
-      // Continue with null EMA 20 data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch 50-day EMA
     try {
@@ -146,9 +144,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched 50-day EMA for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching 50-day EMA for symbol ${symbol}:`, error.message);
-      // Continue with null EMA 50 data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch RSI (14-day)
     try {
@@ -159,9 +156,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched RSI for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching RSI for symbol ${symbol}:`, error.message);
-      // Continue with null RSI data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch PERCENT_B
     try {
@@ -172,9 +168,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched PERCENT_B for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching PERCENT_B for symbol ${symbol}:`, error.message);
-      // Continue with null PERCENT_B data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch MACD
     try {
@@ -185,9 +180,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched MACD for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching MACD for symbol ${symbol}:`, error.message);
-      // Continue with null MACD data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch BBANDS
     try {
@@ -198,9 +192,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched BBANDS for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching BBANDS for symbol ${symbol}:`, error.message);
-      // Continue with null BBANDS data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch ADX
     try {
@@ -211,9 +204,8 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched ADX for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching ADX for symbol ${symbol}:`, error.message);
-      // Continue with null ADX data
     }
-    await delay(REQUEST_DELAY_MS); // Delay before next request
+    await delay(REQUEST_DELAY_MS);
 
     // Fetch MAX (Highest Value Over Period, 9-day)
     try {
@@ -224,7 +216,30 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched MAX (9-day) for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching MAX for symbol ${symbol}:`, error.message);
-      // Continue with null MAX data
+    }
+    await delay(REQUEST_DELAY_MS);
+
+    // Fetch ATR (Average True Range, 14-day)
+    try {
+      const atrUrl = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching ATR for symbol: ${symbol} from Twelve Data...`);
+      const atrResponseData = await fetchWithRetry(atrUrl);
+      atrData = atrResponseData.values || null;
+      console.log(`Successfully fetched ATR for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching ATR for symbol ${symbol}:`, error.message);
+    }
+    await delay(REQUEST_DELAY_MS);
+
+    // Fetch SAR (Parabolic SAR for Support/Resistance)
+    try {
+      const sarUrl = `https://api.twelvedata.com/sar?symbol=${symbol}&interval=1day&acceleration=0.02&maximum=0.2&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching SAR for symbol: ${symbol} from Twelve Data...`);
+      const sarResponseData = await fetchWithRetry(sarUrl);
+      sarData = sarResponseData.values || null;
+      console.log(`Successfully fetched SAR for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching SAR for symbol ${symbol}:`, error.message);
     }
 
     // Combine all indicator data
@@ -238,6 +253,8 @@ export async function GET(request: Request) {
       bbands: bbandsData,
       adx: adxData,
       max: maxData,
+      atr: atrData, // New: ATR data
+      sar: sarData, // New: SAR data
     };
 
     // Cache the result

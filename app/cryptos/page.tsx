@@ -1,91 +1,99 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TrendingUp, Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { debounce } from "lodash";
 
-interface ForexPair {
+interface CryptoPair {
   symbol: string;
-  name: string;
-  exchange: string;
-  status: string; // Represents currency_group (e.g., "Major", "Exotic")
-  base_currency?: string;
-  quote_currency?: string;
+  currency_base: string;
+  currency_quote: string;
+  available_exchanges: string[];
 }
 
-interface ForexResponse {
-  pairs: ForexPair[];
-  totalCount: number;
-}
-
-export default function Forex() {
-  const [allForexPairs, setAllForexPairs] = useState<ForexPair[]>([]);
-  const [filteredForexPairs, setFilteredForexPairs] = useState<ForexPair[]>([]);
-  const [loading, setLoading] = useState(false);
+export default function CryptoList() {
+  const [allCryptoPairs, setAllCryptoPairs] = useState<CryptoPair[]>([]);
+  const [filteredCryptoPairs, setFilteredCryptoPairs] = useState<CryptoPair[]>([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("All");
-  const [typeOptions, setTypeOptions] = useState<string[]>([]);
+  const [quoteCurrencyFilter, setQuoteCurrencyFilter] = useState("All");
+  const [quoteCurrencyOptions, setQuoteCurrencyOptions] = useState<string[]>([]);
   const { toast } = useToast();
+  const router = useRouter();
   const perPage = 50;
 
   useEffect(() => {
-    fetchForexPairs();
-  }, [page, selectedType, searchQuery]); // Fetch new data when page, filters, or search query change
+    fetchCryptoPairs();
+  }, [page, quoteCurrencyFilter, searchQuery]);
 
-  const fetchForexPairs = async () => {
+  const fetchCryptoPairs = async () => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const response = await fetch(
-        `/api/forexs?page=${page}&perPage=${perPage}¤cyGroup=${selectedType}&searchQuery=${encodeURIComponent(searchQuery)}`
-      );
+      const response = await fetch("/api/cryptos");
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+        throw new Error(errorData.error || "Failed to fetch cryptocurrency pairs");
       }
-      const data: ForexResponse = await response.json();
-
-      setAllForexPairs(data.pairs);
-      setFilteredForexPairs(data.pairs);
-      setTotalCount(data.totalCount);
-      setTotalPages(Math.ceil(data.totalCount / perPage));
-
-      // Fetch filter options from the first page (without filters) if not already set
-      if (typeOptions.length === 0) {
-        const optionsResponse = await fetch(`/api/forexs?page=1&perPage=${perPage}`);
-        if (optionsResponse.ok) {
-          const optionsData: ForexResponse = await optionsResponse.json();
-          const types = Array.from(new Set(optionsData.pairs.map((pair: ForexPair) => pair.status))).sort();
-          setTypeOptions(["All", ...types]);
-        }
+      const data = await response.json();
+      console.log("API response from /api/cryptos:", JSON.stringify(data, null, 2));
+      if (!Array.isArray(data)) {
+        throw new Error("Expected an array of cryptocurrency pairs, but received: " + JSON.stringify(data));
       }
 
-      if (data.pairs.length === 0) {
-        toast({
-          title: "Warning",
-          description: "No forex pairs found. Check your API key, rate limits, or filters.",
-          variant: "destructive",
-        });
+      // Set quote currency options if not already set
+      if (quoteCurrencyOptions.length === 0) {
+        const currencies = Array.from(new Set(data.map((pair: CryptoPair) => pair.currency_quote))).sort();
+        setQuoteCurrencyOptions(["All", ...currencies]);
+      }
+
+      // Apply client-side filtering for search and quote currency
+      let filtered = data;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(
+          (pair: CryptoPair) =>
+            pair.symbol.toLowerCase().includes(query) ||
+            pair.currency_base.toLowerCase().includes(query) ||
+            pair.currency_quote.toLowerCase().includes(query)
+        );
+      }
+      if (quoteCurrencyFilter !== "All") {
+        filtered = filtered.filter((pair: CryptoPair) => pair.currency_quote === quoteCurrencyFilter);
+      }
+
+      // Apply pagination
+      const startIndex = (page - 1) * perPage;
+      const paginatedPairs = filtered.slice(startIndex, startIndex + perPage);
+
+      setAllCryptoPairs(filtered);
+      setFilteredCryptoPairs(paginatedPairs);
+      setTotalCount(filtered.length);
+      setTotalPages(Math.ceil(filtered.length / perPage));
+
+      if (paginatedPairs.length === 0 && filtered.length > 0) {
+        // If the current page is empty due to filtering, reset to page 1
+        setPage(1);
       }
     } catch (error) {
-      console.error("Fetch error:", error.message);
-      setAllForexPairs([]);
-      setFilteredForexPairs([]);
-      setTotalCount(0);
-      setTotalPages(1);
+      console.error("Error fetching cryptocurrency pairs:", error.message);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch forex listings",
+        description: error.message || "Failed to fetch cryptocurrency pairs",
         variant: "destructive",
       });
+      setAllCryptoPairs([]);
+      setFilteredCryptoPairs([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -93,47 +101,56 @@ export default function Forex() {
 
   const debouncedSearch = debounce(() => {
     setPage(1); // Reset to page 1 when search query changes
-    fetchForexPairs();
+    fetchCryptoPairs();
   }, 1000);
 
   const handleSearch = () => {
     debouncedSearch();
   };
 
-  const handleTypeChange = (value: string) => {
-    setSelectedType(value);
+  const handleQuoteCurrencyChange = (value: string) => {
+    setQuoteCurrencyFilter(value);
     setPage(1); // Reset to page 1 when filter changes
   };
 
-  // Function to check if a Forex pair is supported
-  const checkPairSupport = async (symbol: string) => {
+  const handleAnalyze = async (symbol: string) => {
     try {
-      const response = await fetch(`/api/forex?symbol=${symbol}`);
+      const response = await fetch(`/api/cryptos?symbol=${symbol}`);
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch forex data");
+        throw new Error(errorData.error || `Cryptocurrency pair ${symbol} is not supported`);
       }
-      return true; // Pair is supported
+      router.push(`/crypto/${encodeURIComponent(symbol)}`);
     } catch (error) {
-      console.error(`Error checking support for ${symbol}:`, error.message);
-      return false; // Pair is unsupported
-    }
-  };
-
-  // Handle the "Analyze" button click
-  const handleAnalyzeClick = async (symbol: string, e: React.MouseEvent<HTMLAnchorElement>) => {
-    const isSupported = await checkPairSupport(symbol);
-    if (!isSupported) {
-      e.preventDefault(); // Prevent navigation
+      console.error(`Error validating symbol ${symbol}:`, error.message);
       toast({
-        title: "Unsupported Forex Pair",
-        description: `The Forex pair ${symbol} is not supported at this time. Try a major pair like EUR/USD.`,
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  if (loading && allCryptoPairs.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <span className="flex items-center">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          Loading cryptocurrency pairs...
+        </span>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(allCryptoPairs) || allCryptoPairs.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>No cryptocurrency pairs available.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,7 +161,7 @@ export default function Forex() {
             <Link href="/" className="flex items-center text-primary hover:text-primary/80">
               <Button variant="ghost">Back to Home</Button>
             </Link>
-            <h1 className="text-2xl md:text-3xl font-bold">Forex Market Analysis</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">Cryptocurrency Market Analysis</h1>
           </div>
         </div>
       </header>
@@ -158,7 +175,7 @@ export default function Forex() {
               <div className="relative flex-1 min-w-[200px]">
                 <Input
                   type="text"
-                  placeholder="Search by symbol, name, or currency (e.g., EUR/USD)"
+                  placeholder="Search by symbol, base, or quote currency (e.g., BTC/USD)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -172,25 +189,25 @@ export default function Forex() {
                     Searching...
                   </span>
                 ) : (
-                  "Search Forex Pair"
+                  "Search Crypto Pair"
                 )}
               </Button>
 
-              {/* Type Filter (Currency Group) */}
+              {/* Quote Currency Filter */}
               <div className="flex items-center gap-2">
-                <label htmlFor="type-filter" className="text-sm font-medium">
-                  Currency Group:
+                <label htmlFor="quote-currency-filter" className="text-sm font-medium">
+                  Quote Currency:
                 </label>
                 <select
-                  id="type-filter"
-                  value={selectedType}
-                  onChange={(e) => handleTypeChange(e.target.value)}
+                  id="quote-currency-filter"
+                  value={quoteCurrencyFilter}
+                  onChange={(e) => handleQuoteCurrencyChange(e.target.value)}
                   className="border rounded px-2 py-1"
                   disabled={loading}
                 >
-                  {typeOptions.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
+                  {quoteCurrencyOptions.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency === "All" ? "All Quote Currencies" : currency}
                     </option>
                   ))}
                 </select>
@@ -198,16 +215,16 @@ export default function Forex() {
             </div>
           </Card>
 
-          {/* Forex Listings */}
+          {/* Crypto Listings */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-6 w-6" />
                 <h2 className="text-2xl md:text-3xl font-semibold">
-                  {searchQuery ? `Search Results (Page ${page})` : `Top Forex Listings (Page ${page})`}
+                  {searchQuery ? `Search Results (Page ${page})` : `Top Crypto Listings (Page ${page})`}
                 </h2>
               </div>
-              <Button onClick={fetchForexPairs} disabled={loading} variant="outline">
+              <Button onClick={fetchCryptoPairs} disabled={loading} variant="outline">
                 {loading ? (
                   <span className="flex items-center">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -224,56 +241,41 @@ export default function Forex() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Symbol</th>
-                    <th className="text-left py-3 px-4">Name</th>
                     <th className="text-left py-3 px-4">Base Currency</th>
                     <th className="text-left py-3 px-4">Quote Currency</th>
-                    <th className="text-left py-3 px-4">Exchange</th>
-                    <th className="text-left py-3 px-4">Currency Group</th>
+                    <th className="text-left py-3 px-4">Available Exchanges</th>
                     <th className="text-right py-3 px-4">Analyze</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredForexPairs.length > 0 ? (
-                    filteredForexPairs.map((pair, index) => (
+                  {filteredCryptoPairs.length > 0 ? (
+                    filteredCryptoPairs.map((pair, index) => (
                       <tr key={index} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-4 font-medium">{pair.symbol}</td>
-                        <td className="py-3 px-4">{pair.name}</td>
-                        <td className="py-3 px-4">{pair.base_currency || "N/A"}</td>
-                        <td className="py-3 px-4">{pair.quote_currency || "N/A"}</td>
-                        <td className="py-3 px-4">{pair.exchange}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              pair.status === "Major"
-                                ? "bg-green-100 text-green-800"
-                                : pair.status === "Exotic"
-                                ? "bg-purple-100 text-purple-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {pair.status}
-                          </span>
-                        </td>
+                        <td className="py-3 px-4">{pair.currency_base}</td>
+                        <td className="py-3 px-4">{pair.currency_quote}</td>
+                        <td className="py-3 px-4">{pair.available_exchanges.join(", ")}</td>
                         <td className="py-3 px-4 text-right">
-                          <Link
-                            href={`/forex/${encodeURIComponent(pair.symbol)}`}
-                            onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAnalyze(pair.symbol)}
                           >
-                            <Button variant="ghost" size="sm">Analyze</Button>
-                          </Link>
+                            Analyze
+                          </Button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-3 px-4 text-center">
+                      <td colSpan={5} className="py-3 px-4 text-center">
                         {loading ? (
                           <span className="flex items-center justify-center">
                             <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                            Loading forex pairs...
+                            Loading crypto pairs...
                           </span>
                         ) : (
-                          "No forex pairs found"
+                          "No crypto pairs found"
                         )}
                       </td>
                     </tr>

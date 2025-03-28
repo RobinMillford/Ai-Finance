@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Initialize response data
+    // Initialize response data with default values
     let logoData = { url: null, logo_base: null, logo_quote: null };
 
     // Fetch logo data from Twelve Data
@@ -45,28 +45,33 @@ export async function GET(request: Request) {
       const logoUrl = `https://api.twelvedata.com/logo?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
       console.log(`Fetching logo data for symbol: ${symbol} from Twelve Data...`);
       const logoResponse = await fetch(logoUrl);
+      
       if (!logoResponse.ok) {
         const errorData = await logoResponse.json();
-        console.error(`Twelve Data API error for logo (${symbol}):`, errorData);
-        throw new Error(errorData.message || "Failed to fetch logo data");
-      }
-      const logoResponseData = await logoResponse.json();
-      console.log(`Successfully fetched logo data for symbol: ${symbol}`);
-
-      // Handle both equity and crypto/forex logo responses
-      if (logoResponseData.url) {
-        // Equity symbol
-        logoData.url = logoResponseData.url;
-      } else if (logoResponseData.logo_base && logoResponseData.logo_quote) {
-        // Crypto/forex symbol
-        logoData.logo_base = logoResponseData.logo_base;
-        logoData.logo_quote = logoResponseData.logo_quote;
+        console.warn(`Failed to fetch logo data for symbol ${symbol} from Twelve Data: ${logoResponse.status} - ${errorData.message || 'Unknown error'}`);
+        // Handle 404 or other errors gracefully by using default values
+        logoData = { url: null, logo_base: null, logo_quote: null };
       } else {
-        console.warn(`Unexpected logo response format for symbol ${symbol}:`, logoResponseData);
+        const logoResponseData = await logoResponse.json();
+        console.log(`Successfully fetched logo data for symbol: ${symbol}`);
+
+        // Handle both equity and crypto/forex logo responses
+        if (logoResponseData.url) {
+          // Equity symbol
+          logoData.url = logoResponseData.url;
+        } else if (logoResponseData.logo_base && logoResponseData.logo_quote) {
+          // Crypto/forex symbol
+          logoData.logo_base = logoResponseData.logo_base;
+          logoData.logo_quote = logoResponseData.logo_quote;
+        } else {
+          console.warn(`Unexpected logo response format for symbol ${symbol}:`, logoResponseData);
+          logoData = { url: null, logo_base: null, logo_quote: null };
+        }
       }
     } catch (error) {
       console.error(`Error fetching logo data for symbol ${symbol} from Twelve Data:`, error.message);
       // Continue with default logo data (null values)
+      logoData = { url: null, logo_base: null, logo_quote: null };
     }
 
     // Prepare the response data (only logo-related fields)
@@ -82,9 +87,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(overviewData);
   } catch (error) {
-    console.error(`Error fetching overview data for symbol ${symbol}:`, error.message);
+    console.error(`Error processing overview data for symbol ${symbol}:`, error.message);
     return NextResponse.json(
-      { error: "Failed to fetch overview data: " + error.message },
+      { error: `Failed to process overview data: ${error.message}` },
       { status: 500 }
     );
   }

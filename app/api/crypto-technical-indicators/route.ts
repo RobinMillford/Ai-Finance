@@ -9,7 +9,7 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Rate limit: 8 requests per minute (60 seconds / 8 = 7.5 seconds per request)
 // We'll use 15 seconds to be safe
-const REQUEST_DELAY_MS = 15000; // 15 seconds delay between requests
+const REQUEST_DELAY_MS = 18000; // 15 seconds delay between requests
 
 // Utility function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

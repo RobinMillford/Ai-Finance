@@ -72,17 +72,17 @@ interface CryptoData {
     change: string;
     percent_change: string;
     volume?: string;
-  } | null;
+  };
   price: {
     price: string;
-  } | null;
+  };
   eod: {
     symbol: string;
     currency_base: string;
     currency_quote: string;
     datetime: string;
     close: string;
-  } | null;
+  };
 }
 
 interface TechnicalIndicators {
@@ -121,6 +121,25 @@ interface TechnicalIndicators {
   }> | null;
 }
 
+// Utility function to fetch with retry on rate limit
+const fetchWithRetry = async (
+  url: string,
+  maxRetries: number = 3,
+  baseDelay: number = 60000 // 60 seconds
+): Promise<Response> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url);
+    if (response.status === 429) {
+      const delay = baseDelay * attempt; // Exponential backoff: 60s, 120s, 180s
+      console.log(`Rate limit exceeded. Retrying in ${delay / 1000} seconds... (Attempt ${attempt}/${maxRetries})`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      continue;
+    }
+    return response;
+  }
+  throw new Error("Max retries reached due to rate limit (429)");
+};
+
 export default function CryptoDetails() {
   const params = useParams();
   const encodedSymbol = params?.symbol as string;
@@ -151,7 +170,7 @@ export default function CryptoDetails() {
         console.log(`Fetching data for symbol: ${symbol}`);
 
         // Fetch Overview Data
-        const overviewResponse = await fetch(`/api/overview?symbol=${symbol}`);
+        const overviewResponse = await fetchWithRetry(`/api/overview?symbol=${symbol}`);
         if (!overviewResponse.ok) {
           const contentType = overviewResponse.headers.get("content-type");
           let errorMessage = `Failed to fetch overview data: ${overviewResponse.status} ${overviewResponse.statusText}`;
@@ -165,7 +184,7 @@ export default function CryptoDetails() {
         setOverview(overviewData);
 
         // Fetch Crypto Data
-        const cryptoResponse = await fetch(`/api/crypto?symbol=${symbol}`);
+        const cryptoResponse = await fetchWithRetry(`/api/crypto?symbol=${symbol}`);
         if (!cryptoResponse.ok) {
           const contentType = cryptoResponse.headers.get("content-type");
           let errorMessage = `Failed to fetch crypto data: ${cryptoResponse.status} ${cryptoResponse.statusText}`;
@@ -178,10 +197,11 @@ export default function CryptoDetails() {
           throw new Error(errorMessage);
         }
         const cryptoData = await cryptoResponse.json();
+        console.log("Fetched cryptoData:", cryptoData);
         setCryptoData(cryptoData);
 
         // Fetch Technical Indicators
-        const indicatorsResponse = await fetch(`/api/crypto-technical-indicators?symbol=${symbol}`);
+        const indicatorsResponse = await fetchWithRetry(`/api/crypto-technical-indicators?symbol=${symbol}`);
         if (!indicatorsResponse.ok) {
           const contentType = indicatorsResponse.headers.get("content-type");
           let errorMessage = `Failed to fetch technical indicators: ${indicatorsResponse.status} ${indicatorsResponse.statusText}`;
@@ -202,6 +222,7 @@ export default function CryptoDetails() {
           description: error.message || "Failed to fetch crypto data",
           variant: "destructive",
         });
+        setOverview(null);
         setCryptoData(null);
         setTechnicalIndicators(null);
       } finally {
@@ -215,12 +236,12 @@ export default function CryptoDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>Fetching technical indicators for {symbol}... This may take up to 2-3 minutes due to API rate limits.</p>
+        <p>Fetching technical indicators for {symbol}... This may take up to 3-4 minutes due to API rate limits.</p>
       </div>
     );
   }
 
-  if (!overview || !cryptoData || !cryptoData.timeSeries || !cryptoData.quote || !technicalIndicators) {
+  if (!overview || !cryptoData || !cryptoData.timeSeries || !technicalIndicators) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -239,6 +260,7 @@ export default function CryptoDetails() {
 
   // Prepare chart data for time series
   const timeSeries = cryptoData.timeSeries.values || [];
+  console.log("timeSeries:", timeSeries);
   const labels = timeSeries.map((entry) => entry.datetime).reverse();
   const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
 
@@ -882,9 +904,9 @@ export default function CryptoDetails() {
 
   // BBANDS Interpretation
   const latestBbands = technicalIndicators.bbands ? technicalIndicators.bbands[0] : null;
-  const latestClose = cryptoData.quote ? parseFloat(cryptoData.quote.close) : null;
+  const latestClose = cryptoData?.quote?.close ? parseFloat(cryptoData.quote.close) : null;
   let bbandsInterpretation = "N/A";
-  if (latestBbands && latestClose) {
+  if (latestBbands && latestClose !== null) {
     const upperBand = parseFloat(latestBbands.upper_band);
     const lowerBand = parseFloat(latestBbands.lower_band);
     if (latestClose > upperBand) {
@@ -927,7 +949,13 @@ export default function CryptoDetails() {
   const latestObv = technicalIndicators.obv ? technicalIndicators.obv[0] : null;
   const obvValue = latestObv ? parseFloat(latestObv.obv) : null;
   let obvInterpretation = "N/A";
-  if (obvValue !== null && latestClose !== null && technicalIndicators.obv && technicalIndicators.obv.length > 1) {
+  if (
+    obvValue !== null &&
+    latestClose !== null &&
+    technicalIndicators.obv &&
+    technicalIndicators.obv.length > 1 &&
+    timeSeries.length >= 2
+  ) {
     const previousObv = parseFloat(technicalIndicators.obv[1].obv);
     const previousClose = parseFloat(timeSeries[timeSeries.length - 2].close);
     const priceDirection = latestClose > previousClose ? "Up" : "Down";
@@ -943,9 +971,16 @@ export default function CryptoDetails() {
   const latestAd = technicalIndicators.ad ? technicalIndicators.ad[0] : null;
   const adValue = latestAd ? parseFloat(latestAd.ad) : null;
   let adInterpretation = "N/A";
-  if (adValue !== null && latestClose !== null && technicalIndicators.ad && technicalIndicators.ad.length > 1) {
+  if (
+    adValue !== null &&
+    latestClose !== null &&
+    technicalIndicators.ad &&
+    technicalIndicators.ad.length > 1 &&
+    timeSeries.length >= 2
+  ) {
     const previousAd = parseFloat(technicalIndicators.ad[1].ad);
-    const priceDirection = latestClose > parseFloat(timeSeries[timeSeries.length - 2].close) ? "Up" : "Down";
+    const previousClose = parseFloat(timeSeries[timeSeries.length - 2].close);
+    const priceDirection = latestClose > previousClose ? "Up" : "Down";
     const adDirection = adValue > previousAd ? "Up" : "Down";
     if (priceDirection === adDirection) {
       adInterpretation = `Confirmation (${priceDirection} trend supported by volume)`;
@@ -999,7 +1034,7 @@ export default function CryptoDetails() {
   // Ichimoku Cloud Interpretation
   const latestIchimoku = technicalIndicators.ichimoku ? technicalIndicators.ichimoku[0] : null;
   let ichimokuInterpretation = "N/A";
-  if (latestIchimoku && latestClose) {
+  if (latestIchimoku && latestClose !== null) {
     const tenkanSen = parseFloat(latestIchimoku.tenkan_sen);
     const kijunSen = parseFloat(latestIchimoku.kijun_sen);
     const senkouSpanA = parseFloat(latestIchimoku.senkou_span_a);
@@ -1045,7 +1080,7 @@ export default function CryptoDetails() {
                 </div>
               ) : null}
               <h1 className="text-2xl md:text-3xl font-bold">
-                {symbol} - {cryptoData.quote.name || "Unknown"}
+                {symbol} - {cryptoData.quote?.name || "Unknown"}
               </h1>
             </div>
           </div>
@@ -1057,37 +1092,33 @@ export default function CryptoDetails() {
           {/* Crypto Statistics */}
           <Card className="p-6">
             <h2 className="text-xl md:text-2xl font-semibold mb-4">Cryptocurrency Pair Statistics</h2>
-            {cryptoData.quote ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <p>
-                    <strong>Current Price:</strong>{" "}
-                    {cryptoData.price?.price
-                      ? parseFloat(cryptoData.price.price).toFixed(4)
-                      : "N/A"}
-                  </p>
-                  <p>
-                    <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
-                    {cryptoData.eod?.close
-                      ? parseFloat(cryptoData.eod.close).toFixed(4)
-                      : "N/A"}
-                  </p>
-                  <p><strong>Latest Close:</strong> {parseFloat(cryptoData.quote.close || "0").toFixed(4)}</p>
-                  <p><strong>Latest Open:</strong> {parseFloat(cryptoData.quote.open || "0").toFixed(4)}</p>
-                  <p><strong>Daily High:</strong> {parseFloat(cryptoData.quote.high || "0").toFixed(4)}</p>
-                  <p><strong>Daily Low:</strong> {parseFloat(cryptoData.quote.low || "0").toFixed(4)}</p>
-                </div>
-                <div>
-                  <p><strong>Previous Close:</strong> {parseFloat(cryptoData.quote.previous_close || "0").toFixed(4)}</p>
-                  <p><strong>Change:</strong> {parseFloat(cryptoData.quote.change || "0").toFixed(4)} ({parseFloat(cryptoData.quote.percent_change || "0").toFixed(2)}%)</p>
-                  <p><strong>Base Currency:</strong> {cryptoData.quote.currency_base || "N/A"}</p>
-                  <p><strong>Quote Currency:</strong> {cryptoData.quote.currency_quote || "N/A"}</p>
-                  <p><strong>Latest Volume:</strong> {cryptoData.quote.volume || "N/A"}</p>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <p>
+                  <strong>Current Price:</strong>{" "}
+                  {cryptoData.price?.price
+                    ? parseFloat(cryptoData.price.price).toFixed(8)
+                    : "N/A"}
+                </p>
+                <p>
+                  <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
+                  {cryptoData.eod?.close
+                    ? parseFloat(cryptoData.eod.close).toFixed(8)
+                    : "N/A"}
+                </p>
+                <p><strong>Latest Close:</strong> {parseFloat(cryptoData.quote.close || "0").toFixed(8)}</p>
+                <p><strong>Latest Open:</strong> {parseFloat(cryptoData.quote.open || "0").toFixed(8)}</p>
+                <p><strong>Daily High:</strong> {parseFloat(cryptoData.quote.high || "0").toFixed(8)}</p>
+                <p><strong>Daily Low:</strong> {parseFloat(cryptoData.quote.low || "0").toFixed(8)}</p>
               </div>
-            ) : (
-              <p>No statistics available for {symbol}.</p>
-            )}
+              <div>
+                <p><strong>Previous Close:</strong> {parseFloat(cryptoData.quote.previous_close || "0").toFixed(8)}</p>
+                <p><strong>Change:</strong> {parseFloat(cryptoData.quote.change || "0").toFixed(8)} ({parseFloat(cryptoData.quote.percent_change || "0").toFixed(2)}%)</p>
+                <p><strong>Base Currency:</strong> {cryptoData.quote.currency_base || "N/A"}</p>
+                <p><strong>Quote Currency:</strong> {cryptoData.quote.currency_quote || "N/A"}</p>
+                <p><strong>Latest Volume:</strong> {cryptoData.quote.volume || "N/A"}</p>
+              </div>
+            </div>
           </Card>
 
           {/* Technical Indicators (Numerical Summaries) */}
@@ -1099,11 +1130,11 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Exponential Moving Averages</h3>
                 <p>
                   <strong>20-Day EMA:</strong>{" "}
-                  {latestEma20 ? parseFloat(latestEma20.ema).toFixed(4) : "N/A"}
+                  {latestEma20 ? parseFloat(latestEma20.ema).toFixed(8) : "N/A"}
                 </p>
                 <p>
                   <strong>50-Day EMA:</strong>{" "}
-                  {latestEma50 ? parseFloat(latestEma50.ema).toFixed(4) : "N/A"}
+                  {latestEma50 ? parseFloat(latestEma50.ema).toFixed(8) : "N/A"}
                 </p>
                 <p><strong>Interpretation:</strong> {emaInterpretation}</p>
               </div>
@@ -1133,9 +1164,9 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">MACD</h3>
                 {latestMacd ? (
                   <>
-                    <p><strong>MACD Line:</strong> {parseFloat(latestMacd.macd).toFixed(4)}</p>
-                    <p><strong>Signal Line:</strong> {parseFloat(latestMacd.macd_signal).toFixed(4)}</p>
-                    <p><strong>Histogram:</strong> {parseFloat(latestMacd.macd_hist).toFixed(4)}</p>
+                    <p><strong>MACD Line:</strong> {parseFloat(latestMacd.macd).toFixed(8)}</p>
+                    <p><strong>Signal Line:</strong> {parseFloat(latestMacd.macd_signal).toFixed(8)}</p>
+                    <p><strong>Histogram:</strong> {parseFloat(latestMacd.macd_hist).toFixed(8)}</p>
                     <p><strong>Interpretation:</strong> {macdInterpretation}</p>
                   </>
                 ) : (
@@ -1148,9 +1179,9 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Bollinger Bands</h3>
                 {latestBbands ? (
                   <>
-                    <p><strong>Upper Band:</strong> {parseFloat(latestBbands.upper_band).toFixed(4)}</p>
-                    <p><strong>Middle Band:</strong> {parseFloat(latestBbands.middle_band).toFixed(4)}</p>
-                    <p><strong>Lower Band:</strong> {parseFloat(latestBbands.lower_band).toFixed(4)}</p>
+                    <p><strong>Upper Band:</strong> {parseFloat(latestBbands.upper_band).toFixed(8)}</p>
+                    <p><strong>Middle Band:</strong> {parseFloat(latestBbands.middle_band).toFixed(8)}</p>
+                    <p><strong>Lower Band:</strong> {parseFloat(latestBbands.lower_band).toFixed(8)}</p>
                     <p><strong>Interpretation:</strong> {bbandsInterpretation}</p>
                   </>
                 ) : (
@@ -1163,7 +1194,7 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
                 <p>
                   <strong>14-Day ATR:</strong>{" "}
-                  {latestAtr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
+                  {latestAtr ? parseFloat(latestAtr.atr).toFixed(8) : "N/A"}
                 </p>
                 <p><strong>Interpretation:</strong> {atrInterpretation}</p>
               </div>
@@ -1173,7 +1204,7 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Supertrend</h3>
                 <p>
                   <strong>Latest Supertrend:</strong>{" "}
-                  {latestSupertrend ? parseFloat(latestSupertrend.supertrend).toFixed(4) : "N/A"}
+                  {latestSupertrend ? parseFloat(latestSupertrend.supertrend).toFixed(8) : "N/A"}
                 </p>
                 <p><strong>Interpretation:</strong> {supertrendInterpretation}</p>
               </div>
@@ -1213,7 +1244,7 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Kaufman's Adaptive Moving Average (KAMA)</h3>
                 <p>
                   <strong>Latest KAMA:</strong>{" "}
-                  {latestKama ? parseFloat(latestKama.kama).toFixed(4) : "N/A"}
+                  {latestKama ? parseFloat(latestKama.kama).toFixed(8) : "N/A"}
                 </p>
                 <p><strong>Interpretation:</strong> {kamaInterpretation}</p>
               </div>
@@ -1223,7 +1254,7 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Volume Weighted Average Price (VWAP)</h3>
                 <p>
                   <strong>Latest VWAP:</strong>{" "}
-                  {latestVwap ? parseFloat(latestVwap.vwap).toFixed(4) : "N/A"}
+                  {latestVwap ? parseFloat(latestVwap.vwap).toFixed(8) : "N/A"}
                 </p>
                 <p><strong>Interpretation:</strong> {vwapInterpretation}</p>
               </div>
@@ -1233,11 +1264,11 @@ export default function CryptoDetails() {
                 <h3 className="text-lg font-medium mb-2">Ichimoku Cloud</h3>
                 {latestIchimoku ? (
                   <>
-                    <p><strong>Tenkan-sen:</strong> {parseFloat(latestIchimoku.tenkan_sen).toFixed(4)}</p>
-                    <p><strong>Kijun-sen:</strong> {parseFloat(latestIchimoku.kijun_sen).toFixed(4)}</p>
-                    <p><strong>Senkou Span A:</strong> {parseFloat(latestIchimoku.senkou_span_a).toFixed(4)}</p>
-                    <p><strong>Senkou Span B:</strong> {parseFloat(latestIchimoku.senkou_span_b).toFixed(4)}</p>
-                    <p><strong>Chikou Span:</strong> {parseFloat(latestIchimoku.chikou_span).toFixed(4)}</p>
+                    <p><strong>Tenkan-sen:</strong> {parseFloat(latestIchimoku.tenkan_sen).toFixed(8)}</p>
+                    <p><strong>Kijun-sen:</strong> {parseFloat(latestIchimoku.kijun_sen).toFixed(8)}</p>
+                    <p><strong>Senkou Span A:</strong> {parseFloat(latestIchimoku.senkou_span_a).toFixed(8)}</p>
+                    <p><strong>Senkou Span B:</strong> {parseFloat(latestIchimoku.senkou_span_b).toFixed(8)}</p>
+                    <p><strong>Chikou Span:</strong> {parseFloat(latestIchimoku.chikou_span).toFixed(8)}</p>
                     <p><strong>Interpretation:</strong> {ichimokuInterpretation}</p>
                   </>
                 ) : (
@@ -1253,7 +1284,11 @@ export default function CryptoDetails() {
             <div className="grid grid-cols-1 gap-6">
               <div>
                 <h3 className="text-lg font-medium mb-2">Daily Closing Prices with Indicators</h3>
-                <Line options={chartOptions} data={closingPriceData} />
+                {timeSeries.length > 0 ? (
+                  <Line options={chartOptions} data={closingPriceData} />
+                ) : (
+                  <p>No historical data available for {symbol}.</p>
+                )}
               </div>
             </div>
           </Card>

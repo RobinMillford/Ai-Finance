@@ -8,8 +8,8 @@ const indicatorsCache = new Map();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Rate limit: 8 requests per minute (60 seconds / 8 = 7.5 seconds per request)
-// We'll use 15 seconds to be safe
-const REQUEST_DELAY_MS = 18000; // 15 seconds delay between requests
+// We'll use 15 seconds to be safe (slightly reduced from 18 seconds to improve fetch time)
+const REQUEST_DELAY_MS = 16000; // 15 seconds delay between requests
 
 // Utility function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,7 +22,6 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
       if (!response.ok) {
         const errorData = await response.json();
         if (response.status === 429) {
-          // Rate limit hit, retry after delay
           console.warn(`Rate limit hit for URL: ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`);
           if (attempt === maxRetries) {
             throw new Error("Rate limit exceeded after maximum retries");
@@ -81,13 +80,7 @@ export async function GET(request: Request) {
     let bbandsData = null;
     let atrData = null;
     let obvData = null;
-    let vwapData = null;
-    let mfiData = null;
-    let ichimokuData = null;
-    let adData = null;
-    let adoscData = null;
     let supertrendData = null;
-    let kamaData = null;
 
     // Fetch 20-day EMA
     try {
@@ -173,66 +166,6 @@ export async function GET(request: Request) {
     }
     await delay(REQUEST_DELAY_MS);
 
-    // Fetch VWAP
-    try {
-      const vwapUrl = `https://api.twelvedata.com/vwap?symbol=${symbol}&interval=1day&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching VWAP for symbol: ${symbol} from Twelve Data...`);
-      const vwapResponseData = await fetchWithRetry(vwapUrl);
-      vwapData = vwapResponseData.values || null;
-      console.log(`Successfully fetched VWAP for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching VWAP for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch MFI (14-day)
-    try {
-      const mfiUrl = `https://api.twelvedata.com/mfi?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching MFI for symbol: ${symbol} from Twelve Data...`);
-      const mfiResponseData = await fetchWithRetry(mfiUrl);
-      mfiData = mfiResponseData.values || null;
-      console.log(`Successfully fetched MFI for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching MFI for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch Ichimoku Cloud
-    try {
-      const ichimokuUrl = `https://api.twelvedata.com/ichimoku?symbol=${symbol}&interval=1day&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching Ichimoku Cloud for symbol: ${symbol} from Twelve Data...`);
-      const ichimokuResponseData = await fetchWithRetry(ichimokuUrl);
-      ichimokuData = ichimokuResponseData.values || null;
-      console.log(`Successfully fetched Ichimoku Cloud for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching Ichimoku Cloud for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch AD (Accumulation/Distribution)
-    try {
-      const adUrl = `https://api.twelvedata.com/ad?symbol=${symbol}&interval=1day&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching AD for symbol: ${symbol} from Twelve Data...`);
-      const adResponseData = await fetchWithRetry(adUrl);
-      adData = adResponseData.values || null;
-      console.log(`Successfully fetched AD for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching AD for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch ADOSC (Chaikin Oscillator)
-    try {
-      const adoscUrl = `https://api.twelvedata.com/adosc?symbol=${symbol}&interval=1day&fast_period=12&slow_period=26&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching ADOSC for symbol: ${symbol} from Twelve Data...`);
-      const adoscResponseData = await fetchWithRetry(adoscUrl);
-      adoscData = adoscResponseData.values || null;
-      console.log(`Successfully fetched ADOSC for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching ADOSC for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
     // Fetch Supertrend
     try {
       const supertrendUrl = `https://api.twelvedata.com/supertrend?symbol=${symbol}&interval=1day&multiplier=3&period=10&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
@@ -243,18 +176,6 @@ export async function GET(request: Request) {
     } catch (error) {
       console.error(`Error fetching Supertrend for symbol ${symbol}:`, error.message);
     }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch KAMA (9-day) instead of RVOL
-    try {
-      const kamaUrl = `https://api.twelvedata.com/kama?symbol=${symbol}&interval=1day&time_period=9&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching KAMA for symbol: ${symbol} from Twelve Data...`);
-      const kamaResponseData = await fetchWithRetry(kamaUrl);
-      kamaData = kamaResponseData.values || null;
-      console.log(`Successfully fetched KAMA for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching KAMA for symbol ${symbol}:`, error.message);
-    }
 
     // Combine all indicator data
     const indicatorsData = {
@@ -264,13 +185,7 @@ export async function GET(request: Request) {
       bbands: bbandsData,
       atr: atrData,
       obv: obvData,
-      vwap: vwapData,
-      mfi: mfiData,
-      ichimoku: ichimokuData,
-      ad: adData,
-      adosc: adoscData,
       supertrend: supertrendData,
-      kama: kamaData,
     };
 
     // Cache the result

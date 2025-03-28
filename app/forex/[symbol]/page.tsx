@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ import {
 import { Line, Bar } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
+import { BarChart3 } from "lucide-react";
 
 // Register Chart.js components
 ChartJS.register(
@@ -35,8 +37,8 @@ ChartJS.register(
 );
 
 interface OverviewData {
-  logo_base: string | null; // For forex base currency
-  logo_quote: string | null; // For forex quote currency
+  logo_base: string | null;
+  logo_quote: string | null;
 }
 
 interface ForexData {
@@ -84,11 +86,6 @@ interface ForexData {
 }
 
 interface TechnicalIndicators {
-  stoch: Array<{
-    datetime: string;
-    slow_k: string;
-    slow_d: string;
-  }> | null;
   sma: {
     sma20: Array<{
       datetime: string;
@@ -99,23 +96,9 @@ interface TechnicalIndicators {
       sma: string;
     }> | null;
   };
-  ema: {
-    ema20: Array<{
-      datetime: string;
-      ema: string;
-    }> | null;
-    ema50: Array<{
-      datetime: string;
-      ema: string;
-    }> | null;
-  };
   rsi: Array<{
     datetime: string;
     rsi: string;
-  }> | null;
-  percentB: Array<{
-    datetime: string;
-    percent_b: string;
   }> | null;
   macd: Array<{
     datetime: string;
@@ -123,48 +106,42 @@ interface TechnicalIndicators {
     macd_signal: string;
     macd_hist: string;
   }> | null;
-  bbands: Array<{
-    datetime: string;
-    upper_band: string;
-    middle_band: string;
-    lower_band: string;
-  }> | null;
-  adx: Array<{
-    datetime: string;
-    adx: string;
-  }> | null;
-  max: Array<{
-    datetime: string;
-    max: string;
-  }> | null;
   atr: Array<{
     datetime: string;
     atr: string;
-  }> | null; // New: ATR data
-  sar: Array<{
+  }> | null;
+  ichimoku: Array<{
     datetime: string;
-    sar: string;
-  }> | null; // New: SAR data for Support/Resistance
+    tenkan_sen: string;
+    kijun_sen: string;
+    senkou_span_a: string;
+    senkou_span_b: string;
+    chikou_span: string;
+  }> | null;
+  aroon: Array<{
+    datetime: string;
+    aroon_up: string;
+    aroon_down: string;
+  }> | null;
 }
 
 export default function ForexDetails() {
   const params = useParams();
   const encodedSymbol = params?.symbol as string;
-  const symbol = encodedSymbol ? decodeURIComponent(encodedSymbol) : null; // Decode the symbol (e.g., "AED%2FUSD" -> "AED/USD")
+  const symbol = encodedSymbol ? decodeURIComponent(encodedSymbol) : null;
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [forexData, setForexData] = useState<ForexData | null>(null);
   const [technicalIndicators, setTechnicalIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Check if symbol is missing or invalid
   if (!symbol) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="mb-4">Forex pair symbol is missing.</p>
+          <p className="mb-4 text-muted-foreground">Forex pair symbol is missing.</p>
           <Link href="/forexs">
-            <Button variant="primary">Back to Forex Listings</Button>
+            <Button variant="outline">Back to Forex Listings</Button>
           </Link>
         </div>
       </div>
@@ -176,7 +153,6 @@ export default function ForexDetails() {
       setLoading(true);
       try {
         console.log(`Fetching data for symbol: ${symbol}`);
-        // Fetch overview data (logos for base and quote currencies)
         const overviewResponse = await fetch(`/api/overview?symbol=${symbol}`);
         if (!overviewResponse.ok) {
           const errorData = await overviewResponse.json();
@@ -186,7 +162,6 @@ export default function ForexDetails() {
         console.log("Overview data:", overviewData);
         setOverview(overviewData);
 
-        // Fetch forex data (time series + quote + price + eod)
         const forexResponse = await fetch(`/api/forex?symbol=${symbol}`);
         if (!forexResponse.ok) {
           const errorData = await forexResponse.json();
@@ -196,7 +171,6 @@ export default function ForexDetails() {
         console.log("Forex data:", forexData);
         setForexData(forexData);
 
-        // Fetch technical indicators
         const indicatorsResponse = await fetch(`/api/forex-technical-indicators?symbol=${symbol}`);
         if (!indicatorsResponse.ok) {
           const errorData = await indicatorsResponse.json();
@@ -225,7 +199,9 @@ export default function ForexDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>Fetching technical indicators for {symbol}... This may take up to 2-3 minutes due to API rate limits.</p>
+        <p className="text-muted-foreground">
+          Fetching technical indicators for {symbol}... This may take up to 2 minutes due to API rate limits.
+        </p>
       </div>
     );
   }
@@ -234,9 +210,11 @@ export default function ForexDetails() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="mb-4">No data available for {symbol}. This Forex pair may not be supported.</p>
+          <p className="mb-4 text-muted-foreground">
+            No data available for {symbol}. This Forex pair may not be supported.
+          </p>
           <Link href="/forexs">
-            <Button variant="primary">Back to Forex Listings</Button>
+            <Button variant="outline">Back to Forex Listings</Button>
           </Link>
         </div>
       </div>
@@ -248,33 +226,30 @@ export default function ForexDetails() {
   const labels = timeSeries.map((entry) => entry.datetime).reverse();
   const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
 
-  // Prepare SMA, EMA, BBANDS, and SAR data for overlay
+  // Prepare SMA and Ichimoku data for overlay
   const sma20Data = technicalIndicators.sma.sma20
     ? technicalIndicators.sma.sma20.map((entry) => parseFloat(entry.sma)).reverse()
     : [];
   const sma50Data = technicalIndicators.sma.sma50
     ? technicalIndicators.sma.sma50.map((entry) => parseFloat(entry.sma)).reverse()
     : [];
-  const ema20Data = technicalIndicators.ema.ema20
-    ? technicalIndicators.ema.ema20.map((entry) => parseFloat(entry.ema)).reverse()
+  const tenkanSenData = technicalIndicators.ichimoku
+    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.tenkan_sen)).reverse()
     : [];
-  const ema50Data = technicalIndicators.ema.ema50
-    ? technicalIndicators.ema.ema50.map((entry) => parseFloat(entry.ema)).reverse()
+  const kijunSenData = technicalIndicators.ichimoku
+    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.kijun_sen)).reverse()
     : [];
-  const bbandsUpper = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.upper_band)).reverse()
+  const senkouSpanAData = technicalIndicators.ichimoku
+    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.senkou_span_a)).reverse()
     : [];
-  const bbandsMiddle = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.middle_band)).reverse()
+  const senkouSpanBData = technicalIndicators.ichimoku
+    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.senkou_span_b)).reverse()
     : [];
-  const bbandsLower = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
-    : [];
-  const sarData = technicalIndicators.sar
-    ? technicalIndicators.sar.map((entry) => parseFloat(entry.sar)).reverse()
+  const chikouSpanData = technicalIndicators.ichimoku
+    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.chikou_span)).reverse()
     : [];
 
-  // Closing Price Chart with SMA, EMA, BBANDS, and SAR
+  // Closing Price Chart with SMA and Ichimoku
   const closingPriceData = {
     labels,
     datasets: [
@@ -300,48 +275,32 @@ export default function ForexDetails() {
         fill: false,
       },
       {
-        label: "20-Day EMA",
-        data: ema20Data,
-        borderColor: "rgb(0, 191, 255)",
-        backgroundColor: "rgba(0, 191, 255, 0.5)",
+        label: "Tenkan-sen (Ichimoku)",
+        data: tenkanSenData,
+        borderColor: "rgb(255, 0, 255)",
+        backgroundColor: "rgba(255, 0, 255, 0.5)",
         fill: false,
       },
       {
-        label: "50-Day EMA",
-        data: ema50Data,
-        borderColor: "rgb(0, 0, 255)",
-        backgroundColor: "rgba(0, 0, 255, 0.5)",
+        label: "Kijun-sen (Ichimoku)",
+        data: kijunSenData,
+        borderColor: "rgb(0, 255, 255)",
+        backgroundColor: "rgba(0, 255, 255, 0.5)",
         fill: false,
       },
       {
-        label: "Bollinger Upper Band",
-        data: bbandsUpper,
-        borderColor: "rgb(128, 0, 128)",
-        backgroundColor: "rgba(128, 0, 128, 0.5)",
-        fill: false,
+        label: "Senkou Span A (Ichimoku)",
+        data: senkouSpanAData,
+        borderColor: "rgb(0, 255, 0)",
+        backgroundColor: "rgba(0, 255, 0, 0.2)",
+        fill: "+1",
       },
       {
-        label: "Bollinger Middle Band",
-        data: bbandsMiddle,
-        borderColor: "rgb(128, 128, 128)",
-        backgroundColor: "rgba(128, 128, 128, 0.5)",
-        fill: false,
-      },
-      {
-        label: "Bollinger Lower Band",
-        data: bbandsLower,
-        borderColor: "rgb(128, 0, 128)",
-        backgroundColor: "rgba(128, 0, 128, 0.5)",
-        fill: false,
-      },
-      {
-        label: "Parabolic SAR",
-        data: sarData,
+        label: "Senkou Span B (Ichimoku)",
+        data: senkouSpanBData,
         borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.5)",
-        fill: false,
-        pointRadius: 3,
-        pointStyle: "circle",
+        backgroundColor: "rgba(255, 0, 0, 0.2)",
+        fill: "-1",
       },
     ],
   };
@@ -354,85 +313,7 @@ export default function ForexDetails() {
       },
       title: {
         display: true,
-        text: `${symbol} Price History`,
-      },
-    },
-  };
-
-  // STOCH Chart
-  const stochLabels = technicalIndicators.stoch
-    ? technicalIndicators.stoch.map((entry) => entry.datetime).reverse()
-    : [];
-  const stochKData = technicalIndicators.stoch
-    ? technicalIndicators.stoch.map((entry) => parseFloat(entry.slow_k)).reverse()
-    : [];
-  const stochDData = technicalIndicators.stoch
-    ? technicalIndicators.stoch.map((entry) => parseFloat(entry.slow_d)).reverse()
-    : [];
-
-  const stochChartData = {
-    labels: stochLabels,
-    datasets: [
-      {
-        label: "Slow %K",
-        data: stochKData,
-        borderColor: "rgb(255, 215, 0)",
-        backgroundColor: "rgba(255, 215, 0, 0.5)",
-        fill: false,
-      },
-      {
-        label: "Slow %D",
-        data: stochDData,
-        borderColor: "rgb(0, 255, 127)",
-        backgroundColor: "rgba(0, 255, 127, 0.5)",
-        fill: false,
-      },
-    ],
-  };
-
-  const stochChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: "Stochastic Oscillator (STOCH)",
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line",
-            yMin: 80,
-            yMax: 80,
-            borderColor: "red",
-            borderWidth: 1,
-            label: {
-              content: "Overbought (80)",
-              display: true,
-              position: "end",
-            },
-          },
-          {
-            type: "line",
-            yMin: 20,
-            yMax: 20,
-            borderColor: "green",
-            borderWidth: 1,
-            label: {
-              content: "Oversold (20)",
-              display: true,
-              position: "end",
-            },
-          },
-        ],
-      },
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
+        text: `${symbol} Price History with Indicators`,
       },
     },
   };
@@ -505,68 +386,6 @@ export default function ForexDetails() {
     },
   };
 
-  // PERCENT_B Chart
-  const percentBLabels = technicalIndicators.percentB
-    ? technicalIndicators.percentB.map((entry) => entry.datetime).reverse()
-    : [];
-  const percentBData = technicalIndicators.percentB
-    ? technicalIndicators.percentB.map((entry) => parseFloat(entry.percent_b)).reverse()
-    : [];
-
-  const percentBChartData = {
-    labels: percentBLabels,
-    datasets: [
-      {
-        label: "%B",
-        data: percentBData,
-        borderColor: "rgb(255, 20, 147)",
-        backgroundColor: "rgba(255, 20, 147, 0.5)",
-        fill: false,
-      },
-    ],
-  };
-
-  const percentBChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: "%B Indicator",
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line",
-            yMin: 1,
-            yMax: 1,
-            borderColor: "red",
-            borderWidth: 1,
-            label: {
-              content: "Upper Band (1)",
-              display: true,
-              position: "end",
-            },
-          },
-          {
-            type: "line",
-            yMin: 0,
-            yMax: 0,
-            borderColor: "green",
-            borderWidth: 1,
-            label: {
-              content: "Lower Band (0)",
-              display: true,
-              position: "end",
-            },
-          },
-        ],
-      },
-    },
-  };
-
   // MACD Chart
   const macdLabels = technicalIndicators.macd
     ? technicalIndicators.macd.map((entry) => entry.datetime).reverse()
@@ -622,96 +441,6 @@ export default function ForexDetails() {
     },
   };
 
-  // ADX Chart
-  const adxLabels = technicalIndicators.adx
-    ? technicalIndicators.adx.map((entry) => entry.datetime).reverse()
-    : [];
-  const adxData = technicalIndicators.adx
-    ? technicalIndicators.adx.map((entry) => parseFloat(entry.adx)).reverse()
-    : [];
-
-  const adxChartData = {
-    labels: adxLabels,
-    datasets: [
-      {
-        label: "ADX",
-        data: adxData,
-        borderColor: "rgb(34, 139, 34)",
-        backgroundColor: "rgba(34, 139, 34, 0.5)",
-        fill: false,
-      },
-    ],
-  };
-
-  const adxChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: "Average Directional Index (ADX)",
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line",
-            yMin: 25,
-            yMax: 25,
-            borderColor: "blue",
-            borderWidth: 1,
-            label: {
-              content: "Strong Trend (25)",
-              display: true,
-              position: "end",
-            },
-          },
-        ],
-      },
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-      },
-    },
-  };
-
-  // MAX Chart (9-day Highest Value)
-  const maxLabels = technicalIndicators.max
-    ? technicalIndicators.max.map((entry) => entry.datetime).reverse()
-    : [];
-  const maxData = technicalIndicators.max
-    ? technicalIndicators.max.map((entry) => parseFloat(entry.max)).reverse()
-    : [];
-
-  const maxChartData = {
-    labels: maxLabels,
-    datasets: [
-      {
-        label: "9-Day MAX",
-        data: maxData,
-        borderColor: "rgb(255, 215, 0)",
-        backgroundColor: "rgba(255, 215, 0, 0.5)",
-        fill: false,
-      },
-    ],
-  };
-
-  const maxChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: "9-Day Highest Value (MAX)",
-      },
-    },
-  };
-
   // ATR Chart
   const atrLabels = technicalIndicators.atr
     ? technicalIndicators.atr.map((entry) => entry.datetime).reverse()
@@ -746,8 +475,8 @@ export default function ForexDetails() {
     },
   };
 
-  // SAR Chart (already overlaid on the closing price chart, but we can add a separate chart if needed)
-  const sarChartData = {
+  // Ichimoku Cloud Chart
+  const ichimokuChartData = {
     labels,
     datasets: [
       {
@@ -758,18 +487,44 @@ export default function ForexDetails() {
         fill: false,
       },
       {
-        label: "Parabolic SAR",
-        data: sarData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        label: "Tenkan-sen",
+        data: tenkanSenData,
+        borderColor: "rgb(255, 0, 255)",
+        backgroundColor: "rgba(255, 0, 255, 0.5)",
         fill: false,
-        pointRadius: 3,
-        pointStyle: "circle",
+      },
+      {
+        label: "Kijun-sen",
+        data: kijunSenData,
+        borderColor: "rgb(0, 255, 255)",
+        backgroundColor: "rgba(0, 255, 255, 0.5)",
+        fill: false,
+      },
+      {
+        label: "Senkou Span A",
+        data: senkouSpanAData,
+        borderColor: "rgb(0, 255, 0)",
+        backgroundColor: "rgba(0, 255, 0, 0.2)",
+        fill: "+1",
+      },
+      {
+        label: "Senkou Span B",
+        data: senkouSpanBData,
+        borderColor: "rgb(255, 0, 0)",
+        backgroundColor: "rgba(255, 0, 0, 0.2)",
+        fill: "-1",
+      },
+      {
+        label: "Chikou Span",
+        data: chikouSpanData,
+        borderColor: "rgb(128, 128, 128)",
+        backgroundColor: "rgba(128, 128, 128, 0.5)",
+        fill: false,
       },
     ],
   };
 
-  const sarChartOptions = {
+  const ichimokuChartOptions = {
     responsive: true,
     plugins: {
       legend: {
@@ -777,7 +532,85 @@ export default function ForexDetails() {
       },
       title: {
         display: true,
-        text: "Parabolic SAR (Support/Resistance)",
+        text: "Ichimoku Cloud",
+      },
+    },
+  };
+
+  // AROON Chart
+  const aroonLabels = technicalIndicators.aroon
+    ? technicalIndicators.aroon.map((entry) => entry.datetime).reverse()
+    : [];
+  const aroonUpData = technicalIndicators.aroon
+    ? technicalIndicators.aroon.map((entry) => parseFloat(entry.aroon_up)).reverse()
+    : [];
+  const aroonDownData = technicalIndicators.aroon
+    ? technicalIndicators.aroon.map((entry) => parseFloat(entry.aroon_down)).reverse()
+    : [];
+
+  const aroonChartData = {
+    labels: aroonLabels,
+    datasets: [
+      {
+        label: "Aroon Up",
+        data: aroonUpData,
+        borderColor: "rgb(0, 255, 0)",
+        backgroundColor: "rgba(0, 255, 0, 0.5)",
+        fill: false,
+      },
+      {
+        label: "Aroon Down",
+        data: aroonDownData,
+        borderColor: "rgb(255, 0, 0)",
+        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        fill: false,
+      },
+    ],
+  };
+
+  const aroonChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Aroon Indicator",
+      },
+      annotation: {
+        annotations: [
+          {
+            type: "line",
+            yMin: 70,
+            yMax: 70,
+            borderColor: "blue",
+            borderWidth: 1,
+            label: {
+              content: "Strong Trend (70)",
+              display: true,
+              position: "end",
+            },
+          },
+          {
+            type: "line",
+            yMin: 30,
+            yMax: 30,
+            borderColor: "blue",
+            borderWidth: 1,
+            label: {
+              content: "Weak Trend (30)",
+              display: true,
+              position: "end",
+            },
+          },
+        ],
+      },
+    },
+    scales: {
+      y: {
+        min: 0,
+        max: 100,
       },
     },
   };
@@ -791,26 +624,7 @@ export default function ForexDetails() {
       })
     : "N/A";
 
-  // STOCH Interpretation (using latest value)
-  const latestStoch = technicalIndicators.stoch ? technicalIndicators.stoch[0] : null;
-  const stochK = latestStoch ? parseFloat(latestStoch.slow_k) : null;
-  const stochD = latestStoch ? parseFloat(latestStoch.slow_d) : null;
-  let stochInterpretation = "N/A";
-  if (stochK !== null && stochD !== null) {
-    if (stochK > 80 && stochD > 80) {
-      stochInterpretation = "Overbought";
-    } else if (stochK < 20 && stochD < 20) {
-      stochInterpretation = "Oversold";
-    } else if (stochK > stochD) {
-      stochInterpretation = "Bullish Crossover";
-    } else if (stochK < stochD) {
-      stochInterpretation = "Bearish Crossover";
-    } else {
-      stochInterpretation = "Neutral";
-    }
-  }
-
-  // RSI Interpretation (using latest value)
+  // RSI Interpretation
   const latestRsi = technicalIndicators.rsi ? technicalIndicators.rsi[0] : null;
   const rsiValue = latestRsi ? parseFloat(latestRsi.rsi) : null;
   let rsiInterpretation = "N/A";
@@ -824,21 +638,7 @@ export default function ForexDetails() {
     }
   }
 
-  // PERCENT_B Interpretation (using latest value)
-  const latestPercentB = technicalIndicators.percentB ? technicalIndicators.percentB[0] : null;
-  const percentBValue = latestPercentB ? parseFloat(latestPercentB.percent_b) : null;
-  let percentBInterpretation = "N/A";
-  if (percentBValue !== null) {
-    if (percentBValue > 1) {
-      percentBInterpretation = "Above Upper Band (Overbought)";
-    } else if (percentBValue < 0) {
-      percentBInterpretation = "Below Lower Band (Oversold)";
-    } else {
-      percentBInterpretation = "Within Bands";
-    }
-  }
-
-  // MACD Interpretation (using latest value)
+  // MACD Interpretation
   const latestMacd = technicalIndicators.macd ? technicalIndicators.macd[0] : null;
   let macdInterpretation = "N/A";
   if (latestMacd) {
@@ -853,40 +653,10 @@ export default function ForexDetails() {
     }
   }
 
-  // ADX Interpretation (using latest value)
-  const latestAdx = technicalIndicators.adx ? technicalIndicators.adx[0] : null;
-  const adxValue = latestAdx ? parseFloat(latestAdx.adx) : null;
-  let adxInterpretation = "N/A";
-  if (adxValue !== null) {
-    if (adxValue > 25) {
-      adxInterpretation = "Strong Trend";
-    } else if (adxValue < 20) {
-      adxInterpretation = "Weak Trend";
-    } else {
-      adxInterpretation = "Neutral";
-    }
-  }
-
-  // MAX Interpretation (using latest value)
-  const latestMax = technicalIndicators.max ? technicalIndicators.max[0] : null;
-  const maxValue = latestMax ? parseFloat(latestMax.max) : null;
-  const latestClose = forexData.quote ? parseFloat(forexData.quote.close) : null;
-  let maxInterpretation = "N/A";
-  if (maxValue !== null && latestClose !== null) {
-    const difference = latestClose - maxValue;
-    const percentDifference = (difference / maxValue) * 100;
-    if (Math.abs(percentDifference) <= 1) {
-      maxInterpretation = "Near 9-Day High";
-    } else if (percentDifference < -1) {
-      maxInterpretation = `Below 9-Day High by ${Math.abs(difference).toFixed(4)} (${Math.abs(percentDifference).toFixed(2)}%)`;
-    } else {
-      maxInterpretation = `Above 9-Day High by ${difference.toFixed(4)} (${percentDifference.toFixed(2)}%)`;
-    }
-  }
-
-  // ATR Interpretation (using latest value)
+  // ATR Interpretation
   const latestAtr = technicalIndicators.atr ? technicalIndicators.atr[0] : null;
   const atrValue = latestAtr ? parseFloat(latestAtr.atr) : null;
+  const latestClose = forexData.quote ? parseFloat(forexData.quote.close) : null;
   let atrInterpretation = "N/A";
   if (atrValue !== null && latestClose !== null) {
     const atrPercent = (atrValue / latestClose) * 100;
@@ -899,15 +669,49 @@ export default function ForexDetails() {
     }
   }
 
-  // SAR Interpretation (using latest value)
-  const latestSar = technicalIndicators.sar ? technicalIndicators.sar[0] : null;
-  const sarValue = latestSar ? parseFloat(latestSar.sar) : null;
-  let sarInterpretation = "N/A";
-  if (sarValue !== null && latestClose !== null) {
-    if (latestClose > sarValue) {
-      sarInterpretation = `Support at ${sarValue.toFixed(4)} (Bullish)`;
+  // Ichimoku Interpretation
+  const latestIchimoku = technicalIndicators.ichimoku ? technicalIndicators.ichimoku[0] : null;
+  let ichimokuInterpretation = "N/A";
+  if (latestIchimoku && latestClose !== null) {
+    const tenkanSen = parseFloat(latestIchimoku.tenkan_sen);
+    const kijunSen = parseFloat(latestIchimoku.kijun_sen);
+    const senkouSpanA = parseFloat(latestIchimoku.senkou_span_a);
+    const senkouSpanB = parseFloat(latestIchimoku.senkou_span_b);
+    const cloudTop = Math.max(senkouSpanA, senkouSpanB);
+    const cloudBottom = Math.min(senkouSpanA, senkouSpanB);
+
+    if (latestClose > cloudTop) {
+      ichimokuInterpretation = "Bullish (Price above Cloud)";
+    } else if (latestClose < cloudBottom) {
+      ichimokuInterpretation = "Bearish (Price below Cloud)";
     } else {
-      sarInterpretation = `Resistance at ${sarValue.toFixed(4)} (Bearish)`;
+      ichimokuInterpretation = "Neutral (Price in Cloud)";
+    }
+
+    if (tenkanSen > kijunSen) {
+      ichimokuInterpretation += ", Bullish Momentum (Tenkan > Kijun)";
+    } else if (tenkanSen < kijunSen) {
+      ichimokuInterpretation += ", Bearish Momentum (Tenkan < Kijun)";
+    }
+  }
+
+  // AROON Interpretation
+  const latestAroon = technicalIndicators.aroon ? technicalIndicators.aroon[0] : null;
+  let aroonInterpretation = "N/A";
+  if (latestAroon) {
+    const aroonUp = parseFloat(latestAroon.aroon_up);
+    const aroonDown = parseFloat(latestAroon.aroon_down);
+
+    if (aroonUp > 70 && aroonDown < 30) {
+      aroonInterpretation = "Strong Uptrend";
+    } else if (aroonDown > 70 && aroonUp < 30) {
+      aroonInterpretation = "Strong Downtrend";
+    } else if (aroonUp > aroonDown) {
+      aroonInterpretation = "Bullish Trend Developing";
+    } else if (aroonDown > aroonUp) {
+      aroonInterpretation = "Bearish Trend Developing";
+    } else {
+      aroonInterpretation = "Neutral (Consolidation)";
     }
   }
 
@@ -915,310 +719,464 @@ export default function ForexDetails() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b">
-        <div className="max-w-l mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <Link href="/forexs" className="text-primary hover:text-primary/80">
-              <Button variant="ghost">Back to Forex Listings</Button>
-            </Link>
-            <div className="flex items-center gap-4">
-              {/* Display logos for base and quote currencies */}
-              {overview.logo_base && overview.logo_quote ? (
-                <div className="flex gap-2">
-                  <Image
-                    src={overview.logo_base}
-                    alt={`${symbol} base logo`}
-                    width={25}
-                    height={25}
-                    className="rounded"
-                  />
-                  <Image
-                    src={overview.logo_quote}
-                    alt={`${symbol} quote logo`}
-                    width={25}
-                    height={25}
-                    className="rounded"
-                  />
-                </div>
-              ) : null}
-              <h1 className="text-2xl font-bold">
-                {symbol} - {forexData.quote.name || "Unknown"}
-              </h1>
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              <span className="text-2xl font-bold">FinanceAI</span>
+            </div>
+            <div className="flex space-x-4">
+              <Link href="/choose-market">
+                <Button variant="ghost">Analyze Market</Button>
+              </Link>
+              {/* <Link href="/news">
+                <Button variant="ghost">News</Button>
+              </Link> */}
+              {/* <Link href="/advisor">
+                <Button variant="ghost">AI Advisor</Button>
+              </Link> */}
+              <Link href="/forexs">
+                <Button variant="outline">Back to Forex Listings</Button>
+              </Link>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-l mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
+          <div className="max-w-full mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <div className="flex justify-center items-center gap-4 mb-4">
+                {overview.logo_base && overview.logo_quote ? (
+                  <div className="flex gap-2">
+                    <Image
+                      src={overview.logo_base}
+                      alt={`${symbol} base logo`}
+                      width={25}
+                      height={25}
+                      className="rounded"
+                    />
+                    <Image
+                      src={overview.logo_quote}
+                      alt={`${symbol} quote logo`}
+                      width={25}
+                      height={25}
+                      className="rounded"
+                    />
+                  </div>
+                ) : null}
+                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
+                  {symbol} - {forexData.quote.name || "Unknown"}
+                </h1>
+              </div>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
+                Dive into detailed analysis for {symbol}, including real-time price data, technical indicators, and historical trends.
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
         <div className="grid grid-cols-1 gap-6">
           {/* Forex Statistics */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Forex Pair Statistics</h2>
-            {forexData.quote ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <p>
-                    <strong>Current Price:</strong>{" "}
-                    {forexData.price?.price
-                      ? parseFloat(forexData.price.price).toFixed(4)
-                      : "N/A"}
-                  </p>
-                  <p>
-                    <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
-                    {forexData.eod?.close
-                      ? parseFloat(forexData.eod.close).toFixed(4)
-                      : "N/A"}
-                  </p>
-                  <p><strong>Latest Close:</strong> {parseFloat(forexData.quote.close || "0").toFixed(4)}</p>
-                  <p><strong>Latest Open:</strong> {parseFloat(forexData.quote.open || "0").toFixed(4)}</p>
-                  <p><strong>Daily High:</strong> {parseFloat(forexData.quote.high || "0").toFixed(4)}</p>
-                  <p><strong>Daily Low:</strong> {parseFloat(forexData.quote.low || "0").toFixed(4)}</p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="relative group"
+          >
+            <div
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+            ></div>
+            <Card className="relative p-6 bg-card">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <div>
-                  <p><strong>Previous Close:</strong> {parseFloat(forexData.quote.previous_close || "0").toFixed(4)}</p>
-                  <p><strong>Change:</strong> {parseFloat(forexData.quote.change || "0").toFixed(4)} ({parseFloat(forexData.quote.percent_change || "0").toFixed(2)}%)</p>
-                  <p><strong>Base Currency:</strong> {forexData.quote.currency_base || "N/A"}</p>
-                  <p><strong>Quote Currency:</strong> {forexData.quote.currency_quote || "N/A"}</p>
-                </div>
+                <h2 className="text-2xl font-semibold">Forex Pair Statistics</h2>
               </div>
-            ) : (
-              <p>No statistics available for {symbol}.</p>
-            )}
-          </Card>
+              {forexData.quote ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <p>
+                      <strong>Current Price:</strong>{" "}
+                      {forexData.price?.price
+                        ? parseFloat(forexData.price.price).toFixed(4)
+                        : "N/A"}
+                    </p>
+                    <p>
+                      <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
+                      {forexData.eod?.close
+                        ? parseFloat(forexData.eod.close).toFixed(4)
+                        : "N/A"}
+                    </p>
+                    <p>
+                      <strong>Latest Close:</strong>{" "}
+                      {parseFloat(forexData.quote.close || "0").toFixed(4)}
+                    </p>
+                    <p>
+                      <strong>Latest Open:</strong>{" "}
+                      {parseFloat(forexData.quote.open || "0").toFixed(4)}
+                    </p>
+                    <p>
+                      <strong>Daily High:</strong>{" "}
+                      {parseFloat(forexData.quote.high || "0").toFixed(4)}
+                    </p>
+                    <p>
+                      <strong>Daily Low:</strong>{" "}
+                      {parseFloat(forexData.quote.low || "0").toFixed(4)}
+                    </p>
+                  </div>
+                  <div>
+                    <p>
+                      <strong>Previous Close:</strong>{" "}
+                      {parseFloat(forexData.quote.previous_close || "0").toFixed(4)}
+                    </p>
+                    <p>
+                      <strong>Change:</strong>{" "}
+                      {parseFloat(forexData.quote.change || "0").toFixed(4)} (
+                      {parseFloat(forexData.quote.percent_change || "0").toFixed(2)}%)
+                    </p>
+                    <p>
+                      <strong>Base Currency:</strong>{" "}
+                      {forexData.quote.currency_base || "N/A"}
+                    </p>
+                    <p>
+                      <strong>Quote Currency:</strong>{" "}
+                      {forexData.quote.currency_quote || "N/A"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  No statistics available for {symbol}.
+                </p>
+              )}
+            </Card>
+          </motion.div>
 
           {/* Technical Indicators (Numerical Summaries) */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Technical Indicators</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* STOCH */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Stochastic Oscillator (STOCH)</h3>
-                {latestStoch ? (
-                  <>
-                    <p><strong>Slow %K:</strong> {parseFloat(latestStoch.slow_k).toFixed(2)}</p>
-                    <p><strong>Slow %D:</strong> {parseFloat(latestStoch.slow_d).toFixed(2)}</p>
-                    <p><strong>Interpretation:</strong> {stochInterpretation}</p>
-                  </>
-                ) : (
-                  <p>No STOCH data available for {symbol}.</p>
-                )}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="relative group"
+          >
+            <div
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+            ></div>
+            <Card className="relative p-6 bg-card">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-semibold">Technical Indicators</h2>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Moving Averages (SMA) */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Moving Averages</h3>
+                  <p>
+                    <strong>20-Day SMA:</strong>{" "}
+                    {technicalIndicators.sma.sma20 && technicalIndicators.sma.sma20[0]
+                      ? parseFloat(technicalIndicators.sma.sma20[0].sma).toFixed(4)
+                      : "N/A"}
+                  </p>
+                  <p>
+                    <strong>50-Day SMA:</strong>{" "}
+                    {technicalIndicators.sma.sma50 && technicalIndicators.sma.sma50[0]
+                      ? parseFloat(technicalIndicators.sma.sma50[0].sma).toFixed(4)
+                      : "N/A"}
+                  </p>
+                </div>
 
-              {/* Moving Averages (SMA and EMA) */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Moving Averages</h3>
-                <p>
-                  <strong>20-Day SMA:</strong>{" "}
-                  {technicalIndicators.sma.sma20 && technicalIndicators.sma.sma20[0]
-                    ? parseFloat(technicalIndicators.sma.sma20[0].sma).toFixed(4)
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>50-Day SMA:</strong>{" "}
-                  {technicalIndicators.sma.sma50 && technicalIndicators.sma.sma50[0]
-                    ? parseFloat(technicalIndicators.sma.sma50[0].sma).toFixed(4)
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>20-Day EMA:</strong>{" "}
-                  {technicalIndicators.ema.ema20 && technicalIndicators.ema.ema20[0]
-                    ? parseFloat(technicalIndicators.ema.ema20[0].ema).toFixed(4)
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>50-Day EMA:</strong>{" "}
-                  {technicalIndicators.ema.ema50 && technicalIndicators.ema.ema50[0]
-                    ? parseFloat(technicalIndicators.ema.ema50[0].ema).toFixed(4)
-                    : "N/A"}
-                </p>
-              </div>
+                {/* RSI */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
+                  <p>
+                    <strong>14-Day RSI:</strong>{" "}
+                    {latestRsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
+                  </p>
+                  <p>
+                    <strong>Interpretation:</strong>{" "}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        rsiInterpretation === "Overbought"
+                          ? "bg-red-100 text-red-800"
+                          : rsiInterpretation === "Oversold"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-blue-100 text-blue-800"
+                      }`}
+                    >
+                      {rsiInterpretation}
+                    </span>
+                  </p>
+                </div>
 
-              {/* RSI */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
-                <p>
-                  <strong>14-Day RSI:</strong>{" "}
-                  {latestRsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {rsiInterpretation}</p>
-              </div>
+                {/* MACD */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">MACD</h3>
+                  {latestMacd ? (
+                    <>
+                      <p>
+                        <strong>MACD Line:</strong>{" "}
+                        {parseFloat(latestMacd.macd).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Signal Line:</strong>{" "}
+                        {parseFloat(latestMacd.macd_signal).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Histogram:</strong>{" "}
+                        {parseFloat(latestMacd.macd_hist).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Interpretation:</strong>{" "}
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            macdInterpretation.includes("Bullish")
+                              ? "bg-green-100 text-green-800"
+                              : macdInterpretation.includes("Bearish")
+                              ? "bg-red-100 text-red-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {macdInterpretation}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No MACD data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* PERCENT_B */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">%B Indicator</h3>
-                <p>
-                  <strong>%B:</strong>{" "}
-                  {latestPercentB ? parseFloat(latestPercentB.percent_b).toFixed(2) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {percentBInterpretation}</p>
-              </div>
+                {/* ATR */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
+                  <p>
+                    <strong>14-Day ATR:</strong>{" "}
+                    {latestAtr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
+                  </p>
+                  <p>
+                    <strong>Interpretation:</strong>{" "}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        atrInterpretation.includes("High")
+                          ? "bg-red-100 text-red-800"
+                          : atrInterpretation.includes("Low")
+                          ? "bg-green-100 text-green-800"
+                          : "bg-blue-100 text-blue-800"
+                      }`}
+                    >
+                      {atrInterpretation}
+                    </span>
+                  </p>
+                </div>
 
-              {/* MACD */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">MACD</h3>
-                {latestMacd ? (
-                  <>
-                    <p><strong>MACD Line:</strong> {parseFloat(latestMacd.macd).toFixed(4)}</p>
-                    <p><strong>Signal Line:</strong> {parseFloat(latestMacd.macd_signal).toFixed(4)}</p>
-                    <p><strong>Histogram:</strong> {parseFloat(latestMacd.macd_hist).toFixed(4)}</p>
-                    <p><strong>Interpretation:</strong> {macdInterpretation}</p>
-                  </>
-                ) : (
-                  <p>No MACD data available for {symbol}.</p>
-                )}
-              </div>
+                {/* Ichimoku */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Ichimoku Cloud</h3>
+                  {latestIchimoku ? (
+                    <>
+                      <p>
+                        <strong>Tenkan-sen:</strong>{" "}
+                        {parseFloat(latestIchimoku.tenkan_sen).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Kijun-sen:</strong>{" "}
+                        {parseFloat(latestIchimoku.kijun_sen).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Senkou Span A:</strong>{" "}
+                        {parseFloat(latestIchimoku.senkou_span_a).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Senkou Span B:</strong>{" "}
+                        {parseFloat(latestIchimoku.senkou_span_b).toFixed(4)}
+                      </p>
+                      <p>
+                        <strong>Interpretation:</strong>{" "}
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            ichimokuInterpretation.includes("Bullish")
+                              ? "bg-green-100 text-green-800"
+                              : ichimokuInterpretation.includes("Bearish")
+                              ? "bg-red-100 text-red-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {ichimokuInterpretation}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No Ichimoku Cloud data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* BBANDS */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Bollinger Bands</h3>
-                {technicalIndicators.bbands && technicalIndicators.bbands[0] ? (
-                  <>
-                    <p><strong>Upper Band:</strong> {parseFloat(technicalIndicators.bbands[0].upper_band).toFixed(4)}</p>
-                    <p><strong>Middle Band:</strong> {parseFloat(technicalIndicators.bbands[0].middle_band).toFixed(4)}</p>
-                    <p><strong>Lower Band:</strong> {parseFloat(technicalIndicators.bbands[0].lower_band).toFixed(4)}</p>
-                  </>
-                ) : (
-                  <p>No Bollinger Bands data available for {symbol}.</p>
-                )}
+                {/* AROON */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Aroon Indicator</h3>
+                  {latestAroon ? (
+                    <>
+                      <p>
+                        <strong>Aroon Up:</strong>{" "}
+                        {parseFloat(latestAroon.aroon_up).toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>Aroon Down:</strong>{" "}
+                        {parseFloat(latestAroon.aroon_down).toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>Interpretation:</strong>{" "}
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            aroonInterpretation.includes("Uptrend")
+                              ? "bg-green-100 text-green-800"
+                              : aroonInterpretation.includes("Downtrend")
+                              ? "bg-red-100 text-red-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {aroonInterpretation}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No Aroon data available for {symbol}.
+                    </p>
+                  )}
+                </div>
               </div>
-
-              {/* ADX */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Average Directional Index (ADX)</h3>
-                <p>
-                  <strong>14-Day ADX:</strong>{" "}
-                  {latestAdx ? parseFloat(latestAdx.adx).toFixed(2) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {adxInterpretation}</p>
-              </div>
-
-              {/* MAX */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">9-Day Highest Value (MAX)</h3>
-                <p>
-                  <strong>9-Day MAX:</strong>{" "}
-                  {latestMax ? parseFloat(latestMax.max).toFixed(4) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {maxInterpretation}</p>
-              </div>
-
-              {/* ATR */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
-                <p>
-                  <strong>14-Day ATR:</strong>{" "}
-                  {latestAtr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {atrInterpretation}</p>
-              </div>
-
-              {/* SAR (Support/Resistance) */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Parabolic SAR (Support/Resistance)</h3>
-                <p>
-                  <strong>Latest SAR:</strong>{" "}
-                  {latestSar ? parseFloat(latestSar.sar).toFixed(4) : "N/A"}
-                </p>
-                <p><strong>Interpretation:</strong> {sarInterpretation}</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </motion.div>
 
           {/* Time Series Data (Charts) */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Time Series Data</h2>
-            <div className="grid grid-cols-1 gap-6">
-              <div>
-                <h3 className="text-lg font-medium mb-2">Daily Closing Prices with SMA, EMA, BBANDS, and SAR</h3>
-                <Line options={chartOptions} data={closingPriceData} />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            className="relative group"
+          >
+            <div
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+            ></div>
+            <Card className="relative p-6 bg-card">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-semibold">Time Series Data</h2>
               </div>
-            </div>
-          </Card>
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
+                    Daily Closing Prices with Indicators
+                  </h3>
+                  <Line options={chartOptions} data={closingPriceData} />
+                </div>
+              </div>
+            </Card>
+          </motion.div>
 
           {/* Technical Indicator Charts */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Technical Indicator Charts</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* STOCH Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Stochastic Oscillator (STOCH)</h3>
-                {technicalIndicators.stoch ? (
-                  <Line options={stochChartOptions} data={stochChartData} />
-                ) : (
-                  <p>No STOCH data available for {symbol}.</p>
-                )}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+            className="relative group"
+          >
+            <div
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+            ></div>
+            <Card className="relative p-6 bg-card">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-semibold">Technical Indicator Charts</h2>
               </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* RSI Chart */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
+                    Relative Strength Index (RSI)
+                  </h3>
+                  {technicalIndicators.rsi ? (
+                    <Line options={rsiChartOptions} data={rsiChartData} />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No RSI data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* RSI Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
-                {technicalIndicators.rsi ? (
-                  <Line options={rsiChartOptions} data={rsiChartData} />
-                ) : (
-                  <p>No RSI data available for {symbol}.</p>
-                )}
-              </div>
+                {/* MACD Chart */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
+                  {technicalIndicators.macd ? (
+                    <Bar options={macdChartOptions} data={macdChartData} />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No MACD data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* PERCENT_B Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">%B Indicator</h3>
-                {technicalIndicators.percentB ? (
-                  <Line options={percentBChartOptions} data={percentBChartData} />
-                ) : (
-                  <p>No %B data available for {symbol}.</p>
-                )}
-              </div>
+                {/* ATR Chart */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
+                    Average True Range (ATR)
+                  </h3>
+                  {technicalIndicators.atr ? (
+                    <Line options={atrChartOptions} data={atrChartData} />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No ATR data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* MACD Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">MACD</h3>
-                {technicalIndicators.macd ? (
-                  <Bar options={macdChartOptions} data={macdChartData} />
-                ) : (
-                  <p>No MACD data available for {symbol}.</p>
-                )}
-              </div>
+                {/* Ichimoku Chart */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
+                    Ichimoku Cloud
+                  </h3>
+                  {technicalIndicators.ichimoku ? (
+                    <Line options={ichimokuChartOptions} data={ichimokuChartData} />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No Ichimoku Cloud data available for {symbol}.
+                    </p>
+                  )}
+                </div>
 
-              {/* ADX Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Average Directional Index (ADX)</h3>
-                {technicalIndicators.adx ? (
-                  <Line options={adxChartOptions} data={adxChartData} />
-                ) : (
-                  <p>No ADX data available for {symbol}.</p>
-                )}
+                {/* AROON Chart */}
+                <div>
+                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
+                    Aroon Indicator
+                  </h3>
+                  {technicalIndicators.aroon ? (
+                    <Line options={aroonChartOptions} data={aroonChartData} />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      No Aroon data available for {symbol}.
+                    </p>
+                  )}
+                </div>
               </div>
-
-              {/* MAX Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">9-Day Highest Value (MAX)</h3>
-                {technicalIndicators.max ? (
-                  <Line options={maxChartOptions} data={maxChartData} />
-                ) : (
-                  <p>No MAX data available for {symbol}.</p>
-                )}
-              </div>
-
-              {/* ATR Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
-                {technicalIndicators.atr ? (
-                  <Line options={atrChartOptions} data={atrChartData} />
-                ) : (
-                  <p>No ATR data available for {symbol}.</p>
-                )}
-              </div>
-
-              {/* SAR Chart */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Parabolic SAR (Support/Resistance)</h3>
-                {technicalIndicators.sar ? (
-                  <Line options={sarChartOptions} data={sarChartData} />
-                ) : (
-                  <p>No SAR data available for {symbol}.</p>
-                )}
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </motion.div>
         </div>
       </main>
     </div>

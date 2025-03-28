@@ -149,14 +149,8 @@ export default function Home() {
               <span className="text-2xl font-bold">FinanceAI</span>
             </div>
             <div className="flex space-x-4">
-              <Link href="/stocks">
-                <Button variant="ghost">Stocks</Button>
-              </Link>
-              <Link href="/forexs">
-                <Button variant="ghost">Forex</Button>
-              </Link>
-              <Link href="/cryptos">
-                <Button variant="ghost">Crypto</Button>
+              <Link href="/choose-market">
+                <Button variant="ghost">Analyze Market</Button>
               </Link>
               <Link href="/news">
                 <Button variant="ghost">News</Button>
@@ -164,7 +158,7 @@ export default function Home() {
               <Link href="/advisor">
                 <Button variant="ghost">AI Advisor</Button>
               </Link>
-              <Link href="/stocks">
+              <Link href="/choose-market">
                 <Button>Get Started</Button>
               </Link>
             </div>
@@ -199,7 +193,7 @@ export default function Home() {
                   Try AI Advisor
                 </Button>
               </Link>
-              <Link href="/stocks">
+              <Link href="/choose-market">
                 <Button size="lg" variant="outline">
                   View Markets
                 </Button>

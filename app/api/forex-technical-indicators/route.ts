@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -8,11 +8,11 @@ const indicatorsCache = new Map();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Rate limit: 8 requests per minute (60 seconds / 8 = 7.5 seconds per request)
-// We'll use 15 seconds to be safe
-const REQUEST_DELAY_MS = 17000; // 15 seconds delay between requests
+// We'll use 17 seconds to be safe
+const REQUEST_DELAY_MS = 17000; // 17 seconds delay between requests
 
 // Utility function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Utility function to fetch with retry on rate limit
 async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
@@ -22,8 +22,9 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
       if (!response.ok) {
         const errorData = await response.json();
         if (response.status === 429) {
-          // Rate limit hit, retry after delay
-          console.warn(`Rate limit hit for URL: ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`);
+          console.warn(
+            `Rate limit hit for URL: ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`
+          );
           if (attempt === maxRetries) {
             throw new Error("Rate limit exceeded after maximum retries");
           }
@@ -37,7 +38,10 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
       if (attempt === maxRetries) {
         throw error;
       }
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, error.message);
+      console.warn(
+        `Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`,
+        error.message
+      );
       await delay(retryDelayMs);
     }
   }
@@ -75,29 +79,12 @@ export async function GET(request: Request) {
 
   try {
     // Initialize data objects
-    let stochData = null;
     let smaData = { sma20: null, sma50: null };
-    let emaData = { ema20: null, ema50: null };
     let rsiData = null;
-    let percentBData = null;
     let macdData = null;
-    let bbandsData = null;
-    let adxData = null;
-    let maxData = null;
-    let atrData = null; // New: ATR data
-    let sarData = null; // New: SAR data for Support/Resistance
-
-    // Fetch STOCH (Stochastic Oscillator)
-    try {
-      const stochUrl = `https://api.twelvedata.com/stoch?symbol=${symbol}&interval=1day&fast_k_period=14&slow_d_period=3&slow_k_period=1&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching STOCH for symbol: ${symbol} from Twelve Data...`);
-      const stochResponseData = await fetchWithRetry(stochUrl);
-      stochData = stochResponseData.values || null;
-      console.log(`Successfully fetched STOCH for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching STOCH for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
+    let atrData = null;
+    let ichimokuData = null;
+    let aroonData = null;
 
     // Fetch 20-day SMA
     try {
@@ -123,30 +110,6 @@ export async function GET(request: Request) {
     }
     await delay(REQUEST_DELAY_MS);
 
-    // Fetch 20-day EMA
-    try {
-      const ema20Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching 20-day EMA for symbol: ${symbol} from Twelve Data...`);
-      const ema20ResponseData = await fetchWithRetry(ema20Url);
-      emaData.ema20 = ema20ResponseData.values || null;
-      console.log(`Successfully fetched 20-day EMA for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching 20-day EMA for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch 50-day EMA
-    try {
-      const ema50Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=50&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching 50-day EMA for symbol: ${symbol} from Twelve Data...`);
-      const ema50ResponseData = await fetchWithRetry(ema50Url);
-      emaData.ema50 = ema50ResponseData.values || null;
-      console.log(`Successfully fetched 50-day EMA for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching 50-day EMA for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
     // Fetch RSI (14-day)
     try {
       const rsiUrl = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
@@ -156,18 +119,6 @@ export async function GET(request: Request) {
       console.log(`Successfully fetched RSI for symbol: ${symbol}`);
     } catch (error) {
       console.error(`Error fetching RSI for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch PERCENT_B
-    try {
-      const percentBUrl = `https://api.twelvedata.com/percent_b?symbol=${symbol}&interval=1day&time_period=20&sd=2&ma_type=SMA&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching PERCENT_B for symbol: ${symbol} from Twelve Data...`);
-      const percentBResponseData = await fetchWithRetry(percentBUrl);
-      percentBData = percentBResponseData.values || null;
-      console.log(`Successfully fetched PERCENT_B for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching PERCENT_B for symbol ${symbol}:`, error.message);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -183,42 +134,6 @@ export async function GET(request: Request) {
     }
     await delay(REQUEST_DELAY_MS);
 
-    // Fetch BBANDS
-    try {
-      const bbandsUrl = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&sd=2&ma_type=SMA&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching BBANDS for symbol: ${symbol} from Twelve Data...`);
-      const bbandsResponseData = await fetchWithRetry(bbandsUrl);
-      bbandsData = bbandsResponseData.values || null;
-      console.log(`Successfully fetched BBANDS for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching BBANDS for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch ADX
-    try {
-      const adxUrl = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching ADX for symbol: ${symbol} from Twelve Data...`);
-      const adxResponseData = await fetchWithRetry(adxUrl);
-      adxData = adxResponseData.values || null;
-      console.log(`Successfully fetched ADX for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching ADX for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
-    // Fetch MAX (Highest Value Over Period, 9-day)
-    try {
-      const maxUrl = `https://api.twelvedata.com/max?symbol=${symbol}&interval=1day&time_period=9&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching MAX (9-day) for symbol: ${symbol} from Twelve Data...`);
-      const maxResponseData = await fetchWithRetry(maxUrl);
-      maxData = maxResponseData.values || null;
-      console.log(`Successfully fetched MAX (9-day) for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching MAX for symbol ${symbol}:`, error.message);
-    }
-    await delay(REQUEST_DELAY_MS);
-
     // Fetch ATR (Average True Range, 14-day)
     try {
       const atrUrl = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
@@ -231,30 +146,37 @@ export async function GET(request: Request) {
     }
     await delay(REQUEST_DELAY_MS);
 
-    // Fetch SAR (Parabolic SAR for Support/Resistance)
+    // Fetch ICHIMOKU (Ichimoku Cloud)
     try {
-      const sarUrl = `https://api.twelvedata.com/sar?symbol=${symbol}&interval=1day&acceleration=0.02&maximum=0.2&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching SAR for symbol: ${symbol} from Twelve Data...`);
-      const sarResponseData = await fetchWithRetry(sarUrl);
-      sarData = sarResponseData.values || null;
-      console.log(`Successfully fetched SAR for symbol: ${symbol}`);
+      const ichimokuUrl = `https://api.twelvedata.com/ichimoku?symbol=${symbol}&interval=1day&tenkan_period=9&kijun_period=26&senkou_span_b_period=52&displacement=26&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching ICHIMOKU for symbol: ${symbol} from Twelve Data...`);
+      const ichimokuResponseData = await fetchWithRetry(ichimokuUrl);
+      ichimokuData = ichimokuResponseData.values || null;
+      console.log(`Successfully fetched ICHIMOKU for symbol: ${symbol}`);
     } catch (error) {
-      console.error(`Error fetching SAR for symbol ${symbol}:`, error.message);
+      console.error(`Error fetching ICHIMOKU for symbol ${symbol}:`, error.message);
+    }
+    await delay(REQUEST_DELAY_MS);
+
+    // Fetch AROON
+    try {
+      const aroonUrl = `https://api.twelvedata.com/aroon?symbol=${symbol}&interval=1day&time_period=14&outputsize=100&apikey=${TWELVE_DATA_API_KEY}`;
+      console.log(`Fetching AROON for symbol: ${symbol} from Twelve Data...`);
+      const aroonResponseData = await fetchWithRetry(aroonUrl);
+      aroonData = aroonResponseData.values || null;
+      console.log(`Successfully fetched AROON for symbol: ${symbol}`);
+    } catch (error) {
+      console.error(`Error fetching AROON for symbol ${symbol}:`, error.message);
     }
 
     // Combine all indicator data
     const indicatorsData = {
-      stoch: stochData,
       sma: smaData,
-      ema: emaData,
       rsi: rsiData,
-      percentB: percentBData,
       macd: macdData,
-      bbands: bbandsData,
-      adx: adxData,
-      max: maxData,
-      atr: atrData, // New: ATR data
-      sar: sarData, // New: SAR data
+      atr: atrData,
+      ichimoku: ichimokuData,
+      aroon: aroonData,
     };
 
     // Cache the result

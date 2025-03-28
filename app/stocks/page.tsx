@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, Loader2, Search } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
@@ -70,7 +71,7 @@ export default function Stocks() {
   const fetchStocks = async () => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const response = await fetch("/api/stocks");
       if (!response.ok) {
         const errorData = await response.json();
@@ -114,7 +115,7 @@ export default function Stocks() {
 
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const response = await fetch(`/api/stock?symbol=${searchQuery.toUpperCase()}`);
       if (!response.ok) {
         const errorData = await response.json();
@@ -169,194 +170,274 @@ export default function Stocks() {
       <header className="border-b">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <Link href="/" className="flex items-center text-primary hover:text-primary/80">
-              <Button variant="ghost">Back to Home</Button>
-            </Link>
-            <h1 className="text-2xl md:text-3xl font-bold">Stock Market Analysis</h1>
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              <span className="text-2xl font-bold">FinanceAI</span>
+            </div>
+            <div className="flex space-x-4">
+              <Link href="/choose-market">
+                <Button variant="ghost">Analyze Market</Button>
+              </Link>
+              {/* <Link href="/news">
+                <Button variant="ghost">News</Button>
+              </Link> */}
+              <Link href="/advisor">
+                <Button variant="ghost">AI Advisor</Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outline">Back to Home</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
+          <div className="max-w-full mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
+                Stock Market Analysis
+              </h1>
+              <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+                Explore real-time stock data, filter by exchange and type, and dive into detailed analysis for your favorite stocks.
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
         <div className="grid grid-cols-1 gap-6">
           {/* Search and Filter Bar */}
-          <Card className="p-4 mb-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Search Bar */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Input
-                  type="text"
-                  placeholder="Search by symbol or name (e.g., AAPL)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              </div>
-              <Button onClick={handleSearch} disabled={loading}>
-                {loading ? (
-                  <span className="flex items-center">
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Searching...
-                  </span>
-                ) : (
-                  "Search Stock"
-                )}
-              </Button>
-
-              {/* Exchange Filter */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="exchange-filter" className="text-sm font-medium">
-                  Exchange:
-                </label>
-                <select
-                  id="exchange-filter"
-                  value={selectedExchange}
-                  onChange={(e) => setSelectedExchange(e.target.value)}
-                  className="border rounded px-2 py-1"
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <Card className="p-6 bg-card">
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Search Bar */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Input
+                    type="text"
+                    placeholder="Search by symbol or name (e.g., AAPL)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 border border-muted rounded-lg focus:ring-2 focus:ring-primary"
+                  />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                </div>
+                <Button
+                  onClick={handleSearch}
                   disabled={loading}
+                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
                 >
-                  {exchangeOptions.map((exchange) => (
-                    <option key={exchange} value={exchange}>
-                      {exchange}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  {loading ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Searching...
+                    </span>
+                  ) : (
+                    "Search Stock"
+                  )}
+                </Button>
 
-              {/* Type Filter */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="type-filter" className="text-sm font-medium">
-                  Type:
-                </label>
-                <select
-                  id="type-filter"
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="border rounded px-2 py-1"
-                  disabled={loading}
-                >
-                  {typeOptions.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
+                {/* Exchange Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="exchange-filter" className="text-sm font-medium text-muted-foreground">
+                    Exchange:
+                  </label>
+                  <select
+                    id="exchange-filter"
+                    value={selectedExchange}
+                    onChange={(e) => setSelectedExchange(e.target.value)}
+                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
+                    disabled={loading}
+                  >
+                    {exchangeOptions.map((exchange) => (
+                      <option key={exchange} value={exchange}>
+                        {exchange}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Type Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="type-filter" className="text-sm font-medium text-muted-foreground">
+                    Type:
+                  </label>
+                  <select
+                    id="type-filter"
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value)}
+                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
+                    disabled={loading}
+                  >
+                    {typeOptions.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </motion.div>
 
           {/* Stock Listings */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-6 w-6" />
-                <h2 className="text-2xl md:text-3xl font-semibold">
-                  {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
-                </h2>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="relative group"
+          >
+            {/* Gradient background effect for the stock listings card */}
+            <div
+              className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+            ></div>
+            <Card className="relative p-6 bg-card">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+                    <BarChart3 className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-semibold">
+                    {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
+                  </h2>
+                </div>
+                <Button
+                  onClick={fetchStocks}
+                  disabled={loading}
+                  variant="outline"
+                  className="border border-muted hover:bg-muted/50"
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Refreshing...
+                    </span>
+                  ) : (
+                    "Refresh"
+                  )}
+                </Button>
               </div>
-              <Button onClick={fetchStocks} disabled={loading} variant="outline">
-                {loading ? (
-                  <span className="flex items-center">
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Refreshing...
-                  </span>
-                ) : (
-                  "Refresh"
-                )}
-              </Button>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4">Symbol</th>
-                    <th className="text-left py-3 px-4">Name</th>
-                    <th className="text-left py-3 px-4">Exchange</th>
-                    <th className="text-left py-3 px-4">Type</th>
-                    <th className="text-right py-3 px-4">Analyze</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStocks.length > 0 ? (
-                    filteredStocks.map((stock, index) => (
-                      <tr key={index} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-4 font-medium">{stock.symbol}</td>
-                        <td className="py-3 px-4">{stock.name}</td>
-                        <td className="py-3 px-4">{stock.exchange}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              stock.status === "Common Stock"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {stock.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Link href={`/stock/${stock.symbol}`}>
-                            <Button variant="ghost" size="sm">Analyze</Button>
-                          </Link>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-muted">
+                      <th className="text-left py-3 px-4 text-muted-foreground">Symbol</th>
+                      <th className="text-left py-3 px-4 text-muted-foreground">Name</th>
+                      <th className="text-left py-3 px-4 text-muted-foreground">Exchange</th>
+                      <th className="text-left py-3 px-4 text-muted-foreground">Type</th>
+                      <th className="text-left py-3 px-4 text-muted-foreground">Analyze</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStocks.length > 0 ? (
+                      filteredStocks.map((stock, index) => (
+                        <motion.tr
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: index * 0.05 }}
+                          className="border-b border-muted hover:bg-muted/50 transition-colors"
+                        >
+                          <td className="py-3 px-4 font-medium">{stock.symbol}</td>
+                          <td className="py-3 px-4">{stock.name}</td>
+                          <td className="py-3 px-4">{stock.exchange}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                stock.status === "Common Stock"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-indigo-100 text-indigo-800"
+                              }`}
+                            >
+                              {stock.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Link href={`/stock/${stock.symbol}`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-600 hover:text-indigo-700 flex items-center gap-1"
+                              >
+                                Analyze
+                                <ArrowRight className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          </td>
+                        </motion.tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="py-3 px-4 text-center text-muted-foreground">
+                          {loading ? (
+                            <span className="flex items-center justify-center">
+                              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                              Loading stocks...
+                            </span>
+                          ) : (
+                            "No stocks found"
+                          )}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="py-3 px-4 text-center">
-                        {loading ? (
-                          <span className="flex items-center justify-center">
-                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                            Loading stocks...
-                          </span>
-                        ) : (
-                          "No stocks found"
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="flex justify-between mt-5">
-              <Button
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                disabled={page === 1 || loading}
-                variant="outline"
-              >
-                ⬅ Previous
-              </Button>
-
-              <div className="flex items-center gap-2">
-                <span className="text-lg">Page:</span>
-                <select
-                  value={page}
-                  onChange={(e) => setPage(parseInt(e.target.value))}
-                  className="border rounded px-2 py-1"
-                  disabled={loading}
-                >
-                  {pageOptions.map((pageNum) => (
-                    <option key={pageNum} value={pageNum}>
-                      {pageNum}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-lg">of {totalPages}</span>
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              <Button
-                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                disabled={page >= totalPages || loading}
-                variant="outline"
+              {/* Pagination Controls */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+                className="flex justify-between mt-6"
               >
-                Next ➡
-              </Button>
-            </div>
-          </Card>
+                <Button
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={page === 1 || loading}
+                  variant="outline"
+                  className="border border-muted hover:bg-muted/50"
+                >
+                  ⬅ Previous
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-lg text-muted-foreground">Page:</span>
+                  <select
+                    value={page}
+                    onChange={(e) => setPage(parseInt(e.target.value))}
+                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
+                    disabled={loading}
+                  >
+                    {pageOptions.map((pageNum) => (
+                      <option key={pageNum} value={pageNum}>
+                        {pageNum}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-lg text-muted-foreground">of {totalPages}</span>
+                </div>
+
+                <Button
+                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={page >= totalPages || loading}
+                  variant="outline"
+                  className="border border-muted hover:bg-muted/50"
+                >
+                  Next ➡
+                </Button>
+              </motion.div>
+            </Card>
+          </motion.div>
         </div>
       </main>
     </div>

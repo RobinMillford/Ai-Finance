@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import Image from "next/image";
 import { BarChart3, ExternalLink, Search, Loader2 } from "lucide-react";
+import Sentiment from "sentiment";
 
 interface NewsArticle {
   title: string;
@@ -29,6 +30,11 @@ interface CachedNews {
   page: number;
 }
 
+interface SentimentResult {
+  label: "Positive" | "Negative" | "Neutral";
+  score: number;
+}
+
 export default function News() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +46,24 @@ export default function News() {
   const perPage = 10; // Number of articles per page
 
   const categories = ["All", "Stocks", "Economy", "Banking", "Markets"];
+
+  // Initialize the sentiment analyzer
+  const sentiment = new Sentiment();
+
+  // Function to analyze sentiment of an article
+  const analyzeSentiment = (title: string, description: string): SentimentResult => {
+    const text = `${title} ${description || ""}`.trim();
+    const result = sentiment.analyze(text);
+    const score = result.score;
+
+    if (score > 0) {
+      return { label: "Positive", score };
+    } else if (score < 0) {
+      return { label: "Negative", score };
+    } else {
+      return { label: "Neutral", score };
+    }
+  };
 
   useEffect(() => {
     const fetchNews = async () => {
@@ -152,16 +176,16 @@ export default function News() {
               <Link href="/choose-market">
                 <Button variant="ghost">Analyze Market</Button>
               </Link>
-              {/* <Link href="/news">
+              <Link href="/news">
                 <Button variant="ghost" className="bg-muted">
                   News
                 </Button>
-              </Link> */}
+              </Link>
               <Link href="/advisor">
                 <Button variant="ghost">AI Advisor</Button>
               </Link>
-              <Link href="/">
-                <Button variant="outline">Back Home</Button>
+              <Link href="/cryptos">
+                <Button variant="outline">Crypto Listings</Button>
               </Link>
             </div>
           </div>
@@ -253,50 +277,66 @@ export default function News() {
           <section className="py-8">
             {newsArticles.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {newsArticles.map((article, index) => (
-                  <motion.div
-                    key={article.url}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: index * 0.1 }}
-                    className="relative group"
-                  >
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
-                    <Card className="relative p-4 bg-card">
-                      {article.urlToImage && (
-                        <div className="relative h-48 w-full mb-4">
-                          <Image
-                            src={article.urlToImage}
-                            alt={article.title}
-                            layout="fill"
-                            objectFit="cover"
-                            className="rounded-lg"
-                          />
+                {newsArticles.map((article, index) => {
+                  const sentimentResult = analyzeSentiment(article.title, article.description);
+                  return (
+                    <motion.div
+                      key={article.url}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, delay: index * 0.1 }}
+                      className="relative group"
+                    >
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+                      <Card className="relative p-4 bg-card">
+                        {article.urlToImage && (
+                          <div className="relative h-48 w-full mb-4">
+                            <Image
+                              src={article.urlToImage}
+                              alt={article.title}
+                              layout="fill"
+                              objectFit="cover"
+                              className="rounded-lg"
+                            />
+                          </div>
+                        )}
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="text-lg font-semibold">{article.title}</h3>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              sentimentResult.label === "Positive"
+                                ? "bg-green-100 text-green-800"
+                                : sentimentResult.label === "Negative"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {sentimentResult.label}
+                          </span>
                         </div>
-                      )}
-                      <h3 className="text-lg font-semibold mb-2">{article.title}</h3>
-                      <p className="text-muted-foreground text-sm mb-4">{article.description}</p>
-                      <div className="flex justify-between items-center text-sm text-muted-foreground">
-                        <span>{article.source.name}</span>
-                        <span>
-                          {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </span>
-                      </div>
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-4 inline-flex items-center text-primary hover:underline"
-                      >
-                        Read More <ExternalLink className="h-4 w-4 ml-1" />
-                      </a>
-                    </Card>
-                  </motion.div>
-                ))}
+                        <p className="text-muted-foreground text-sm mb-4">{article.description}</p>
+                        <div className="flex justify-between items-center text-sm text-muted-foreground">
+                          <span>{article.source.name}</span>
+                          <span>
+                            {new Date(article.publishedAt).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        <a
+                          href={article.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 inline-flex items-center text-primary hover:underline"
+                        >
+                          Read More <ExternalLink className="h-4 w-4 ml-1" />
+                        </a>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center">

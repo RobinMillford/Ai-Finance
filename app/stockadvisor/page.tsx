@@ -1,4 +1,3 @@
-// app/stockadvisor/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -7,11 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { BarChart3, Send, Loader2, Trash2, Clock, Menu, Plus, X } from "lucide-react";
+import { TrendingUp, Send, Loader2, Trash2, Clock, Menu, Plus, X } from "lucide-react";
 import { ChatGroq } from "@langchain/groq";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+// Stock theme colors
+const stockBlue = "#1E3A8A"; // Deep blue for headers and buttons
+const stockGold = "#D4AF37"; // Gold for accents
+const stockWhite = "#F5F6F5"; // Soft white for backgrounds
 
 // In-memory cache for stock data and indicators
 const stockDataCache = new Map();
@@ -23,7 +27,7 @@ const REQUEST_DELAY_MS = 7500; // 7.5 seconds delay between requests
 const API_CALL_THRESHOLD = 4; // Apply delay only if API calls exceed this threshold
 
 // Utility function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Utility function to fetch with retry on rate limit
 async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
@@ -43,11 +47,12 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
         throw new Error(`API error: ${JSON.stringify(errorData)}`);
       }
       return await response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       if (attempt === maxRetries) {
         throw error;
       }
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, error.message);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
       await delay(retryDelayMs);
     }
   }
@@ -70,8 +75,9 @@ async function fetchStockListings() {
     const data = response.data || [];
     stockDataCache.set(cacheKey, { data, timestamp: now });
     return data;
-  } catch (error) {
-    console.error("Error fetching stock listings:", error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error fetching stock listings:", errorMessage);
     throw error;
   }
 }
@@ -87,20 +93,18 @@ async function fetchStockData(symbol: string, apiCallCount: { count: number }) {
   }
 
   try {
-    // Fetch quote (current price, daily change, volume)
     const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
     const quoteResponse = await fetchWithRetry(quoteUrl);
     apiCallCount.count += 1;
     if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+      await delay(REQUEST_DELAY_MS);
     }
 
-    // Fetch time series (historical data for trend analysis)
     const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
     const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
     apiCallCount.count += 1;
     if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+      await delay(REQUEST_DELAY_MS);
     }
 
     const data = {
@@ -109,8 +113,9 @@ async function fetchStockData(symbol: string, apiCallCount: { count: number }) {
     };
     stockDataCache.set(cacheKey, { data, timestamp: now });
     return data;
-  } catch (error) {
-    console.error(`Error fetching stock data for ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error fetching stock data for ${symbol}:`, errorMessage);
     throw error;
   }
 }
@@ -121,7 +126,6 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
   const cachedData = indicatorsCache.get(cacheKey) || {};
   const now = Date.now();
 
-  // Check if all requested indicators are already cached
   const missingIndicators = requestedIndicators.filter(
     (indicator) => !cachedData[indicator] || (now - cachedData[indicator]?.timestamp >= CACHE_DURATION)
   );
@@ -136,7 +140,6 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
           url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
         case "ema":
-          // Fetch both 20-day and 50-day EMA
           url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           const ema20Response = await fetchWithRetry(url);
           apiCallCount.count += 1;
@@ -167,19 +170,20 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
           url = `https://api.twelvedata.com/aroon?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
         default:
-          continue; // Skip unsupported indicators
+          continue;
       }
       const response = await fetchWithRetry(url);
       apiCallCount.count += 1;
       if (apiCallCount.count > API_CALL_THRESHOLD) {
-        await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+        await delay(REQUEST_DELAY_MS);
       }
       indicatorsData[indicator.toLowerCase()] = { data: response, timestamp: now };
     }
     indicatorsCache.set(cacheKey, indicatorsData);
     return indicatorsData;
-  } catch (error) {
-    console.error(`Error fetching technical indicators for ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error fetching technical indicators for ${symbol}:`, errorMessage);
     throw error;
   }
 }
@@ -212,14 +216,14 @@ export default function StockAdvisor() {
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch stock listings on mount to validate symbols
   useEffect(() => {
     const loadStockListings = async () => {
       try {
         const listings = await fetchStockListings();
         setStockListings(listings);
         setStockListingsError(null);
-      } catch (error) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         setStockListingsError("Failed to load stock listings. Some features may be limited. Please try refreshing the page.");
         toast({
           title: "Error",
@@ -231,11 +235,10 @@ export default function StockAdvisor() {
     loadStockListings();
   }, [toast]);
 
-  // Initialize the chat session with an initial message
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Welcome to the Stock Advisor! I can help you analyze stocks. Please provide a stock symbol or company name to get started (e.g., "AAPL" for Apple, "Tesla"), and specify any technical indicators you'd like to analyze (e.g., RSI, EMA, MACD, BBANDS, ADX, ATR, AROON).`,
+      content: `Hey there! I’m your Stock Buddy, here to help you dive into the stock market. Ask me anything—like "Analyze AAPL" or "What’s the RSI for Tesla?"—and I’ll give you the latest insights. What’s on your mind?`,
       timestamp: new Date().toLocaleTimeString(),
     };
 
@@ -251,7 +254,6 @@ export default function StockAdvisor() {
     }
   }, [currentChatId]);
 
-  // Update messages when switching chats
   useEffect(() => {
     const currentSession = chatSessions.find((session) => session.id === currentChatId);
     if (currentSession) {
@@ -261,12 +263,12 @@ export default function StockAdvisor() {
     }
   }, [currentChatId, chatSessions]);
 
-  // Auto-scroll to the latest message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
-  // Set sidebar to closed on smaller screens by default
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1024) {
@@ -343,7 +345,6 @@ export default function StockAdvisor() {
     setIsSidebarOpen((prev) => !prev);
   };
 
-  // System prompt for deep stock analysis
   const systemPrompt = `
 You are an AI stock advisor for FinanceAI, a platform that provides financial data analysis for stocks. Your task is to assist users by interpreting stock data and technical indicators for a given stock symbol or company name. Follow these steps:
 
@@ -412,36 +413,11 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
    - Use bullet points or short paragraphs for readability.
    - Do not invent or hallucinate data. Only use the provided API data.
    - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
-
-Example Interaction:
-User: "Analyzee AAPL"
-Assistant:
-**Analysis for AAPL (Apple)**
-
-- **Current Price**: The current price is $174.55 (as of the latest quote).
-- **Daily Change**: The stock is up +0.55% ($0.95) today, with a trading volume of 54,115,200 shares.
-- **30-Day Trend**: Over the past 30 days, the price has increased by 3.2%, showing a steady uptrend.
-- **Technical Indicators**:
-  - **20-day EMA**: $170.23. The price is above the 20-day EMA, indicating short-term bullish momentum.
-  - **50-day EMA**: $168.45. The price is also above the 50-day EMA, confirming a longer-term bullish trend.
-  - **14-day RSI**: 54.21. The RSI is in the neutral zone, suggesting the stock is neither overbought nor oversold. Over the past 30 days, the RSI has risen from 50 to 54.21, indicating growing bullish momentum.
-  - **MACD**: MACD Line: 0.21, Signal Line: 0.18, Histogram: 0.03. The MACD is bullish, with the histogram showing increasing momentum.
-  - **Bollinger Bands**: Upper Band: $176.39, Lower Band: $164.71. The price is near the upper band, suggesting a potential overbought condition, but the wide bands indicate the trend may continue.
-  - **ADX**: 25. The ADX indicates a moderate trend strength, supporting the current uptrend.
-  - **ATR**: 2.5. The ATR suggests moderate volatility, with potential price swings of around $2.5 per day.
-  - **AROON**: Aroon Up: 80, Aroon Down: 20. The Aroon Up is dominant, confirming the bullish trend.
-- **Actionable Insights**:
-  - The stock is in a confirmed uptrend, supported by the EMA, MACD, and AROON indicators.
-  - The RSI and Bollinger Bands suggest caution as the stock may be approaching overbought territory. Consider waiting for a pullback to the 20-day EMA ($170.23) for a better entry point.
-  - The moderate volatility (ATR) and trend strength (ADX) suggest the trend is sustainable, but monitor for any reversal signals (e.g., RSI above 70 or a MACD crossover).
-
-Would you like to analyze specific indicators for AAPL or try a different stock?
-`;
+  `;
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
-    // Add user message to the chat
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -460,7 +436,6 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       return updatedMessages;
     });
 
-    // Generate a descriptive title for the chat session
     if (messages.filter((msg) => msg.role === "user").length === 0) {
       let newTitle = `Chat ${chatSessions.length}`;
       const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/)?.[0];
@@ -490,8 +465,8 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
           newTitle = `Analysis for ${matchedStock.symbol}`;
         }
       }
-      setChatSessions((prevSessions) =>
-        prevSessions.map((session) =>
+      setChatSessions((prev) =>
+        prev.map((session) =>
           session.id === currentChatId ? { ...session, title: newTitle } : session
         )
       );
@@ -501,39 +476,33 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
     setLoading(true);
 
     try {
-      // Initialize the Groq model
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
         model: "llama3-70b-8192",
         temperature: 0.5,
       });
 
-      // Get the chat history for this session
       const chatHistory = chatHistories.get(currentChatId);
       if (!chatHistory) {
         throw new Error("Chat history not initialized for this session.");
       }
       await chatHistory.addMessage(new HumanMessage(input));
 
-      // Create the prompt template
       const prompt = ChatPromptTemplate.fromMessages([
         ["system", systemPrompt],
-        ["human", input],
+        ["human", "{input}"],
       ]);
 
-      // Extract symbol or company name with typo handling
       let symbol: string | null = null;
 
-      // Step 1: Try to extract a stock symbol (e.g., "aapl", "AAPL", "APPL")
-      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/);
+      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/)?.[0];
       if (symbolMatch) {
-        const potentialSymbol = symbolMatch[0].toUpperCase();
+        const potentialSymbol = symbolMatch.toUpperCase();
         const stock = stockListings.find((s) => s.symbol === potentialSymbol);
         if (stock) {
           symbol = potentialSymbol;
         } else {
-          // Handle typos in symbol (e.g., "APPL" -> "AAPL")
-          const closestSymbol = stockListings.reduce((closest, s) => {
+          const closestSymbol = stockListings.reduce((closest: any, s: any) => {
             const distance = levenshteinDistance(potentialSymbol, s.symbol);
             return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
           }, { symbol: "", distance: Infinity });
@@ -543,17 +512,15 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 2: If no symbol is found, try to match a company name with typo handling
       if (!symbol) {
         const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const stock = stockListings.find((s) =>
+        const stock = stockListings.find((s: any) =>
           s.name.toLowerCase().includes(companyName)
         );
         if (stock) {
           symbol = stock.symbol;
         } else {
-          // Handle typos in company name (e.g., "Aple" -> "Apple")
-          const closestStock = stockListings.reduce((closest, s) => {
+          const closestStock = stockListings.reduce((closest: any, s: any) => {
             const distance = levenshteinDistance(companyName, s.name.toLowerCase());
             return distance < (closest.distance || Infinity) ? { symbol: s.symbol, name: s.name, distance } : closest;
           }, { symbol: "", name: "", distance: Infinity });
@@ -563,14 +530,13 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 3: If still no symbol, check chat history for a symbol
       if (!symbol) {
         for (let i = messages.length - 1; i >= 0; i--) {
           const msg = messages[i];
-          const historySymbolMatch = msg.content.match(/\b[A-Za-z]{1,5}\b/);
+          const historySymbolMatch = msg.content.match(/\b[A-Za-z]{1,5}\b/)?.[0];
           if (historySymbolMatch) {
-            const potentialSymbol = historySymbolMatch[0].toUpperCase();
-            const stock = stockListings.find((s) => s.symbol === potentialSymbol);
+            const potentialSymbol = historySymbolMatch.toUpperCase();
+            const stock = stockListings.find((s: any) => s.symbol === potentialSymbol);
             if (stock) {
               symbol = potentialSymbol;
               break;
@@ -579,7 +545,6 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 4: If no symbol is found, ask the user to provide one
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
@@ -601,11 +566,10 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         return;
       }
 
-      // Step 5: Validate symbol against stock listings
       if (stockListings.length > 0) {
-        const isValidSymbol = stockListings.some((stock) => stock.symbol === symbol);
+        const isValidSymbol = stockListings.some((stock: any) => stock.symbol === symbol);
         if (!isValidSymbol) {
-          const closestSymbol = stockListings.reduce((closest, s) => {
+          const closestSymbol = stockListings.reduce((closest: any, s: any) => {
             const distance = levenshteinDistance(symbol, s.symbol);
             return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
           }, { symbol: "", distance: Infinity });
@@ -631,32 +595,32 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 6: Determine what data to fetch
       const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
       const requestedIndicators = indicators.filter((indicator) =>
         input.toLowerCase().includes(indicator)
       );
-      const needsStockData = input.toLowerCase().includes("price") || 
-                            input.toLowerCase().includes("change") || 
-                            input.toLowerCase().includes("volume") || 
-                            input.toLowerCase().includes("trend") || 
-                            input.toLowerCase().includes("analyz");
+      const needsStockData =
+        input.toLowerCase().includes("price") ||
+        input.toLowerCase().includes("change") ||
+        input.toLowerCase().includes("volume") ||
+        input.toLowerCase().includes("trend") ||
+        input.toLowerCase().includes("analyz");
 
       let stockData, indicatorsData;
-      const apiCallCount = { count: 0 }; // Track the number of API calls
+      const apiCallCount = { count: 0 };
 
-      // Fetch stock data if needed
       if (needsStockData || requestedIndicators.length === 0) {
         try {
           stockData = await fetchStockData(symbol, apiCallCount);
-        } catch (error) {
-          const errorMessage: Message = {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch stock data for ${symbol} due to an API error: ${error.message}. Please try again later or use a different symbol.`,
+            content: `I couldn't fetch stock data for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
-            const updatedMessages = [...prev, errorMessage];
+            const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
                 session.id === currentChatId
@@ -671,19 +635,19 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Fetch technical indicators if requested (or all for general analysis)
       if (requestedIndicators.length > 0 || (!needsStockData && input.toLowerCase().includes("analyz"))) {
         const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : indicators;
         try {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
-        } catch (error) {
-          const errorMessage: Message = {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${error.message}. Please try again later or use a different symbol.`,
+            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
-            const updatedMessages = [...prev, errorMessage];
+            const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
                 session.id === currentChatId
@@ -698,7 +662,6 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 7: Prepare the enhanced input with API data and chat history
       const combinedData = {
         stockData,
         indicators: indicatorsData,
@@ -706,14 +669,12 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       };
       const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(messages)}`;
 
-      // Step 8: Call the chain with the enhanced input and chat history
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
         input: enhancedInput,
         chat_history: await chatHistory.getMessages(),
       });
 
-      // Step 9: Add assistant response to the chat with fetched data
       const assistantMessage: Message = {
         role: "assistant",
         content: response.content,
@@ -735,20 +696,21 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       });
 
       await chatHistory.addMessage(new SystemMessage(response.content));
-    } catch (error) {
-      console.error("Error in chatbot:", error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error in chatbot:", errorMessage);
       toast({
         title: "Error",
         description: "Failed to process your request. Please try again.",
         variant: "destructive",
       });
-      const errorMessage: Message = {
+      const errorMsg: Message = {
         role: "assistant",
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {
-        const updatedMessages = [...prev, errorMessage];
+        const updatedMessages = [...prev, errorMsg];
         setChatSessions((prevSessions) =>
           prevSessions.map((session) =>
             session.id === currentChatId
@@ -763,11 +725,9 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
     }
   };
 
-  // Levenshtein Distance for typo handling
   function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
 
-    // Initialize matrix
     for (let i = 0; i <= b.length; i++) {
       matrix[i] = [i];
     }
@@ -775,16 +735,15 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       matrix[0][j] = j;
     }
 
-    // Fill matrix
     for (let i = 1; i <= b.length; i++) {
       for (let j = 1; j <= a.length; j++) {
         if (b.charAt(i - 1) === a.charAt(j - 1)) {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
           matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1, // substitution
-            matrix[i][j - 1] + 1,     // insertion
-            matrix[i - 1][j] + 1      // deletion
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
           );
         }
       }
@@ -794,36 +753,33 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: stockWhite }}>
+      <header className="border-b" style={{ backgroundColor: stockBlue, color: stockGold }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden">
+              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden" style={{ color: stockGold }}>
                 <Menu className="h-6 w-6" />
               </Button>
-              <BarChart3 className="h-8 w-8 text-teal-600" /> {/* Changed from text-indigo-600 */}
-              <span className="text-2xl font-bold">Stock Advisor</span>
+              <TrendingUp className="h-8 w-8" style={{ color: stockGold }} />
+              <span className="text-2xl font-bold">Stock Buddy</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">All Markets</Button>
+                <Button variant="ghost" style={{ color: stockGold }}>All Markets</Button>
               </Link>
               <Link href="/news">
-                <Button variant="ghost">News</Button>
+                <Button variant="ghost" style={{ color: stockGold }}>News</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline">Back Home</Button>
+                <Button variant="outline" style={{ borderColor: stockGold, color: stockGold }}>Back Home</Button>
               </Link>
             </div>
           </div>
         </div>
       </header>
-  
-      {/* Full-Screen Chat Interface */}
+
       <div className="flex-1 flex">
-        {/* Sidebar */}
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
@@ -831,36 +787,30 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-64 bg-muted border-r p-4 flex flex-col lg:w-80"
+              className="w-64 border-r p-4 flex flex-col lg:w-80"
+              style={{ backgroundColor: stockBlue, color: stockGold }}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Chat History</h2>
-                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden">
+                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden" style={{ color: stockGold }}>
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <Button onClick={handleNewChat} className="mb-4 bg-teal-600 hover:bg-teal-700"> {/* Added teal colors */}
+              <Button onClick={handleNewChat} style={{ backgroundColor: stockGold, color: stockBlue }}>
                 <Plus className="h-4 w-4 mr-2" /> New Chat
               </Button>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto mt-4">
                 {chatSessions.map((session) => (
                   <div
                     key={session.id}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-teal-100" : "hover:bg-gray-100" /* Changed from bg-indigo-100 */}
+                      session.id === currentChatId ? "bg-blue-200" : "hover:bg-blue-700"
                     }`}
                   >
-                    <div
-                      className="flex-1 truncate"
-                      onClick={() => handleSwitchChat(session.id)}
-                    >
+                    <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
                       <span className="text-sm font-medium">{session.title}</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteChat(session.id)}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -869,52 +819,43 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
             </motion.div>
           )}
         </AnimatePresence>
-  
-        {/* Chat Area */}
+
         <div className="flex-1 flex flex-col">
-          {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4">
             {stockListingsError && (
-              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">
-                {stockListingsError}
-              </div>
+              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{stockListingsError}</div>
             )}
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`mb-4 flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg ${
-                    message.role === "user"
-                      ? "bg-teal-600 text-white" /* Changed from bg-indigo-600 */
-                      : "bg-gray-200 text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-gray-200 text-gray-800"
                   }`}
+                  style={{ backgroundColor: message.role === "user" ? stockGold : undefined }}
                 >
                   <p>{message.content}</p>
                   <span className="text-xs text-gray-500 mt-1 block">
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    {message.timestamp}
+                    <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>
               </div>
             ))}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-gray-200 text-gray-800 p-3 rounded-lg">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                <div className="bg-gray-200 p-3 rounded-lg">
+                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: stockBlue }} />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
-  
-          {/* Input Area */}
-          <div className="border-t p-4">
+
+          <div className="border-t p-4" style={{ backgroundColor: stockBlue }}>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleClearChat}>
+              <Button variant="outline" onClick={handleClearChat} style={{ borderColor: stockGold, color: stockGold }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
               </Button>
               <Textarea
@@ -923,6 +864,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                 placeholder="Ask about a stock (e.g., 'Analyze AAPL', 'What’s the RSI for Tesla?')"
                 className="flex-1 resize-none"
                 rows={2}
+                style={{ borderColor: stockGold, backgroundColor: stockWhite, color: stockBlue }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -930,12 +872,8 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                   }
                 }}
               />
-              <Button onClick={handleSendMessage} disabled={loading} className="bg-teal-600 hover:bg-teal-700"> {/* Added teal colors */}
-                {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
+              <Button onClick={handleSendMessage} disabled={loading} style={{ backgroundColor: stockGold, color: stockBlue }}>
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             </div>
           </div>

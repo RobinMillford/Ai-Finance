@@ -1,4 +1,3 @@
-// app/forexadvisor/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -7,11 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { BarChart3, Send, Loader2, Trash2, Clock, Menu, Plus, X } from "lucide-react";
+import { DollarSign, Send, Loader2, Trash2, Clock, Menu, Plus, X } from "lucide-react";
 import { ChatGroq } from "@langchain/groq";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+// Forex theme colors
+const forexGreen = "#1A3C34"; // Deep green for headers and buttons
+const forexSilver = "#C0C0C0"; // Silver for accents
+const forexWhite = "#F5F6F5"; // Soft white for backgrounds
 
 // In-memory cache for forex data and indicators
 const forexDataCache = new Map();
@@ -66,7 +70,7 @@ async function fetchForexPairs(apiCallCount: { count: number }) {
   }
 
   try {
-    const url = "/api/forexs?page=1&perPage=1000¤cyGroup=All";
+    const url = "/api/forexs?page=1&perPage=1000&currencyGroup=All";
     const response = await fetchWithRetry(url);
     apiCallCount.count += 1;
     if (apiCallCount.count > API_CALL_THRESHOLD) {
@@ -95,7 +99,6 @@ async function fetchForexData(symbol: string, apiCallCount: { count: number }) {
   }
 
   try {
-    // Fetch quote (current price, daily change)
     const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
     const quoteResponse = await fetchWithRetry(quoteUrl);
     apiCallCount.count += 1;
@@ -103,7 +106,6 @@ async function fetchForexData(symbol: string, apiCallCount: { count: number }) {
       await delay(REQUEST_DELAY_MS);
     }
 
-    // Fetch time series (historical data for trend analysis)
     const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
     const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
     apiCallCount.count += 1;
@@ -130,7 +132,6 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
   const cachedData = indicatorsCache.get(cacheKey) || {};
   const now = Date.now();
 
-  // Check if all requested indicators are already cached
   const missingIndicators = requestedIndicators.filter(
     (indicator) => !cachedData[indicator] || (now - cachedData[indicator]?.timestamp >= CACHE_DURATION)
   );
@@ -145,7 +146,6 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
           url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
         case "ema":
-          // Fetch both 20-day and 50-day EMA
           url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           const ema20Response = await fetchWithRetry(url);
           apiCallCount.count += 1;
@@ -188,7 +188,7 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
           url = `https://api.twelvedata.com/pivot_points_hl?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
         default:
-          continue; // Skip unsupported indicators
+          continue;
       }
       const response = await fetchWithRetry(url);
       apiCallCount.count += 1;
@@ -234,7 +234,6 @@ export default function ForexAdvisor() {
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch forex pairs on mount to validate symbols
   useEffect(() => {
     const loadForexPairs = async () => {
       const apiCallCount = { count: 0 };
@@ -256,11 +255,10 @@ export default function ForexAdvisor() {
     loadForexPairs();
   }, [toast]);
 
-  // Initialize the chat session with an initial message
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Welcome to the Forex Advisor! I can help you analyze forex pairs from major currency groups like Major, Minor, and Exotic. Please provide a forex pair symbol to get started (e.g., "EUR/USD" for Euro to US Dollar, "GBP/JPY"), and specify any technical indicators you'd like to analyze (e.g., RSI, EMA, MACD, ATR, etc.). I support a wide range of technical indicators from Twelve Data, including SMA, EMA, MACD, ADX, RSI, ATR, and more—just ask!`,
+      content: `Hey there! I’m your Forex Buddy, here to help you navigate the currency markets. Ask me anything—like "Analyze EUR/USD" or "What’s the RSI for GBP/JPY?"—and I’ll break it down for you with the latest data. What’s on your mind?`,
       timestamp: new Date().toLocaleTimeString(),
     };
 
@@ -276,7 +274,6 @@ export default function ForexAdvisor() {
     }
   }, [currentChatId]);
 
-  // Update messages when switching chats
   useEffect(() => {
     const currentSession = chatSessions.find((session) => session.id === currentChatId);
     if (currentSession) {
@@ -286,14 +283,12 @@ export default function ForexAdvisor() {
     }
   }, [currentChatId, chatSessions]);
 
-  // Auto-scroll to the latest message
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  // Set sidebar to closed on smaller screens by default
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1024) {
@@ -373,7 +368,6 @@ export default function ForexAdvisor() {
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
-    // Add user message to the chat
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -392,7 +386,6 @@ export default function ForexAdvisor() {
       return updatedMessages;
     });
 
-    // Generate a descriptive title for the chat session
     if (messages.filter((msg) => msg.role === "user").length === 0) {
       let newTitle = `Chat ${chatSessions.length}`;
       const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
@@ -439,23 +432,21 @@ export default function ForexAdvisor() {
     setLoading(true);
 
     try {
-      // Initialize the Groq model
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
         model: "llama3-70b-8192",
         temperature: 0.5,
       });
 
-      // Get the chat history for this session
       const chatHistory = chatHistories.get(currentChatId);
       if (!chatHistory) {
         throw new Error("Chat history not initialized for this session.");
       }
-        await chatHistory.addMessage(new HumanMessage(input));
-        
-        const systemPrompt = `
+      await chatHistory.addMessage(new HumanMessage(input));
+
+      const systemPrompt = `
         You are an AI forex advisor for FinanceAI, a platform that provides financial data analysis for forex trading. Your task is to assist users by interpreting forex data and technical indicators for a given forex pair symbol (e.g., "EUR/USD" for Euro to US Dollar, "GBP/JPY" for British Pound to Japanese Yen). Follow these steps:
-        
+
         1. **Identify the Symbol**:
            - The user will provide a forex pair symbol (e.g., "EUR/USD", "GBP/JPY") or a pair name (e.g., "Euro to US Dollar", "British Pound to Yen").
            - Be robust to typos in the symbol or pair name:
@@ -463,11 +454,11 @@ export default function ForexAdvisor() {
              - For pair names, if the input has a typo (e.g., "Euro to Doller" instead of "Euro to Dollar"), the code will use fuzzy matching to find the closest match in the forex pairs list.
            - If a pair name is provided, the code will map it to the correct forex pair symbol using the forex pairs data (e.g., "Euro to US Dollar" -> "EUR/USD").
            - If the user does not provide a symbol in the current message, check the chat history for the most recent symbol mentioned and use that. Do not ask for a symbol if it’s already clear from the context.
-        
+
         2. **Validate the Symbol**:
            - The symbol has already been validated by the code against a list of known forex pair symbols provided in the forex pairs data, which includes pairs from currency groups like Major, Minor, and Exotic.
            - If the symbol is invalid, the code will handle it and prompt the user, so you can assume the symbol provided to you is valid.
-        
+
         3. **Identify Requested Data**:
            - Determine what the user is asking for:
              - If the user asks for general analysis (e.g., "Analyze EUR/USD"), provide a full analysis including forex data (current price, daily change, 30-day trend) and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
@@ -475,7 +466,7 @@ export default function ForexAdvisor() {
              - If the user asks for forex statistics (e.g., "What’s the current price of EUR/USD?"), only provide the requested forex data.
            - The available technical indicators are: EMA (20-day and 50-day), RSI (14-day), MACD (12-day, 26-day, 9-day signal line), BBANDS (Bollinger Bands, 20-day, 2 standard deviations), ADX (14-day), ATR (14-day), Ichimoku (Tenkan 9, Kijun 26, Senkou Span B 52, displacement 26), STOCH (Stochastic Oscillator, fast K 14, slow K 3, slow D 3), CCI (Commodity Channel Index, 14-day), MOM (Momentum, 10-day), Pivot Points (High/Low method, 20-day).
            - Forex data includes: current price, daily change, and 30-day price trend.
-        
+
         4. **Use Provided Data**:
            - The data has already been fetched and provided to you in the input as JSON under "API Data". Do not attempt to fetch data yourself.
            - The data includes:
@@ -495,7 +486,7 @@ export default function ForexAdvisor() {
                - MOM: Momentum (10-day).
                - Pivot Points: High/Low method (pivot, support, and resistance levels).
            - If the data for a requested indicator or forex data is null or missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol] due to an API error. Please try again later.").
-        
+
         5. **Deep Analysis**:
            - Provide a detailed analysis based on the user’s request:
              - **For General Analysis**: Include current price, daily change, 30-day trend, and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
@@ -510,57 +501,31 @@ export default function ForexAdvisor() {
              - **Support and Resistance**: Use indicators like Pivot Points to identify key levels (e.g., "The price is approaching the R1 pivot point at 1.1900, which may act as resistance").
              - **Actionable Insights**: Provide potential trading strategies based on the analysis (e.g., "The MACD histogram is positive and increasing, suggesting a buy opportunity, but monitor for a potential pullback as the price nears the upper Bollinger Band").
            - Avoid speculative advice (e.g., don’t say "This pair will definitely go up"). Instead, provide data-driven insights.
-        
+
         6. **Handle Unsupported Indicators**:
            - If the user requests an indicator that is not in the supported list, inform them that the indicator is not available and suggest a similar indicator (e.g., "The indicator 'XYZ' is not supported. Did you mean 'RSI' or 'MACD'? I support indicators like EMA, RSI, MACD, BBANDS, ADX, ATR, Ichimoku, STOCH, CCI, MOM, and Pivot Points.").
-        
+
         7. **Handle Errors**:
            - If the API data is unavailable, the code will handle it and prompt the user, so you can assume the data provided to you is valid. If a specific piece of data (e.g., an indicator) is missing, inform the user (e.g., "I couldn't fetch the RSI for [symbol] due to an API error. Please try again later.").
-        
+
         8. **Maintain Conversational Context**:
            - Use the chat history to maintain context (e.g., if the user asks "What’s the RSI?" after discussing EUR/USD, provide the RSI for EUR/USD).
            - Do not ask for the symbol again unless the context is unclear.
-        
+
         9. **Response Format**:
            - Respond in a clear, professional tone.
            - Use bullet points or short paragraphs for readability.
            - Do not invent or hallucinate data. Only use the provided API data.
            - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
-        
-        Example Interaction:
-        User: "Analyze EUR/USD"
-        Assistant:
-        **Analysis for EUR/USD (Euro to US Dollar)**
-        
-        - **Current Price**: The current price is 1.1850 (as of the latest quote).
-        - **Daily Change**: The pair is up +0.15% today, with a change of +0.0018.
-        - **30-Day Trend**: Over the past 30 days, the price has increased by 0.5%, showing a steady uptrend.
-        - **Technical Indicators**:
-          - **20-day EMA**: 1.1820. The price is above the 20-day EMA, indicating short-term bullish momentum.
-          - **50-day EMA**: 1.1800. The price is also above the 50-day EMA, confirming a longer-term bullish trend.
-          - **14-day RSI**: 54.21. The RSI is in the neutral zone, suggesting the pair is neither overbought nor oversold. Over the past 30 days, the RSI has risen from 50 to 54.21, indicating growing bullish momentum.
-          - **MACD**: MACD Line: 0.0020, Signal Line: 0.0015, Histogram: 0.0005. The MACD is bullish, with the histogram showing increasing momentum.
-          - **Bollinger Bands**: Upper Band: 1.1900, Lower Band: 1.1750. The price is near the upper band, suggesting a potential overbought condition, but the wide bands indicate the trend may continue.
-          - **ADX**: 25. The ADX indicates a moderate trend strength, supporting the current uptrend.
-          - **ATR**: 0.0050. The ATR suggests moderate volatility, with potential price swings of around 50 pips per day.
-        - **Actionable Insights**:
-          - The pair is in a confirmed uptrend, supported by the EMA, MACD, and ADX indicators.
-          - The RSI and Bollinger Bands suggest caution as the pair may be approaching overbought territory. Consider waiting for a pullback to the 20-day EMA (1.1820) for a better entry point.
-          - The moderate volatility (ATR) and trend strength (ADX) suggest the trend is sustainable, but monitor for any reversal signals (e.g., RSI above 70 or a MACD crossover).
-        
-        Would you like to analyze specific indicators for EUR/USD or try a different forex pair?
-        `;
+      `;
 
-        // Create the prompt template (systemPrompt to be added in the next response)
-        const prompt = ChatPromptTemplate.fromMessages([
-            ["system", systemPrompt], // Replace "Placeholder for system prompt" with the actual systemPrompt
-            ["human", input],
-          ]);
+      const prompt = ChatPromptTemplate.fromMessages([
+        ["system", systemPrompt],
+        ["human", "{input}"],
+      ]);
 
-      // Extract symbol or pair name with typo handling
       let symbol: string | null = null;
 
-      // Step 1: Try to extract a forex pair symbol (e.g., "EUR/USD", "GBP/JPY")
       const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
       if (symbolMatch) {
         const potentialSymbol = symbolMatch.toUpperCase();
@@ -568,7 +533,6 @@ export default function ForexAdvisor() {
         if (pair) {
           symbol = potentialSymbol;
         } else {
-          // Handle typos in symbol (e.g., "EURUSD" -> "EUR/USD")
           const closestSymbol = forexPairs.reduce((closest: any, p: any) => {
             const distance = levenshteinDistance(potentialSymbol.replace("/", ""), p.symbol.replace("/", ""));
             return distance < (closest.distance || Infinity) ? { symbol: p.symbol, distance } : closest;
@@ -579,7 +543,6 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Step 2: If no symbol is found, try to match a pair name with typo handling
       if (!symbol) {
         const pairName = input.toLowerCase().replace(/forex|pair/gi, "").trim();
         const pair = forexPairs.find((p: any) =>
@@ -588,7 +551,6 @@ export default function ForexAdvisor() {
         if (pair) {
           symbol = pair.symbol;
         } else {
-          // Handle typos in pair name (e.g., "Euro to Doller" -> "Euro to Dollar")
           const closestPair = forexPairs.reduce((closest: any, p: any) => {
             const distance = levenshteinDistance(pairName, p.name.toLowerCase());
             return distance < (closest.distance || Infinity) ? { symbol: p.symbol, name: p.name, distance } : closest;
@@ -599,7 +561,6 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Step 3: If still no symbol, check chat history for a symbol
       if (!symbol) {
         for (let i = messages.length - 1; i >= 0; i--) {
           const msg = messages[i];
@@ -615,7 +576,6 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Step 4: If no symbol is found, ask the user to provide one
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
@@ -637,7 +597,6 @@ export default function ForexAdvisor() {
         return;
       }
 
-      // Step 5: Validate symbol against forex pairs
       if (forexPairs.length > 0) {
         const isValidSymbol = forexPairs.some((pair: any) => pair.symbol === symbol);
         if (!isValidSymbol) {
@@ -648,7 +607,7 @@ export default function ForexAdvisor() {
           const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
           const errorMessage: Message = {
             role: "assistant",
-            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Please try a valid symbol like 'EUR/USD' for Euro to US Dollar or 'GBP/JPY' for British Pound to Japanese Yen.`,
+            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Please try a valid symbol like 'EUR/USD' or 'GBP/JPY'.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
@@ -667,20 +626,20 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Step 6: Determine what data to fetch
       const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "ichimoku", "stoch", "cci", "mom", "pivot_points_hl"];
       const requestedIndicators = indicators.filter((indicator) =>
         input.toLowerCase().includes(indicator)
       );
-      const needsForexData = input.toLowerCase().includes("price") ||
-                            input.toLowerCase().includes("change") ||
-                            input.toLowerCase().includes("trend") ||
-                            input.toLowerCase().includes("analyz");
+      const needsForexData =
+        input.toLowerCase().includes("price") ||
+        input.toLowerCase().includes("change") ||
+        input.toLowerCase().includes("trend") ||
+        input.toLowerCase().includes("analyz");
 
-      let forexData, indicatorsData;
-      const apiCallCount = { count: 0 }; // Track the number of API calls
+      let forexData;
+      let indicatorsData;
+      const apiCallCount = { count: 0 };
 
-      // Fetch forex data if needed
       if (needsForexData || requestedIndicators.length === 0) {
         try {
           forexData = await fetchForexData(symbol, apiCallCount);
@@ -707,7 +666,6 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Fetch technical indicators if requested (or all for general analysis)
       if (requestedIndicators.length > 0 || (!needsForexData && input.toLowerCase().includes("analyz"))) {
         const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : indicators;
         try {
@@ -735,7 +693,6 @@ export default function ForexAdvisor() {
         }
       }
 
-      // Step 7: Prepare the enhanced input with API data and chat history
       const combinedData = {
         forexData,
         indicators: indicatorsData,
@@ -743,14 +700,12 @@ export default function ForexAdvisor() {
       };
       const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(messages)}`;
 
-      // Step 8: Call the chain with the enhanced input and chat history
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
         input: enhancedInput,
         chat_history: await chatHistory.getMessages(),
       });
 
-      // Step 9: Add assistant response to the chat with fetched data
       const assistantMessage: Message = {
         role: "assistant",
         content: response.content,
@@ -801,11 +756,9 @@ export default function ForexAdvisor() {
     }
   };
 
-  // Levenshtein Distance for typo handling
   function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
 
-    // Initialize matrix
     for (let i = 0; i <= b.length; i++) {
       matrix[i] = [i];
     }
@@ -813,16 +766,15 @@ export default function ForexAdvisor() {
       matrix[0][j] = j;
     }
 
-    // Fill matrix
     for (let i = 1; i <= b.length; i++) {
       for (let j = 1; j <= a.length; j++) {
         if (b.charAt(i - 1) === a.charAt(j - 1)) {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
           matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1, // substitution
-            matrix[i][j - 1] + 1,     // insertion
-            matrix[i - 1][j] + 1      // deletion
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
           );
         }
       }
@@ -832,36 +784,33 @@ export default function ForexAdvisor() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: forexWhite }}>
+      <header className="border-b" style={{ backgroundColor: forexGreen, color: forexSilver }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden">
+              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden" style={{ color: forexSilver }}>
                 <Menu className="h-6 w-6" />
               </Button>
-              <BarChart3 className="h-8 w-8 text-teal-600" />
-              <span className="text-2xl font-bold">Forex Advisor</span>
+              <DollarSign className="h-8 w-8" style={{ color: forexSilver }} />
+              <span className="text-2xl font-bold">Forex Buddy</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">All Markets</Button>
+                <Button variant="ghost" style={{ color: forexSilver }}>All Markets</Button>
               </Link>
               <Link href="/news">
-                <Button variant="ghost">News</Button>
+                <Button variant="ghost" style={{ color: forexSilver }}>News</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline">Back Home</Button>
+                <Button variant="outline" style={{ borderColor: forexSilver, color: forexSilver }}>Back Home</Button>
               </Link>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Full-Screen Chat Interface */}
       <div className="flex-1 flex">
-        {/* Sidebar */}
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
@@ -869,36 +818,30 @@ export default function ForexAdvisor() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-64 bg-muted border-r p-4 flex flex-col lg:w-80"
+              className="w-64 border-r p-4 flex flex-col lg:w-80"
+              style={{ backgroundColor: forexGreen, color: forexSilver }}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Chat History</h2>
-                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden">
+                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden" style={{ color: forexSilver }}>
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <Button onClick={handleNewChat} className="mb-4 bg-teal-600 hover:bg-teal-700">
+              <Button onClick={handleNewChat} style={{ backgroundColor: forexSilver, color: forexGreen }}>
                 <Plus className="h-4 w-4 mr-2" /> New Chat
               </Button>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto mt-4">
                 {chatSessions.map((session) => (
                   <div
                     key={session.id}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-teal-100" : "hover:bg-gray-100"
+                      session.id === currentChatId ? "bg-green-200" : "hover:bg-green-700"
                     }`}
                   >
-                    <div
-                      className="flex-1 truncate"
-                      onClick={() => handleSwitchChat(session.id)}
-                    >
+                    <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
                       <span className="text-sm font-medium">{session.title}</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteChat(session.id)}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -908,51 +851,42 @@ export default function ForexAdvisor() {
           )}
         </AnimatePresence>
 
-        {/* Chat Area */}
         <div className="flex-1 flex flex-col">
-          {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4">
             {forexPairsError && (
-              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">
-                {forexPairsError}
-              </div>
+              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{forexPairsError}</div>
             )}
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`mb-4 flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg ${
-                    message.role === "user"
-                      ? "bg-teal-600 text-white"
-                      : "bg-gray-200 text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-gray-200 text-gray-800"
                   }`}
+                  style={{ backgroundColor: message.role === "user" ? forexSilver : undefined }}
                 >
                   <p>{message.content}</p>
                   <span className="text-xs text-gray-500 mt-1 block">
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    {message.timestamp}
+                    <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>
               </div>
             ))}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-gray-200 text-gray-800 p-3 rounded-lg">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                <div className="bg-gray-200 p-3 rounded-lg">
+                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: forexGreen }} />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="border-t p-4">
+          <div className="border-t p-4" style={{ backgroundColor: forexGreen }}>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleClearChat}>
+              <Button variant="outline" onClick={handleClearChat} style={{ borderColor: forexSilver, color: forexSilver }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
               </Button>
               <Textarea
@@ -961,6 +895,7 @@ export default function ForexAdvisor() {
                 placeholder="Ask about a forex pair (e.g., 'Analyze EUR/USD', 'What’s the RSI for GBP/JPY?')"
                 className="flex-1 resize-none"
                 rows={2}
+                style={{ borderColor: forexSilver, backgroundColor: forexWhite, color: forexGreen }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -968,12 +903,8 @@ export default function ForexAdvisor() {
                   }
                 }}
               />
-              <Button onClick={handleSendMessage} disabled={loading} className="bg-teal-600 hover:bg-teal-700">
-                {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
+              <Button onClick={handleSendMessage} disabled={loading} style={{ backgroundColor: forexSilver, color: forexGreen }}>
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             </div>
           </div>

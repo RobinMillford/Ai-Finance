@@ -1,4 +1,4 @@
-// app/stockadvisor/page.tsx
+// app/forexadvisor/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -13,8 +13,8 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 
-// In-memory cache for stock data and indicators
-const stockDataCache = new Map();
+// In-memory cache for forex data and indicators
+const forexDataCache = new Map();
 const indicatorsCache = new Map();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -23,7 +23,7 @@ const REQUEST_DELAY_MS = 7500; // 7.5 seconds delay between requests
 const API_CALL_THRESHOLD = 4; // Apply delay only if API calls exceed this threshold
 
 // Utility function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Utility function to fetch with retry on rate limit
 async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
@@ -43,56 +43,64 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
         throw new Error(`API error: ${JSON.stringify(errorData)}`);
       }
       return await response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       if (attempt === maxRetries) {
         throw error;
       }
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, error.message);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
       await delay(retryDelayMs);
     }
   }
   throw new Error("Unexpected error in fetchWithRetry");
 }
 
-// Fetch stock listings to validate symbols using Twelve Data API
-async function fetchStockListings() {
-  const cacheKey = "stockListings";
-  const cachedData = stockDataCache.get(cacheKey);
+// Fetch forex pairs using the provided API route
+async function fetchForexPairs(apiCallCount: { count: number }) {
+  const cacheKey = "forexPairs";
+  const cachedData = forexDataCache.get(cacheKey);
   const now = Date.now();
   if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log("Returning cached stock listings");
+    console.log("Returning cached forex pairs");
     return cachedData.data;
   }
 
   try {
-    const url = `https://api.twelvedata.com/stocks?source=docs&exchange=NASDAQ`;
+    const url = "/api/forexs?page=1&perPage=1000¤cyGroup=All";
     const response = await fetchWithRetry(url);
-    const data = response.data || [];
-    stockDataCache.set(cacheKey, { data, timestamp: now });
-    return data;
-  } catch (error) {
-    console.error("Error fetching stock listings:", error.message);
+    apiCallCount.count += 1;
+    if (apiCallCount.count > API_CALL_THRESHOLD) {
+      await delay(REQUEST_DELAY_MS);
+    }
+
+    const data = response || { pairs: [] };
+    const forexPairs = data.pairs || [];
+    forexDataCache.set(cacheKey, { data: forexPairs, timestamp: now });
+    return forexPairs;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error fetching forex pairs:", errorMessage);
     throw error;
   }
 }
 
-// Fetch stock data (quote, time series) using Twelve Data API
-async function fetchStockData(symbol: string, apiCallCount: { count: number }) {
-  const cacheKey = `stockData_${symbol.toUpperCase()}`;
-  const cachedData = stockDataCache.get(cacheKey);
+// Fetch forex data (quote, time series) using Twelve Data API
+async function fetchForexData(symbol: string, apiCallCount: { count: number }) {
+  const cacheKey = `forexData_${symbol.toUpperCase()}`;
+  const cachedData = forexDataCache.get(cacheKey);
   const now = Date.now();
   if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log(`Returning cached stock data for symbol: ${symbol}`);
+    console.log(`Returning cached forex data for symbol: ${symbol}`);
     return cachedData.data;
   }
 
   try {
-    // Fetch quote (current price, daily change, volume)
+    // Fetch quote (current price, daily change)
     const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
     const quoteResponse = await fetchWithRetry(quoteUrl);
     apiCallCount.count += 1;
     if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+      await delay(REQUEST_DELAY_MS);
     }
 
     // Fetch time series (historical data for trend analysis)
@@ -100,17 +108,18 @@ async function fetchStockData(symbol: string, apiCallCount: { count: number }) {
     const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
     apiCallCount.count += 1;
     if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+      await delay(REQUEST_DELAY_MS);
     }
 
     const data = {
       quote: quoteResponse,
       timeSeries: timeSeriesResponse,
     };
-    stockDataCache.set(cacheKey, { data, timestamp: now });
+    forexDataCache.set(cacheKey, { data, timestamp: now });
     return data;
-  } catch (error) {
-    console.error(`Error fetching stock data for ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error fetching forex data for ${symbol}:`, errorMessage);
     throw error;
   }
 }
@@ -163,8 +172,20 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
         case "atr":
           url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
-        case "aroon":
-          url = `https://api.twelvedata.com/aroon?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+        case "ichimoku":
+          url = `https://api.twelvedata.com/ichimoku?symbol=${symbol}&interval=1day&tenkan_period=9&kijun_period=26&senkou_span_b_period=52&displacement=26&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          break;
+        case "stoch":
+          url = `https://api.twelvedata.com/stoch?symbol=${symbol}&interval=1day&fast_k_period=14&slow_k_period=3&slow_d_period=3&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          break;
+        case "cci":
+          url = `https://api.twelvedata.com/cci?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          break;
+        case "mom":
+          url = `https://api.twelvedata.com/mom?symbol=${symbol}&interval=1day&time_period=10&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          break;
+        case "pivot_points_hl":
+          url = `https://api.twelvedata.com/pivot_points_hl?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
           break;
         default:
           continue; // Skip unsupported indicators
@@ -172,14 +193,15 @@ async function fetchIndicators(symbol: string, requestedIndicators: string[], ap
       const response = await fetchWithRetry(url);
       apiCallCount.count += 1;
       if (apiCallCount.count > API_CALL_THRESHOLD) {
-        await delay(REQUEST_DELAY_MS); // Apply delay if threshold exceeded
+        await delay(REQUEST_DELAY_MS);
       }
       indicatorsData[indicator.toLowerCase()] = { data: response, timestamp: now };
     }
     indicatorsCache.set(cacheKey, indicatorsData);
     return indicatorsData;
-  } catch (error) {
-    console.error(`Error fetching technical indicators for ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error fetching technical indicators for ${symbol}:`, errorMessage);
     throw error;
   }
 }
@@ -188,7 +210,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  stockData?: any;
+  forexData?: any;
   indicatorsData?: any;
 }
 
@@ -200,42 +222,45 @@ interface ChatSession {
 
 const chatHistories = new Map<string, InMemoryChatMessageHistory>();
 
-export default function StockAdvisor() {
+export default function ForexAdvisor() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [stockListings, setStockListings] = useState<any[]>([]);
-  const [stockListingsError, setStockListingsError] = useState<string | null>(null);
+  const [forexPairs, setForexPairs] = useState<any[]>([]);
+  const [forexPairsError, setForexPairsError] = useState<string | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch stock listings on mount to validate symbols
+  // Fetch forex pairs on mount to validate symbols
   useEffect(() => {
-    const loadStockListings = async () => {
+    const loadForexPairs = async () => {
+      const apiCallCount = { count: 0 };
       try {
-        const listings = await fetchStockListings();
-        setStockListings(listings);
-        setStockListingsError(null);
-      } catch (error) {
-        setStockListingsError("Failed to load stock listings. Some features may be limited. Please try refreshing the page.");
+        const pairs = await fetchForexPairs(apiCallCount);
+        setForexPairs(pairs);
+        setForexPairsError(null);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Error loading forex pairs:", errorMessage);
+        setForexPairsError("Failed to load forex pairs. Some features may be limited. Please try refreshing the page.");
         toast({
           title: "Error",
-          description: "Failed to load stock listings. Some features may be limited.",
+          description: "Failed to load forex pairs. Some features may be limited.",
           variant: "destructive",
         });
       }
     };
-    loadStockListings();
+    loadForexPairs();
   }, [toast]);
 
   // Initialize the chat session with an initial message
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Welcome to the Stock Advisor! I can help you analyze stocks. Please provide a stock symbol or company name to get started (e.g., "AAPL" for Apple, "Tesla"), and specify any technical indicators you'd like to analyze (e.g., RSI, EMA, MACD, BBANDS, ADX, ATR, AROON).`,
+      content: `Welcome to the Forex Advisor! I can help you analyze forex pairs from major currency groups like Major, Minor, and Exotic. Please provide a forex pair symbol to get started (e.g., "EUR/USD" for Euro to US Dollar, "GBP/JPY"), and specify any technical indicators you'd like to analyze (e.g., RSI, EMA, MACD, ATR, etc.). I support a wide range of technical indicators from Twelve Data, including SMA, EMA, MACD, ADX, RSI, ATR, and more—just ask!`,
       timestamp: new Date().toLocaleTimeString(),
     };
 
@@ -263,7 +288,9 @@ export default function StockAdvisor() {
 
   // Auto-scroll to the latest message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   // Set sidebar to closed on smaller screens by default
@@ -343,101 +370,6 @@ export default function StockAdvisor() {
     setIsSidebarOpen((prev) => !prev);
   };
 
-  // System prompt for deep stock analysis
-  const systemPrompt = `
-You are an AI stock advisor for FinanceAI, a platform that provides financial data analysis for stocks. Your task is to assist users by interpreting stock data and technical indicators for a given stock symbol or company name. Follow these steps:
-
-1. **Identify the Symbol**:
-   - The user will provide a stock symbol (e.g., "AAPL" for Apple, "TSLA" for Tesla) or a company name (e.g., "Apple", "Tesla").
-   - Be robust to typos in the symbol or company name:
-     - For symbols, if the input is close to a valid symbol (e.g., "APPL" instead of "AAPL"), correct it to the closest match from the stock listings.
-     - For company names, if the input has a typo (e.g., "Aple" instead of "Apple"), use fuzzy matching to find the closest match in the stock listings.
-   - If a company name is provided, map it to the correct stock symbol using the stock listings data (e.g., "Apple" -> "AAPL").
-   - If the user does not provide a symbol in the current message, check the chat history for the most recent symbol mentioned and use that. Do not ask for a symbol if it’s already clear from the context.
-
-2. **Validate the Symbol**:
-   - Validate the symbol against a list of known stock symbols provided in the stock listings data.
-   - If the symbol is invalid, inform the user and suggest trying a valid stock symbol (e.g., "I couldn’t find 'XYZ' in the stock listings. Did you mean 'AAPL' for Apple? Please try a valid symbol like 'AAPL' for Apple or 'TSLA' for Tesla.").
-
-3. **Identify Requested Data**:
-   - Determine what the user is asking for:
-     - If the user asks for general analysis (e.g., "Analyze AAPL"), provide a full analysis including stock data (current price, daily change, 30-day trend) and all available technical indicators.
-     - If the user asks for specific indicators (e.g., "What’s the RSI for AAPL?" or "Show me the EMA and MACD for AAPL"), only provide analysis for the requested indicators.
-     - If the user asks for stock statistics (e.g., "What’s the current price of AAPL?"), only provide the requested stock data.
-   - The available technical indicators are: EMA (20-day and 50-day), RSI (14-day), MACD (12-day, 26-day, 9-day signal line), BBANDS (Bollinger Bands, 20-day, 2 standard deviations), ADX (14-day), ATR (14-day), AROON (14-day).
-   - Stock data includes: current price, daily change, volume, and 30-day price trend.
-
-4. **Use Provided Data**:
-   - The data has already been fetched and provided to you in the input as JSON under "API Data". Do not attempt to fetch data yourself.
-   - The data includes:
-     - **Stock Data**:
-       - Quote: Current price, daily change, volume, etc.
-       - Time Series: Historical price data (up to 30 days for trend analysis).
-     - **Technical Indicators** (only the requested indicators will be provided):
-       - EMA: 20-day and 50-day Exponential Moving Average.
-       - RSI: 14-day Relative Strength Index.
-       - MACD: Moving Average Convergence Divergence (12-day, 26-day, 9-day signal line).
-       - BBANDS: Bollinger Bands (20-day, 2 standard deviations).
-       - ADX: Average Directional Index (14-day).
-       - ATR: Average True Range (14-day).
-       - AROON: Aroon Indicator (14-day).
-   - If the data for a requested indicator or stock data is null or missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol] due to an API error. Please try again later.").
-
-5. **Deep Analysis**:
-   - Provide a detailed analysis based on the user’s request:
-     - **For General Analysis**: Include current price, daily change, 30-day trend, and all available technical indicators.
-     - **For Specific Indicators**: Only analyze the requested indicators.
-     - **For Stock Statistics**: Only provide the requested stock data (e.g., current price, volume).
-   - Include the following in your analysis (where applicable):
-     - **Current Values**: Report the most recent value for each indicator or data point (e.g., "The current price is $174.55", "The 14-day RSI is 54.21").
-     - **Trend Analysis**: Analyze the trend over the past 30 days using the time series data or indicator values (e.g., "The price has increased by 5% over the past 30 days", "The RSI has risen from 50 to 54.21, indicating growing bullish momentum").
-     - **Comparisons**: Compare indicators to identify confirmations or divergences (e.g., "The price is above both the 20-day and 50-day EMA, confirming a bullish trend, but the RSI is nearing overbought levels at 70").
-     - **Momentum and Volatility**: Assess momentum using RSI, MACD, and AROON, and volatility using BBANDS and ATR (e.g., "The ATR indicates increasing volatility, suggesting larger price swings").
-     - **Trend Strength**: Use ADX to evaluate trend strength (e.g., "An ADX of 30 indicates a strong trend").
-     - **Actionable Insights**: Provide potential trading strategies based on the analysis (e.g., "The MACD histogram is positive and increasing, suggesting a buy opportunity, but monitor for a potential pullback as the price nears the upper Bollinger Band").
-   - Avoid speculative advice (e.g., don’t say "This stock will definitely go up"). Instead, provide data-driven insights.
-
-6. **Handle Additional Indicator Requests**:
-   - If the user requests additional indicators not currently provided (e.g., "Can you show me the SMA?"), inform them that you currently have data for EMA, RSI, MACD, BBANDS, ADX, ATR, and AROON. Suggest they ask for one of those or provide a general analysis.
-
-7. **Handle Errors**:
-   - If the symbol is invalid or the API data is unavailable, inform the user and suggest trying a different symbol (e.g., "I couldn't find data for 'XYZ'. Did you mean 'AAPL' for Apple? Please try a valid symbol like 'AAPL' for Apple.").
-
-8. **Maintain Conversational Context**:
-   - Use the chat history to maintain context (e.g., if the user asks "What’s the RSI?" after discussing AAPL, provide the RSI for AAPL).
-   - Do not ask for the symbol again unless the context is unclear.
-
-9. **Response Format**:
-   - Respond in a clear, professional tone.
-   - Use bullet points or short paragraphs for readability.
-   - Do not invent or hallucinate data. Only use the provided API data.
-   - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
-
-Example Interaction:
-User: "Analyzee AAPL"
-Assistant:
-**Analysis for AAPL (Apple)**
-
-- **Current Price**: The current price is $174.55 (as of the latest quote).
-- **Daily Change**: The stock is up +0.55% ($0.95) today, with a trading volume of 54,115,200 shares.
-- **30-Day Trend**: Over the past 30 days, the price has increased by 3.2%, showing a steady uptrend.
-- **Technical Indicators**:
-  - **20-day EMA**: $170.23. The price is above the 20-day EMA, indicating short-term bullish momentum.
-  - **50-day EMA**: $168.45. The price is also above the 50-day EMA, confirming a longer-term bullish trend.
-  - **14-day RSI**: 54.21. The RSI is in the neutral zone, suggesting the stock is neither overbought nor oversold. Over the past 30 days, the RSI has risen from 50 to 54.21, indicating growing bullish momentum.
-  - **MACD**: MACD Line: 0.21, Signal Line: 0.18, Histogram: 0.03. The MACD is bullish, with the histogram showing increasing momentum.
-  - **Bollinger Bands**: Upper Band: $176.39, Lower Band: $164.71. The price is near the upper band, suggesting a potential overbought condition, but the wide bands indicate the trend may continue.
-  - **ADX**: 25. The ADX indicates a moderate trend strength, supporting the current uptrend.
-  - **ATR**: 2.5. The ATR suggests moderate volatility, with potential price swings of around $2.5 per day.
-  - **AROON**: Aroon Up: 80, Aroon Down: 20. The Aroon Up is dominant, confirming the bullish trend.
-- **Actionable Insights**:
-  - The stock is in a confirmed uptrend, supported by the EMA, MACD, and AROON indicators.
-  - The RSI and Bollinger Bands suggest caution as the stock may be approaching overbought territory. Consider waiting for a pullback to the 20-day EMA ($170.23) for a better entry point.
-  - The moderate volatility (ATR) and trend strength (ADX) suggest the trend is sustainable, but monitor for any reversal signals (e.g., RSI above 70 or a MACD crossover).
-
-Would you like to analyze specific indicators for AAPL or try a different stock?
-`;
-
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
@@ -463,15 +395,15 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
     // Generate a descriptive title for the chat session
     if (messages.filter((msg) => msg.role === "user").length === 0) {
       let newTitle = `Chat ${chatSessions.length}`;
-      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/)?.[0];
-      const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
+      const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
+      const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "ichimoku", "stoch", "cci", "mom", "pivot_points_hl"];
       const requestedIndicator = indicators.find((indicator) =>
         input.toLowerCase().includes(indicator)
       );
       if (symbolMatch) {
         const potentialSymbol = symbolMatch.toUpperCase();
-        const stock = stockListings.find((s) => s.symbol === potentialSymbol);
-        if (stock) {
+        const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+        if (pair) {
           if (requestedIndicator) {
             newTitle = `${requestedIndicator.toUpperCase()} for ${potentialSymbol}`;
           } else if (input.toLowerCase().includes("analyz")) {
@@ -482,16 +414,22 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
       if (!newTitle.includes("Analysis for") && !newTitle.includes("Query for")) {
-        const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const matchedStock = stockListings.find((s) =>
-          s.name.toLowerCase().includes(companyName)
+        const pairName = input.toLowerCase().replace(/forex|pair/gi, "").trim();
+        const matchedPair = forexPairs.find((p: any) =>
+          p.name.toLowerCase().includes(pairName)
         );
-        if (matchedStock) {
-          newTitle = `Analysis for ${matchedStock.symbol}`;
+        if (matchedPair) {
+          if (requestedIndicator) {
+            newTitle = `${requestedIndicator.toUpperCase()} for ${matchedPair.symbol}`;
+          } else if (input.toLowerCase().includes("analyz")) {
+            newTitle = `Analysis for ${matchedPair.symbol}`;
+          } else {
+            newTitle = `Query for ${matchedPair.symbol}`;
+          }
         }
       }
-      setChatSessions((prevSessions) =>
-        prevSessions.map((session) =>
+      setChatSessions((prev) =>
+        prev.map((session) =>
           session.id === currentChatId ? { ...session, title: newTitle } : session
         )
       );
@@ -513,29 +451,127 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       if (!chatHistory) {
         throw new Error("Chat history not initialized for this session.");
       }
-      await chatHistory.addMessage(new HumanMessage(input));
+        await chatHistory.addMessage(new HumanMessage(input));
+        
+        const systemPrompt = `
+        You are an AI forex advisor for FinanceAI, a platform that provides financial data analysis for forex trading. Your task is to assist users by interpreting forex data and technical indicators for a given forex pair symbol (e.g., "EUR/USD" for Euro to US Dollar, "GBP/JPY" for British Pound to Japanese Yen). Follow these steps:
+        
+        1. **Identify the Symbol**:
+           - The user will provide a forex pair symbol (e.g., "EUR/USD", "GBP/JPY") or a pair name (e.g., "Euro to US Dollar", "British Pound to Yen").
+           - Be robust to typos in the symbol or pair name:
+             - For symbols, if the input is close to a valid symbol (e.g., "EURUSD" instead of "EUR/USD"), the code will correct it to the closest match from the forex pairs list.
+             - For pair names, if the input has a typo (e.g., "Euro to Doller" instead of "Euro to Dollar"), the code will use fuzzy matching to find the closest match in the forex pairs list.
+           - If a pair name is provided, the code will map it to the correct forex pair symbol using the forex pairs data (e.g., "Euro to US Dollar" -> "EUR/USD").
+           - If the user does not provide a symbol in the current message, check the chat history for the most recent symbol mentioned and use that. Do not ask for a symbol if it’s already clear from the context.
+        
+        2. **Validate the Symbol**:
+           - The symbol has already been validated by the code against a list of known forex pair symbols provided in the forex pairs data, which includes pairs from currency groups like Major, Minor, and Exotic.
+           - If the symbol is invalid, the code will handle it and prompt the user, so you can assume the symbol provided to you is valid.
+        
+        3. **Identify Requested Data**:
+           - Determine what the user is asking for:
+             - If the user asks for general analysis (e.g., "Analyze EUR/USD"), provide a full analysis including forex data (current price, daily change, 30-day trend) and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
+             - If the user asks for specific indicators (e.g., "What’s the RSI for EUR/USD?" or "Show me the ADX and STOCH for GBP/JPY"), only provide analysis for the requested indicators.
+             - If the user asks for forex statistics (e.g., "What’s the current price of EUR/USD?"), only provide the requested forex data.
+           - The available technical indicators are: EMA (20-day and 50-day), RSI (14-day), MACD (12-day, 26-day, 9-day signal line), BBANDS (Bollinger Bands, 20-day, 2 standard deviations), ADX (14-day), ATR (14-day), Ichimoku (Tenkan 9, Kijun 26, Senkou Span B 52, displacement 26), STOCH (Stochastic Oscillator, fast K 14, slow K 3, slow D 3), CCI (Commodity Channel Index, 14-day), MOM (Momentum, 10-day), Pivot Points (High/Low method, 20-day).
+           - Forex data includes: current price, daily change, and 30-day price trend.
+        
+        4. **Use Provided Data**:
+           - The data has already been fetched and provided to you in the input as JSON under "API Data". Do not attempt to fetch data yourself.
+           - The data includes:
+             - **Forex Data**:
+               - Quote: Current price, daily change, etc.
+               - Time Series: Historical price data (up to 30 days for trend analysis).
+             - **Technical Indicators** (only the requested indicators will be provided):
+               - EMA: 20-day and 50-day Exponential Moving Average (under "ema" with subfields "ema20" and "ema50").
+               - RSI: 14-day Relative Strength Index.
+               - MACD: Moving Average Convergence Divergence (12-day, 26-day, 9-day signal line).
+               - BBANDS: Bollinger Bands (20-day, 2 standard deviations).
+               - ADX: Average Directional Index (14-day).
+               - ATR: Average True Range (14-day).
+               - Ichimoku: Ichimoku Cloud (Tenkan-sen, Kijun-sen, Senkou Span A, Senkou Span B, Chikou Span).
+               - STOCH: Stochastic Oscillator (fast K, slow K, slow D).
+               - CCI: Commodity Channel Index (14-day).
+               - MOM: Momentum (10-day).
+               - Pivot Points: High/Low method (pivot, support, and resistance levels).
+           - If the data for a requested indicator or forex data is null or missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol] due to an API error. Please try again later.").
+        
+        5. **Deep Analysis**:
+           - Provide a detailed analysis based on the user’s request:
+             - **For General Analysis**: Include current price, daily change, 30-day trend, and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
+             - **For Specific Indicators**: Only analyze the requested indicators.
+             - **For Forex Statistics**: Only provide the requested forex data (e.g., current price).
+           - Include the following in your analysis (where applicable):
+             - **Current Values**: Report the most recent value for each indicator or data point (e.g., "The current price is 1.1850", "The 14-day RSI is 54.21").
+             - **Trend Analysis**: Analyze the trend over the past 30 days using the time series data or indicator values (e.g., "The price has increased by 0.5% over the past 30 days", "The RSI has risen from 50 to 54.21, indicating growing bullish momentum").
+             - **Comparisons**: Compare indicators to identify confirmations or divergences (e.g., "The price is above both the 20-day and 50-day EMA, confirming a bullish trend, but the RSI is nearing overbought levels at 70").
+             - **Momentum and Volatility**: Assess momentum and volatility where applicable (e.g., "The ATR indicates increasing volatility, suggesting larger price swings", "The Stochastic Oscillator shows the pair is in overbought territory").
+             - **Trend Strength**: Evaluate trend strength where applicable (e.g., "An ADX of 30 indicates a strong trend").
+             - **Support and Resistance**: Use indicators like Pivot Points to identify key levels (e.g., "The price is approaching the R1 pivot point at 1.1900, which may act as resistance").
+             - **Actionable Insights**: Provide potential trading strategies based on the analysis (e.g., "The MACD histogram is positive and increasing, suggesting a buy opportunity, but monitor for a potential pullback as the price nears the upper Bollinger Band").
+           - Avoid speculative advice (e.g., don’t say "This pair will definitely go up"). Instead, provide data-driven insights.
+        
+        6. **Handle Unsupported Indicators**:
+           - If the user requests an indicator that is not in the supported list, inform them that the indicator is not available and suggest a similar indicator (e.g., "The indicator 'XYZ' is not supported. Did you mean 'RSI' or 'MACD'? I support indicators like EMA, RSI, MACD, BBANDS, ADX, ATR, Ichimoku, STOCH, CCI, MOM, and Pivot Points.").
+        
+        7. **Handle Errors**:
+           - If the API data is unavailable, the code will handle it and prompt the user, so you can assume the data provided to you is valid. If a specific piece of data (e.g., an indicator) is missing, inform the user (e.g., "I couldn't fetch the RSI for [symbol] due to an API error. Please try again later.").
+        
+        8. **Maintain Conversational Context**:
+           - Use the chat history to maintain context (e.g., if the user asks "What’s the RSI?" after discussing EUR/USD, provide the RSI for EUR/USD).
+           - Do not ask for the symbol again unless the context is unclear.
+        
+        9. **Response Format**:
+           - Respond in a clear, professional tone.
+           - Use bullet points or short paragraphs for readability.
+           - Do not invent or hallucinate data. Only use the provided API data.
+           - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
+        
+        Example Interaction:
+        User: "Analyze EUR/USD"
+        Assistant:
+        **Analysis for EUR/USD (Euro to US Dollar)**
+        
+        - **Current Price**: The current price is 1.1850 (as of the latest quote).
+        - **Daily Change**: The pair is up +0.15% today, with a change of +0.0018.
+        - **30-Day Trend**: Over the past 30 days, the price has increased by 0.5%, showing a steady uptrend.
+        - **Technical Indicators**:
+          - **20-day EMA**: 1.1820. The price is above the 20-day EMA, indicating short-term bullish momentum.
+          - **50-day EMA**: 1.1800. The price is also above the 50-day EMA, confirming a longer-term bullish trend.
+          - **14-day RSI**: 54.21. The RSI is in the neutral zone, suggesting the pair is neither overbought nor oversold. Over the past 30 days, the RSI has risen from 50 to 54.21, indicating growing bullish momentum.
+          - **MACD**: MACD Line: 0.0020, Signal Line: 0.0015, Histogram: 0.0005. The MACD is bullish, with the histogram showing increasing momentum.
+          - **Bollinger Bands**: Upper Band: 1.1900, Lower Band: 1.1750. The price is near the upper band, suggesting a potential overbought condition, but the wide bands indicate the trend may continue.
+          - **ADX**: 25. The ADX indicates a moderate trend strength, supporting the current uptrend.
+          - **ATR**: 0.0050. The ATR suggests moderate volatility, with potential price swings of around 50 pips per day.
+        - **Actionable Insights**:
+          - The pair is in a confirmed uptrend, supported by the EMA, MACD, and ADX indicators.
+          - The RSI and Bollinger Bands suggest caution as the pair may be approaching overbought territory. Consider waiting for a pullback to the 20-day EMA (1.1820) for a better entry point.
+          - The moderate volatility (ATR) and trend strength (ADX) suggest the trend is sustainable, but monitor for any reversal signals (e.g., RSI above 70 or a MACD crossover).
+        
+        Would you like to analyze specific indicators for EUR/USD or try a different forex pair?
+        `;
 
-      // Create the prompt template
-      const prompt = ChatPromptTemplate.fromMessages([
-        ["system", systemPrompt],
-        ["human", input],
-      ]);
+        // Create the prompt template (systemPrompt to be added in the next response)
+        const prompt = ChatPromptTemplate.fromMessages([
+            ["system", systemPrompt], // Replace "Placeholder for system prompt" with the actual systemPrompt
+            ["human", input],
+          ]);
 
-      // Extract symbol or company name with typo handling
+      // Extract symbol or pair name with typo handling
       let symbol: string | null = null;
 
-      // Step 1: Try to extract a stock symbol (e.g., "aapl", "AAPL", "APPL")
-      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/);
+      // Step 1: Try to extract a forex pair symbol (e.g., "EUR/USD", "GBP/JPY")
+      const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
       if (symbolMatch) {
-        const potentialSymbol = symbolMatch[0].toUpperCase();
-        const stock = stockListings.find((s) => s.symbol === potentialSymbol);
-        if (stock) {
+        const potentialSymbol = symbolMatch.toUpperCase();
+        const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+        if (pair) {
           symbol = potentialSymbol;
         } else {
-          // Handle typos in symbol (e.g., "APPL" -> "AAPL")
-          const closestSymbol = stockListings.reduce((closest, s) => {
-            const distance = levenshteinDistance(potentialSymbol, s.symbol);
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
+          // Handle typos in symbol (e.g., "EURUSD" -> "EUR/USD")
+          const closestSymbol = forexPairs.reduce((closest: any, p: any) => {
+            const distance = levenshteinDistance(potentialSymbol.replace("/", ""), p.symbol.replace("/", ""));
+            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, distance } : closest;
           }, { symbol: "", distance: Infinity });
           if (closestSymbol.distance <= 2) {
             symbol = closestSymbol.symbol;
@@ -543,22 +579,22 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         }
       }
 
-      // Step 2: If no symbol is found, try to match a company name with typo handling
+      // Step 2: If no symbol is found, try to match a pair name with typo handling
       if (!symbol) {
-        const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const stock = stockListings.find((s) =>
-          s.name.toLowerCase().includes(companyName)
+        const pairName = input.toLowerCase().replace(/forex|pair/gi, "").trim();
+        const pair = forexPairs.find((p: any) =>
+          p.name.toLowerCase().includes(pairName)
         );
-        if (stock) {
-          symbol = stock.symbol;
+        if (pair) {
+          symbol = pair.symbol;
         } else {
-          // Handle typos in company name (e.g., "Aple" -> "Apple")
-          const closestStock = stockListings.reduce((closest, s) => {
-            const distance = levenshteinDistance(companyName, s.name.toLowerCase());
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, name: s.name, distance } : closest;
+          // Handle typos in pair name (e.g., "Euro to Doller" -> "Euro to Dollar")
+          const closestPair = forexPairs.reduce((closest: any, p: any) => {
+            const distance = levenshteinDistance(pairName, p.name.toLowerCase());
+            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, name: p.name, distance } : closest;
           }, { symbol: "", name: "", distance: Infinity });
-          if (closestStock.distance <= 3) {
-            symbol = closestStock.symbol;
+          if (closestPair.distance <= 3) {
+            symbol = closestPair.symbol;
           }
         }
       }
@@ -567,11 +603,11 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       if (!symbol) {
         for (let i = messages.length - 1; i >= 0; i--) {
           const msg = messages[i];
-          const historySymbolMatch = msg.content.match(/\b[A-Za-z]{1,5}\b/);
+          const historySymbolMatch = msg.content.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
           if (historySymbolMatch) {
-            const potentialSymbol = historySymbolMatch[0].toUpperCase();
-            const stock = stockListings.find((s) => s.symbol === potentialSymbol);
-            if (stock) {
+            const potentialSymbol = historySymbolMatch.toUpperCase();
+            const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+            if (pair) {
               symbol = potentialSymbol;
               break;
             }
@@ -583,7 +619,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
-          content: "Please provide a stock symbol or company name to analyze (e.g., 'AAPL' for Apple, 'Tesla').",
+          content: "Please provide a forex pair symbol or pair name to analyze (e.g., 'EUR/USD' for Euro to US Dollar, 'British Pound to Yen').",
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -601,18 +637,18 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         return;
       }
 
-      // Step 5: Validate symbol against stock listings
-      if (stockListings.length > 0) {
-        const isValidSymbol = stockListings.some((stock) => stock.symbol === symbol);
+      // Step 5: Validate symbol against forex pairs
+      if (forexPairs.length > 0) {
+        const isValidSymbol = forexPairs.some((pair: any) => pair.symbol === symbol);
         if (!isValidSymbol) {
-          const closestSymbol = stockListings.reduce((closest, s) => {
-            const distance = levenshteinDistance(symbol, s.symbol);
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
+          const closestSymbol = forexPairs.reduce((closest: any, p: any) => {
+            const distance = levenshteinDistance(symbol.replace("/", ""), p.symbol.replace("/", ""));
+            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, distance } : closest;
           }, { symbol: "", distance: Infinity });
           const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
           const errorMessage: Message = {
             role: "assistant",
-            content: `I couldn’t find '${symbol}' in the stock listings.${suggestion} Please try a valid symbol like 'AAPL' for Apple or 'TSLA' for Tesla.`,
+            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Please try a valid symbol like 'EUR/USD' for Euro to US Dollar or 'GBP/JPY' for British Pound to Japanese Yen.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
@@ -632,31 +668,31 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       }
 
       // Step 6: Determine what data to fetch
-      const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
+      const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "ichimoku", "stoch", "cci", "mom", "pivot_points_hl"];
       const requestedIndicators = indicators.filter((indicator) =>
         input.toLowerCase().includes(indicator)
       );
-      const needsStockData = input.toLowerCase().includes("price") || 
-                            input.toLowerCase().includes("change") || 
-                            input.toLowerCase().includes("volume") || 
-                            input.toLowerCase().includes("trend") || 
+      const needsForexData = input.toLowerCase().includes("price") ||
+                            input.toLowerCase().includes("change") ||
+                            input.toLowerCase().includes("trend") ||
                             input.toLowerCase().includes("analyz");
 
-      let stockData, indicatorsData;
+      let forexData, indicatorsData;
       const apiCallCount = { count: 0 }; // Track the number of API calls
 
-      // Fetch stock data if needed
-      if (needsStockData || requestedIndicators.length === 0) {
+      // Fetch forex data if needed
+      if (needsForexData || requestedIndicators.length === 0) {
         try {
-          stockData = await fetchStockData(symbol, apiCallCount);
-        } catch (error) {
-          const errorMessage: Message = {
+          forexData = await fetchForexData(symbol, apiCallCount);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch stock data for ${symbol} due to an API error: ${error.message}. Please try again later or use a different symbol.`,
+            content: `I couldn't fetch forex data for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
-            const updatedMessages = [...prev, errorMessage];
+            const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
                 session.id === currentChatId
@@ -672,18 +708,19 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       }
 
       // Fetch technical indicators if requested (or all for general analysis)
-      if (requestedIndicators.length > 0 || (!needsStockData && input.toLowerCase().includes("analyz"))) {
+      if (requestedIndicators.length > 0 || (!needsForexData && input.toLowerCase().includes("analyz"))) {
         const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : indicators;
         try {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
-        } catch (error) {
-          const errorMessage: Message = {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${error.message}. Please try again later or use a different symbol.`,
+            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
-            const updatedMessages = [...prev, errorMessage];
+            const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
                 session.id === currentChatId
@@ -700,9 +737,9 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
 
       // Step 7: Prepare the enhanced input with API data and chat history
       const combinedData = {
-        stockData,
+        forexData,
         indicators: indicatorsData,
-        stockListings,
+        forexPairs,
       };
       const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(messages)}`;
 
@@ -718,7 +755,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
         role: "assistant",
         content: response.content,
         timestamp: new Date().toLocaleTimeString(),
-        stockData,
+        forexData,
         indicatorsData,
       };
 
@@ -735,20 +772,21 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
       });
 
       await chatHistory.addMessage(new SystemMessage(response.content));
-    } catch (error) {
-      console.error("Error in chatbot:", error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error in chatbot:", errorMessage);
       toast({
         title: "Error",
         description: "Failed to process your request. Please try again.",
         variant: "destructive",
       });
-      const errorMessage: Message = {
+      const errorMsg: Message = {
         role: "assistant",
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {
-        const updatedMessages = [...prev, errorMessage];
+        const updatedMessages = [...prev, errorMsg];
         setChatSessions((prevSessions) =>
           prevSessions.map((session) =>
             session.id === currentChatId
@@ -803,8 +841,8 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
               <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden">
                 <Menu className="h-6 w-6" />
               </Button>
-              <BarChart3 className="h-8 w-8 text-teal-600" /> {/* Changed from text-indigo-600 */}
-              <span className="text-2xl font-bold">Stock Advisor</span>
+              <BarChart3 className="h-8 w-8 text-teal-600" />
+              <span className="text-2xl font-bold">Forex Advisor</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
@@ -820,7 +858,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
           </div>
         </div>
       </header>
-  
+
       {/* Full-Screen Chat Interface */}
       <div className="flex-1 flex">
         {/* Sidebar */}
@@ -839,7 +877,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <Button onClick={handleNewChat} className="mb-4 bg-teal-600 hover:bg-teal-700"> {/* Added teal colors */}
+              <Button onClick={handleNewChat} className="mb-4 bg-teal-600 hover:bg-teal-700">
                 <Plus className="h-4 w-4 mr-2" /> New Chat
               </Button>
               <div className="flex-1 overflow-y-auto">
@@ -847,7 +885,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                   <div
                     key={session.id}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-teal-100" : "hover:bg-gray-100" /* Changed from bg-indigo-100 */}
+                      session.id === currentChatId ? "bg-teal-100" : "hover:bg-gray-100"
                     }`}
                   >
                     <div
@@ -869,14 +907,14 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
             </motion.div>
           )}
         </AnimatePresence>
-  
+
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4">
-            {stockListingsError && (
+            {forexPairsError && (
               <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">
-                {stockListingsError}
+                {forexPairsError}
               </div>
             )}
             {messages.map((message, index) => (
@@ -889,7 +927,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                 <div
                   className={`max-w-[70%] p-3 rounded-lg ${
                     message.role === "user"
-                      ? "bg-teal-600 text-white" /* Changed from bg-indigo-600 */
+                      ? "bg-teal-600 text-white"
                       : "bg-gray-200 text-gray-800"
                   }`}
                 >
@@ -910,7 +948,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
             )}
             <div ref={messagesEndRef} />
           </div>
-  
+
           {/* Input Area */}
           <div className="border-t p-4">
             <div className="flex space-x-2">
@@ -920,7 +958,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about a stock (e.g., 'Analyze AAPL', 'What’s the RSI for Tesla?')"
+                placeholder="Ask about a forex pair (e.g., 'Analyze EUR/USD', 'What’s the RSI for GBP/JPY?')"
                 className="flex-1 resize-none"
                 rows={2}
                 onKeyDown={(e) => {
@@ -930,7 +968,7 @@ Would you like to analyze specific indicators for AAPL or try a different stock?
                   }
                 }}
               />
-              <Button onClick={handleSendMessage} disabled={loading} className="bg-teal-600 hover:bg-teal-700"> {/* Added teal colors */}
+              <Button onClick={handleSendMessage} disabled={loading} className="bg-teal-600 hover:bg-teal-700">
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (

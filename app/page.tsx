@@ -150,7 +150,7 @@ export default function Home() {
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">Analyze Market</Button>
+                <Button variant="ghost">Analyze Markets</Button>
               </Link>
               <Link href="/news">
                 <Button variant="ghost">News</Button>

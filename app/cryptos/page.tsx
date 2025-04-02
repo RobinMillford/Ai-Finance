@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -47,12 +47,16 @@ export default function CryptoList() {
       const data = await response.json();
       console.log("API response from /api/cryptos:", JSON.stringify(data, null, 2));
       if (!Array.isArray(data)) {
-        throw new Error("Expected an array of cryptocurrency pairs, but received: " + JSON.stringify(data));
+        throw new Error(
+          "Expected an array of cryptocurrency pairs, but received: " + JSON.stringify(data)
+        );
       }
 
       // Set quote currency options if not already set
       if (quoteCurrencyOptions.length === 0) {
-        const currencies = Array.from(new Set(data.map((pair: CryptoPair) => pair.currency_quote))).sort();
+        const currencies = Array.from(
+          new Set(data.map((pair: CryptoPair) => pair.currency_quote))
+        ).sort();
         setQuoteCurrencyOptions(["All", ...currencies]);
       }
 
@@ -68,7 +72,9 @@ export default function CryptoList() {
         );
       }
       if (quoteCurrencyFilter !== "All") {
-        filtered = filtered.filter((pair: CryptoPair) => pair.currency_quote === quoteCurrencyFilter);
+        filtered = filtered.filter(
+          (pair: CryptoPair) => pair.currency_quote === quoteCurrencyFilter
+        );
       }
 
       // Apply pagination
@@ -167,9 +173,6 @@ export default function CryptoList() {
               <Link href="/choose-market">
                 <Button variant="ghost">Other Markets</Button>
               </Link>
-              {/* <Link href="/news">
-                <Button variant="ghost">News</Button>
-              </Link> */}
               <Link href="/choose-advisor">
                 <Button variant="ghost">AI Advisors</Button>
               </Link>
@@ -181,7 +184,7 @@ export default function CryptoList() {
         </div>
       </header>
 
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Hero Section */}
         <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
           <div className="max-w-full mx-auto text-center">
@@ -194,7 +197,8 @@ export default function CryptoList() {
                 Cryptocurrency Market Analysis
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-                Explore real-time cryptocurrency pair data, filter by quote currency, and dive into detailed analysis for your favorite pairs.
+                Explore real-time cryptocurrency pair data, filter by quote currency, and dive
+                into detailed analysis for your favorite pairs.
               </p>
             </motion.div>
           </div>
@@ -237,7 +241,10 @@ export default function CryptoList() {
 
                 {/* Quote Currency Filter */}
                 <div className="flex items-center gap-2">
-                  <label htmlFor="quote-currency-filter" className="text-sm font-medium text-muted-foreground">
+                  <label
+                    htmlFor="quote-currency-filter"
+                    className="text-sm font-medium text-muted-foreground"
+                  >
                     Quote Currency:
                   </label>
                   <select
@@ -275,7 +282,9 @@ export default function CryptoList() {
                     <BarChart3 className="h-6 w-6 text-white" />
                   </div>
                   <h2 className="text-2xl md:text-3xl font-semibold">
-                    {searchQuery ? `Search Results (Page ${page})` : `Top Crypto Listings (Page ${page})`}
+                    {searchQuery
+                      ? `Search Results (Page ${page})`
+                      : `Top Crypto Listings (Page ${page})`}
                   </h2>
                 </div>
                 <Button
@@ -302,7 +311,9 @@ export default function CryptoList() {
                       <th className="text-left py-3 px-4 text-muted-foreground">Symbol</th>
                       <th className="text-left py-3 px-4 text-muted-foreground">Base Currency</th>
                       <th className="text-left py-3 px-4 text-muted-foreground">Quote Currency</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Available Exchanges</th>
+                      <th className="text-left py-3 px-4 text-muted-foreground">
+                        Available Exchanges
+                      </th>
                       <th className="text-left py-3 px-4 text-muted-foreground">Analyze</th>
                     </tr>
                   </thead>
@@ -396,6 +407,27 @@ export default function CryptoList() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Floating Chatbot Logo */}
+        <motion.div
+          className="fixed bottom-6 right-6 z-50 group"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 1 }}
+          whileHover={{ scale: 1.1 }}
+        >
+          <Link href="/cryptoadvisor">
+            <Button
+              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-yellow-600 hover:from-orange-600 hover:to-yellow-700 transition-all duration-300"
+            >
+              <MessageCircle className="h-6 w-6 text-white" />
+            </Button>
+          </Link>
+          {/* Tooltip */}
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
+            Your Crypto Advisor
+          </div>
+        </motion.div>
       </main>
     </div>
   );

@@ -21,7 +21,7 @@ import {
 import { Line, Bar } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, MessageCircle } from "lucide-react";
 
 // Register Chart.js components
 ChartJS.register(
@@ -666,12 +666,6 @@ export default function CryptoDetails() {
               <Link href="/choose-market">
                 <Button variant="ghost">Analyze Market</Button>
               </Link>
-              {/* <Link href="/news">
-                <Button variant="ghost">News</Button>
-              </Link>
-              <Link href="/advisor">
-                <Button variant="ghost">AI Advisor</Button>
-              </Link> */}
               <Link href="/cryptos">
                 <Button variant="outline">Back to Crypto Listings</Button>
               </Link>
@@ -680,7 +674,7 @@ export default function CryptoDetails() {
         </div>
       </header>
 
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Hero Section */}
         <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
           <div className="max-w-full mx-auto text-center">
@@ -1129,6 +1123,27 @@ export default function CryptoDetails() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Floating Chatbot Logo */}
+        <motion.div
+          className="fixed bottom-6 right-6 z-50 group"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 1 }}
+          whileHover={{ scale: 1.1 }}
+        >
+          <Link href="/cryptoadvisor">
+            <Button
+              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-yellow-600 hover:from-orange-600 hover:to-yellow-700 transition-all duration-300"
+            >
+              <MessageCircle className="h-6 w-6 text-white" />
+            </Button>
+          </Link>
+          {/* Tooltip */}
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
+            Your Crypto Advisor
+          </div>
+        </motion.div>
       </main>
     </div>
   );

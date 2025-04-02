@@ -12,10 +12,10 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 
-// Stock theme colors
-const stockBlue = "#1E3A8A"; // Deep blue for headers and buttons
-const stockGold = "#D4AF37"; // Gold for accents
-const stockWhite = "#F5F6F5"; // Soft white for backgrounds
+// Theme colors inspired by ChooseMarket
+const blue500 = "#3B82F6"; // Tailwind from-blue-500
+const indigo600 = "#4F46E5"; // Tailwind to-indigo-600
+const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for stock data and indicators
 const stockDataCache = new Map();
@@ -753,26 +753,27 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: stockWhite }}>
-      <header className="border-b" style={{ backgroundColor: stockBlue, color: stockGold }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: whiteBg }}>
+      {/* Header */}
+      <header className="border-b" style={{ background: `linear-gradient(to right, ${blue500}, ${indigo600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden" style={{ color: stockGold }}>
+              <Button variant="ghost" onClick={toggleSidebar} className="lg:hidden" style={{ color: "white" }}>
                 <Menu className="h-6 w-6" />
               </Button>
-              <TrendingUp className="h-8 w-8" style={{ color: stockGold }} />
-              <span className="text-2xl font-bold">Stock Buddy</span>
+              <TrendingUp className="h-8 w-8" style={{ color: "white" }} />
+              <span className="text-2xl font-bold" style={{ color: "white" }}>Stock Advisor</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost" style={{ color: stockGold }}>All Markets</Button>
+                <Button variant="ghost" style={{ color: "white" }}>All Markets</Button>
               </Link>
               <Link href="/news">
-                <Button variant="ghost" style={{ color: stockGold }}>News</Button>
+                <Button variant="ghost" style={{ color: "white" }}>News</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline" style={{ borderColor: stockGold, color: stockGold }}>Back Home</Button>
+                <Button variant="outline" style={{ borderColor: "white", color: "blue" }}>Back Home</Button>
               </Link>
             </div>
           </div>
@@ -780,6 +781,7 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
       </header>
 
       <div className="flex-1 flex">
+        {/* Sidebar */}
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
@@ -788,83 +790,105 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.3 }}
               className="w-64 border-r p-4 flex flex-col lg:w-80"
-              style={{ backgroundColor: stockBlue, color: stockGold }}
+              style={{ backgroundColor: whiteBg }}
             >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Chat History</h2>
-                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden" style={{ color: stockGold }}>
+                <h2 className="text-lg font-semibold" style={{ color: indigo600 }}>Chat History</h2>
+                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden" style={{ color: indigo600 }}>
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <Button onClick={handleNewChat} style={{ backgroundColor: stockGold, color: stockBlue }}>
-                <Plus className="h-4 w-4 mr-2" /> New Chat
-              </Button>
-              <div className="flex-1 overflow-y-auto mt-4">
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  onClick={handleNewChat}
+                  className="mb-4"
+                  style={{ background: `linear-gradient(to right, ${blue500}, ${indigo600})`, color: "white" }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> New Chat
+                </Button>
+              </motion.div>
+              <div className="flex-1 overflow-y-auto">
                 {chatSessions.map((session) => (
-                  <div
+                  <motion.div
                     key={session.id}
+                    whileHover={{ scale: 1.02 }}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-blue-200" : "hover:bg-blue-700"
+                      session.id === currentChatId ? "bg-blue-100" : "hover:bg-gray-100"
                     }`}
                   >
                     <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
-                      <span className="text-sm font-medium">{session.title}</span>
+                      <span className="text-sm font-medium" style={{ color: indigo600 }}>{session.title}</span>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Chat Area */}
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto p-4">
             {stockListingsError && (
               <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{stockListingsError}</div>
             )}
             {messages.map((message, index) => (
-              <div
+              <motion.div
                 key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
                 className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-lg ${
-                    message.role === "user" ? "text-white" : "bg-gray-200 text-gray-800"
+                  className={`max-w-[70%] p-3 rounded-lg shadow-md ${
+                    message.role === "user"
+                      ? "text-white"
+                      : "bg-white text-gray-800"
                   }`}
-                  style={{ backgroundColor: message.role === "user" ? stockGold : undefined }}
+                  style={{
+                    background: message.role === "user" ? `linear-gradient(to right, ${blue500}, ${indigo600})` : undefined,
+                  }}
                 >
                   <p>{message.content}</p>
-                  <span className="text-xs text-gray-500 mt-1 block">
+                  <span className="text-xs mt-1 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
                     <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             ))}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-gray-200 p-3 rounded-lg">
-                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: stockBlue }} />
+                <div className="bg-white p-3 rounded-lg shadow-md">
+                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t p-4" style={{ backgroundColor: stockBlue }}>
+          {/* Input Area */}
+          <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, ${whiteBg}, #E5E7EB)` }}>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleClearChat} style={{ borderColor: stockGold, color: stockGold }}>
-                <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
-              </Button>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  variant="outline"
+                  onClick={handleClearChat}
+                  style={{ borderColor: blue500, color: blue500 }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
+                </Button>
+              </motion.div>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about a stock (e.g., 'Analyze AAPL', 'What’s the RSI for Tesla?')"
-                className="flex-1 resize-none"
+                className="flex-1 resize-none shadow-md"
                 rows={2}
-                style={{ borderColor: stockGold, backgroundColor: stockWhite, color: stockBlue }}
+                style={{ borderColor: blue500, backgroundColor: "white", color: indigo600 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -872,9 +896,15 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
                   }
                 }}
               />
-              <Button onClick={handleSendMessage} disabled={loading} style={{ backgroundColor: stockGold, color: stockBlue }}>
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-              </Button>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={loading}
+                  style={{ background: `linear-gradient(to right, ${blue500}, ${indigo600})`, color: "white" }}
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                </Button>
+              </motion.div>
             </div>
           </div>
         </div>

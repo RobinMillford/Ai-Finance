@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,16 +33,18 @@ export default function Stocks() {
   const { toast } = useToast();
   const perPage = 50;
 
+  // Fetch all stocks on mount
   useEffect(() => {
     fetchStocks();
   }, []);
 
+  // Update filtered stocks when filters or page changes
   useEffect(() => {
     let filtered = allStocks;
 
-    if (searchQuery.trim() !== "") {
+    if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
-      filtered = allStocks.filter(
+      filtered = filtered.filter(
         (stock) =>
           stock.symbol.toLowerCase().includes(lowerQuery) ||
           stock.name.toLowerCase().includes(lowerQuery)
@@ -57,28 +59,27 @@ export default function Stocks() {
       filtered = filtered.filter((stock) => stock.status === selectedType);
     }
 
-    const newTotalPages = Math.ceil(filtered.length / perPage);
-    setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+    const newTotalPages = Math.ceil(filtered.length / perPage) || 1;
+    setTotalPages(newTotalPages);
 
     if (page > newTotalPages) {
-      setPage(newTotalPages > 0 ? newTotalPages : 1);
+      setPage(newTotalPages);
     }
 
     const paginatedStocks = filtered.slice((page - 1) * perPage, page * perPage);
     setFilteredStocks(paginatedStocks);
   }, [searchQuery, selectedExchange, selectedType, allStocks, page]);
 
+  // Fetch all stocks from API
   const fetchStocks = async () => {
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
       const response = await fetch("/api/stocks");
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
       }
-      const data = await response.json();
-      console.log("Fetched data:", data);
+      const data: Stock[] = await response.json();
 
       if (!Array.isArray(data)) {
         throw new Error("Invalid stock data format");
@@ -87,19 +88,20 @@ export default function Stocks() {
       setAllStocks(data);
       setFilteredStocks(data.slice(0, perPage));
 
-      const exchanges = Array.from(new Set(data.map((stock: Stock) => stock.exchange))).sort();
-      const types = Array.from(new Set(data.map((stock: Stock) => stock.status))).sort();
-      setExchangeOptions(["All", ...exchanges]);
-      setTypeOptions(["All", ...types]);
-
-      setTotalPages(Math.ceil(data.length / perPage));
+      const exchanges = ["All", ...Array.from(new Set(data.map((stock) => stock.exchange))).sort()];
+      const types = ["All", ...Array.from(new Set(data.map((stock) => stock.status))).sort()];
+      setExchangeOptions(exchanges);
+      setTypeOptions(types);
+      setTotalPages(Math.ceil(data.length / perPage) || 1);
+      setPage(1); // Reset to first page on new fetch
     } catch (error) {
-      console.error("Fetch error:", error.message);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Fetch error:", errorMessage);
       setAllStocks([]);
       setFilteredStocks([]);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch stock listings",
+        description: errorMessage || "Failed to fetch stock listings",
         variant: "destructive",
       });
     } finally {
@@ -107,60 +109,13 @@ export default function Stocks() {
     }
   };
 
-  const debouncedSearch = debounce(async () => {
-    if (!searchQuery.trim()) {
-      fetchStocks();
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const response = await fetch(`/api/stock?symbol=${searchQuery.toUpperCase()}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-      }
-      const data = await response.json();
-
-      const timeSeries = data["Time Series (Daily)"];
-      if (!timeSeries) {
-        throw new Error("No data available for this stock");
-      }
-
-      const stock: Stock = {
-        symbol: searchQuery.toUpperCase(),
-        name: data["Meta Data"]["2. Symbol"] || "Unknown Stock",
-        exchange: data["Meta Data"]["6. Exchange"] || "N/A",
-        status: "Common Stock",
-      };
-
-      setAllStocks([stock]);
-      setFilteredStocks([stock]);
-      setTotalPages(1);
-      setPage(1);
-      setExchangeOptions(["All", stock.exchange]);
-      setTypeOptions(["All", stock.status]);
-      toast({
-        title: "Stock Found",
-        description: `Showing data for ${stock.symbol}`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Search error:", error.message);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch stock data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, 1000);
-
-  const handleSearch = () => {
-    debouncedSearch();
-  };
+  // Debounced search function to filter stocks
+  const handleSearch = useCallback(
+    debounce((query: string) => {
+      setSearchQuery(query);
+    }, 500),
+    []
+  );
 
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
@@ -223,25 +178,15 @@ export default function Stocks() {
                     type="text"
                     placeholder="Search by symbol or name (e.g., AAPL)"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      handleSearch(e.target.value);
+                    }}
                     className="pl-10 border border-muted rounded-lg focus:ring-2 focus:ring-primary"
+                    disabled={loading}
                   />
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 </div>
-                <Button
-                  onClick={handleSearch}
-                  disabled={loading}
-                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Searching...
-                    </span>
-                  ) : (
-                    "Search Stock"
-                  )}
-                </Button>
 
                 {/* Exchange Filter */}
                 <div className="flex items-center gap-2">
@@ -293,7 +238,6 @@ export default function Stocks() {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="relative group"
           >
-            {/* Gradient background effect for the stock listings card */}
             <div
               className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
@@ -339,7 +283,7 @@ export default function Stocks() {
                     {filteredStocks.length > 0 ? (
                       filteredStocks.map((stock, index) => (
                         <motion.tr
-                          key={index}
+                          key={stock.symbol} // Use symbol as key for uniqueness
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.5, delay: index * 0.05 }}
@@ -392,47 +336,49 @@ export default function Stocks() {
               </div>
 
               {/* Pagination Controls */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.6 }}
-                className="flex justify-between mt-6"
-              >
-                <Button
-                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={page === 1 || loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
+              {totalPages > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.6 }}
+                  className="flex justify-between mt-6"
                 >
-                  ⬅ Previous
-                </Button>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-lg text-muted-foreground">Page:</span>
-                  <select
-                    value={page}
-                    onChange={(e) => setPage(parseInt(e.target.value))}
-                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                    disabled={loading}
+                  <Button
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={page === 1 || loading}
+                    variant="outline"
+                    className="border border-muted hover:bg-muted/50"
                   >
-                    {pageOptions.map((pageNum) => (
-                      <option key={pageNum} value={pageNum}>
-                        {pageNum}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-lg text-muted-foreground">of {totalPages}</span>
-                </div>
+                    ⬅ Previous
+                  </Button>
 
-                <Button
-                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={page >= totalPages || loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
-                >
-                  Next ➡
-                </Button>
-              </motion.div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg text-muted-foreground">Page:</span>
+                    <select
+                      value={page}
+                      onChange={(e) => setPage(parseInt(e.target.value))}
+                      className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
+                      disabled={loading}
+                    >
+                      {pageOptions.map((pageNum) => (
+                        <option key={pageNum} value={pageNum}>
+                          {pageNum}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-lg text-muted-foreground">of {totalPages}</span>
+                  </div>
+
+                  <Button
+                    onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={page >= totalPages || loading}
+                    variant="outline"
+                    className="border border-muted hover:bg-muted/50"
+                  >
+                    Next ➡
+                  </Button>
+                </motion.div>
+              )}
             </Card>
           </motion.div>
         </div>
@@ -452,7 +398,6 @@ export default function Stocks() {
               <MessageCircle className="h-6 w-6 text-white" />
             </Button>
           </Link>
-          {/* Tooltip */}
           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
             Your Stock Advisor
           </div>

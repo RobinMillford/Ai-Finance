@@ -11,6 +11,7 @@ import { ChatGroq } from "@langchain/groq";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { MessageContentComplex } from "@langchain/core/messages"; // Import for type checking
 
 // Theme colors inspired by from-orange-500 to-yellow-600
 const orange500 = "#F97316"; // Tailwind from-orange-500
@@ -18,7 +19,7 @@ const yellow600 = "#D97706"; // Tailwind to-yellow-600
 const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for crypto data and indicators
-const cryptoDataCache = new Map();
+const cryptoDataCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for real-time data
 
 // Rate limit handling
@@ -291,7 +292,7 @@ export default function CryptoAdvisor() {
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-
+  
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -306,7 +307,7 @@ export default function CryptoAdvisor() {
       );
       return updatedMessages;
     });
-
+  
     if (messages.filter((msg) => msg.role === "user").length === 0) {
       let newTitle = `Chat ${chatSessions.length}`;
       const symbolMatch = input.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/)?.[0];
@@ -322,24 +323,24 @@ export default function CryptoAdvisor() {
         )
       );
     }
-
+  
     setInput("");
     setLoading(true);
-
+  
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
         model: "llama3-70b-8192",
         temperature: 0.7,
       });
-
+  
       const chatHistory = chatHistories.get(currentChatId);
       if (!chatHistory) throw new Error("Chat history not initialized.");
       await chatHistory.addMessage(new HumanMessage(input));
-
+  
       const systemPrompt = `
         You are Crypto Buddy, a friendly AI assistant for anyone curious about cryptocurrencies, from beginners to experts. Your goal is to understand casual or vague questions and provide clear, helpful answers about crypto prices, trends, or indicators. Use a conversational tone and avoid jargon unless explaining it.
-
+  
         1. **Understand Intent**: Interpret the user’s request, even if vague (e.g., "How’s Bitcoin doing?" → BTC/USD price/trend, "What’s ETH worth?" → ETH/USD price).
            - Recognize common crypto names: "Bitcoin" or "BTC" → BTC/USD, "Ethereum" or "ETH" → ETH/USD.
            - If no symbol is specified in the current input, use the last symbol mentioned in the chat history (tracked as "lastSymbol" in the session or "symbol" in messages).
@@ -358,7 +359,7 @@ export default function CryptoAdvisor() {
         5. **Supported Indicators**: Predefined: EMA (20-day), RSI (14-day), MACD (12,26,9), BBANDS, ATR, OBV, Supertrend, STOCH, ADX. Others are attempted if requested.
         6. **Context**: Use chat history to maintain context—stick to the last symbol unless a new one is mentioned.
         7. **Tone**: Friendly and approachable, e.g., "Hey, looks like Bitcoin’s on a roll!"
-
+  
         Example:
         User: "How’s Bitcoin doing?"
         Response: "Hey! Bitcoin (BTC/USD) is at $50,000, up 2% today based on the latest quote. Over the last 10 days, it’s climbed about 5%. Want more details?"
@@ -367,13 +368,15 @@ export default function CryptoAdvisor() {
         User: "time series data of BTC"
         Response (if failed): "Oops, I couldn’t get the time series for BTC/USD because [error]. How about the current price instead?"
       `;
-
+  
       const prompt = ChatPromptTemplate.fromMessages([
         ["system", systemPrompt],
         ["human", "{input}"],
       ]);
-
-      let symbol: string | null = input.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/)?.[0]?.toUpperCase();
+  
+      let symbol: string | null = null;
+      const symbolMatch = input.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/);
+      if (symbolMatch) symbol = symbolMatch[0].toUpperCase();
       const cryptoNames = ["bitcoin", "btc", "ethereum", "eth"];
       const cryptoMatch = cryptoNames.find((name) => input.toLowerCase().includes(name));
       if (!symbol && cryptoMatch) {
@@ -385,13 +388,13 @@ export default function CryptoAdvisor() {
           symbol = currentSession.lastSymbol; // Use the last symbol from the session
         } else {
           for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].symbol) {
-              symbol = messages[i].symbol;
+            if (messages[i].symbol !== undefined) { // Check for undefined explicitly
+              symbol = messages[i].symbol as string; // Type assertion since we know it’s string if not undefined
               break;
             }
-            const match = messages[i].content.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/)?.[0];
+            const match = messages[i].content.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/);
             if (match) {
-              symbol = match.toUpperCase();
+              symbol = match[0].toUpperCase();
               break;
             }
             const prevCryptoMatch = cryptoNames.find((name) => messages[i].content.toLowerCase().includes(name));
@@ -405,7 +408,7 @@ export default function CryptoAdvisor() {
       if (!symbol && !input.toLowerCase().includes("analyz") && !input.match(/\b[A-Z]{2,10}\b/i)) {
         symbol = "BTC/USD"; // Default to BTC/USD for vague crypto queries
       }
-
+  
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
@@ -424,7 +427,8 @@ export default function CryptoAdvisor() {
         setLoading(false);
         return;
       }
-
+  
+      // Rest of the function remains unchanged...
       const isValidSymbol = cryptoPairs.some((pair: any) => pair.symbol === symbol);
       if (!isValidSymbol && cryptoPairs.length > 0) {
         const errorMessage: Message = {
@@ -444,7 +448,7 @@ export default function CryptoAdvisor() {
         setLoading(false);
         return;
       }
-
+  
       const predefinedIndicators = ["rsi", "ema", "macd", "bbands", "atr", "obv", "supertrend", "stoch", "adx"];
       const indicatorMatch = input.match(new RegExp(`\\b(${predefinedIndicators.join("|")})\\b`, "i"))?.[0]?.toLowerCase();
       const requestedIndicators = indicatorMatch ? [indicatorMatch] : [];
@@ -462,10 +466,10 @@ export default function CryptoAdvisor() {
         input.toLowerCase().includes("performance") ||
         input.toLowerCase().includes("analyz");
       const isGeneralAnalysis = input.toLowerCase().includes("analyz") && requestedIndicators.length === 0;
-
+  
       const apiCallCount = { count: 0 };
       let cryptoData: any = {};
-
+  
       if (needsQuote || isGeneralAnalysis) {
         try {
           cryptoData.quote = await fetchCryptoData(symbol, "quote", apiCallCount);
@@ -474,7 +478,7 @@ export default function CryptoAdvisor() {
           cryptoData.quote = { error: errorMessage };
         }
       }
-
+  
       if (needsTrend || isGeneralAnalysis) {
         try {
           cryptoData.time_series = await fetchCryptoData(symbol, "time_series", apiCallCount);
@@ -483,7 +487,7 @@ export default function CryptoAdvisor() {
           cryptoData.time_series = { error: errorMessage };
         }
       }
-
+  
       if (requestedIndicators.length > 0) {
         for (const indicator of requestedIndicators) {
           try {
@@ -494,22 +498,35 @@ export default function CryptoAdvisor() {
           }
         }
       }
-
+  
       const recentHistory = messages.slice(-5);
       const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(cryptoData)}\n\nRecent Chat History: ${JSON.stringify(recentHistory)}`;
-
+  
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
         input: enhancedInput,
         chat_history: (await chatHistory.getMessages()).slice(-5),
       });
-
+  
+      const responseContent = Array.isArray(response.content)
+        ? response.content
+            .map((item: any) => {
+              if ("type" in item && item.type === "text") {
+                return item.text;
+              }
+              return JSON.stringify(item);
+            })
+            .join("\n")
+        : typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
+  
       const assistantMessage: Message = {
         role: "assistant",
-        content: response.content,
+        content: responseContent,
         timestamp: new Date().toLocaleTimeString(),
         cryptoData,
-        symbol, // Store the symbol used in this response
+        symbol,
       };
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
@@ -520,8 +537,8 @@ export default function CryptoAdvisor() {
         );
         return updatedMessages;
       });
-
-      await chatHistory.addMessage(new SystemMessage(response.content));
+  
+      await chatHistory.addMessage(new SystemMessage(responseContent));
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       console.error("Error in chatbot:", errorMessage);
@@ -571,7 +588,7 @@ export default function CryptoAdvisor() {
               </Link>
               <Link href="/choose-advisor">
                 <Button variant="ghost" style={{ color: "white" }}>Other Advisors</Button>
-              </Link> 
+              </Link>
               <Link href="/">
                 <Button variant="outline" style={{ borderColor: "white", color: "orange" }}>Back Home</Button>
               </Link>
@@ -645,9 +662,7 @@ export default function CryptoAdvisor() {
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg shadow-md ${
-                    message.role === "user"
-                      ? "text-white"
-                      : "bg-white text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-white text-gray-800"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${orange500}, ${yellow600})` : undefined,

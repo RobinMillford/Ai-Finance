@@ -12,54 +12,50 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 
-// Theme colors inspired by ChooseMarket
-const blue500 = "#3B82F6"; // Tailwind from-blue-500
-const indigo600 = "#4F46E5"; // Tailwind to-indigo-600
-const whiteBg = "#F9FAFB"; // Light background similar to bg-background
+// Theme colors
+const blue500 = "#3B82F6";
+const indigo600 = "#4F46E5";
+const whiteBg = "#F9FAFB";
 
 // In-memory cache for stock data and indicators
-const stockDataCache = new Map();
-const indicatorsCache = new Map();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const stockDataCache = new Map<string, { data: any; timestamp: number }>();
+const indicatorsCache = new Map<string, { [key: string]: IndicatorData }>();
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-// Rate limit: 8 requests per minute (60 seconds / 8 = 7.5 seconds per request)
-const REQUEST_DELAY_MS = 7500; // 7.5 seconds delay between requests
-const API_CALL_THRESHOLD = 4; // Apply delay only if API calls exceed this threshold
+// Rate limit: 8 requests/minute (7.5 seconds/request)
+const REQUEST_DELAY_MS = 7500;
+const API_CALL_THRESHOLD = 4;
 
-// Utility function to delay execution
+// Utility to delay execution
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Utility function to fetch with retry on rate limit
+// Fetch with retry for rate limits
 async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        const errorData = await response.json();
         if (response.status === 429) {
-          console.warn(`Rate limit hit for URL: ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`);
-          if (attempt === maxRetries) {
-            throw new Error("Rate limit exceeded after maximum retries");
-          }
+          console.warn(`Rate limit hit for ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`);
+          if (attempt === maxRetries) throw new Error("Rate limit exceeded after max retries");
           await delay(retryDelayMs);
           continue;
         }
-        throw new Error(`API error: ${JSON.stringify(errorData)}`);
+        const errorData = await response.json();
+        throw new Error(`API error: ${errorData.message || "Unknown error"}`);
       }
       return await response.json();
-    } catch (error: unknown) {
-      if (attempt === maxRetries) {
-        throw error;
-      }
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
+      if (attempt === maxRetries) throw new Error(`Fetch failed after ${maxRetries} attempts: ${errorMessage}`);
+      console.warn(`Fetch attempt ${attempt} failed for ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
       await delay(retryDelayMs);
     }
   }
   throw new Error("Unexpected error in fetchWithRetry");
 }
 
-// Fetch stock listings to validate symbols using Twelve Data API
+// Fetch US stock listings (NASDAQ, NYSE)
 async function fetchStockListings() {
   const cacheKey = "stockListings";
   const cachedData = stockDataCache.get(cacheKey);
@@ -69,121 +65,128 @@ async function fetchStockListings() {
     return cachedData.data;
   }
 
+  const exchanges = ["NASDAQ", "NYSE"];
+  const allListings: any[] = [];
+
   try {
-    const url = `https://api.twelvedata.com/stocks?source=docs&exchange=NASDAQ`;
-    const response = await fetchWithRetry(url);
-    const data = response.data || [];
-    stockDataCache.set(cacheKey, { data, timestamp: now });
-    return data;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error fetching stock listings:", errorMessage);
+    const fetchPromises = exchanges.map(async (exchange) => {
+      const url = `https://api.twelvedata.com/stocks?source=docs&exchange=${exchange}&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
+      const data = await fetchWithRetry(url);
+      return data.data || [];
+    });
+    const results = await Promise.all(fetchPromises);
+    results.forEach((exchangeData) => allListings.push(...exchangeData));
+    const uniqueListings = Array.from(new Map(allListings.map((item) => [item.symbol, item])).values());
+    stockDataCache.set(cacheKey, { data: uniqueListings, timestamp: now });
+    console.log(`Fetched ${uniqueListings.length} US stock listings`);
+    return uniqueListings;
+  } catch (error) {
+    console.error("Error fetching stock listings:", error);
     throw error;
   }
 }
 
-// Fetch stock data (quote, time series) using Twelve Data API
+// Fetch stock data (quote, time series)
 async function fetchStockData(symbol: string, apiCallCount: { count: number }) {
-  const cacheKey = `stockData_${symbol.toUpperCase()}`;
+  const cacheKey = `stockData_${symbol}`;
   const cachedData = stockDataCache.get(cacheKey);
   const now = Date.now();
   if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log(`Returning cached stock data for symbol: ${symbol}`);
+    console.log(`Returning cached stock data for ${symbol}`);
     return cachedData.data;
   }
 
+  if (!process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY) {
+    throw new Error("API key is missing. Please configure NEXT_PUBLIC_TWELVEDATA_API_KEY.");
+  }
+
   try {
-    const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+    const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
     const quoteResponse = await fetchWithRetry(quoteUrl);
     apiCallCount.count += 1;
-    if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS);
-    }
+    if (apiCallCount.count > API_CALL_THRESHOLD) await delay(REQUEST_DELAY_MS);
 
-    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
     const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
     apiCallCount.count += 1;
-    if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS);
-    }
+    if (apiCallCount.count > API_CALL_THRESHOLD) await delay(REQUEST_DELAY_MS);
 
-    const data = {
-      quote: quoteResponse,
-      timeSeries: timeSeriesResponse,
-    };
+    const data = { quote: quoteResponse, timeSeries: timeSeriesResponse };
     stockDataCache.set(cacheKey, { data, timestamp: now });
     return data;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Error fetching stock data for ${symbol}:`, errorMessage);
+  } catch (error) {
+    console.error(`Error fetching stock data for ${symbol}:`, error);
     throw error;
   }
 }
 
-// Fetch specific technical indicators using Twelve Data API
-async function fetchIndicators(symbol: string, requestedIndicators: string[], apiCallCount: { count: number }) {
-  const cacheKey = `indicators_${symbol.toUpperCase()}`;
+// Define IndicatorData interface
+interface IndicatorData {
+  data: any;
+  timestamp: number;
+}
+
+// Fetch technical indicators
+async function fetchIndicators(symbol: string, requestedIndicators: string[], apiCallCount: { count: number }): Promise<{ [key: string]: IndicatorData }> {
+  const cacheKey = `indicators_${symbol}`;
   const cachedData = indicatorsCache.get(cacheKey) || {};
   const now = Date.now();
 
   const missingIndicators = requestedIndicators.filter(
-    (indicator) => !cachedData[indicator] || (now - cachedData[indicator]?.timestamp >= CACHE_DURATION)
+    (indicator) => !cachedData[indicator] || now - cachedData[indicator].timestamp >= CACHE_DURATION
   );
 
-  const indicatorsData: { [key: string]: any } = { ...cachedData };
+  const indicatorsData: { [key: string]: IndicatorData } = { ...cachedData };
+
+  if (!process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY) {
+    throw new Error("API key is missing. Please configure NEXT_PUBLIC_TWELVEDATA_API_KEY.");
+  }
 
   try {
     for (const indicator of missingIndicators) {
       let url = "";
       switch (indicator.toLowerCase()) {
         case "rsi":
-          url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         case "ema":
-          url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          const ema20Response = await fetchWithRetry(url);
+          const ema20Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
+          const ema20Response = await fetchWithRetry(ema20Url);
           apiCallCount.count += 1;
-          if (apiCallCount.count > API_CALL_THRESHOLD) {
-            await delay(REQUEST_DELAY_MS);
-          }
-          url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=50&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          const ema50Response = await fetchWithRetry(url);
+          if (apiCallCount.count > API_CALL_THRESHOLD) await delay(REQUEST_DELAY_MS);
+          const ema50Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=50&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
+          const ema50Response = await fetchWithRetry(ema50Url);
           apiCallCount.count += 1;
-          if (apiCallCount.count > API_CALL_THRESHOLD) {
-            await delay(REQUEST_DELAY_MS);
-          }
-          indicatorsData["ema"] = { ema20: ema20Response, ema50: ema50Response, timestamp: now };
+          if (apiCallCount.count > API_CALL_THRESHOLD) await delay(REQUEST_DELAY_MS);
+          indicatorsData["ema"] = { data: { ema20: ema20Response, ema50: ema50Response }, timestamp: now };
           continue;
         case "macd":
-          url = `https://api.twelvedata.com/macd?symbol=${symbol}&interval=1day&fast_period=12&slow_period=26&signal_period=9&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/macd?symbol=${symbol}&interval=1day&fast_period=12&slow_period=26&signal_period=9&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         case "bbands":
-          url = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&sd=2&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&sd=2&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         case "adx":
-          url = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         case "atr":
-          url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         case "aroon":
-          url = `https://api.twelvedata.com/aroon?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
+          url = `https://api.twelvedata.com/aroon?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
           break;
         default:
           continue;
       }
       const response = await fetchWithRetry(url);
       apiCallCount.count += 1;
-      if (apiCallCount.count > API_CALL_THRESHOLD) {
-        await delay(REQUEST_DELAY_MS);
-      }
-      indicatorsData[indicator.toLowerCase()] = { data: response, timestamp: now };
+      if (apiCallCount.count > API_CALL_THRESHOLD) await delay(REQUEST_DELAY_MS);
+      indicatorsData[indicator] = { data: response, timestamp: now };
     }
     indicatorsCache.set(cacheKey, indicatorsData);
     return indicatorsData;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Error fetching technical indicators for ${symbol}:`, errorMessage);
+  } catch (error) {
+    console.error(`Error fetching indicators for ${symbol}:`, error);
     throw error;
   }
 }
@@ -193,7 +196,7 @@ interface Message {
   content: string;
   timestamp: string;
   stockData?: any;
-  indicatorsData?: any;
+  indicatorsData?: { [key: string]: IndicatorData };
 }
 
 interface ChatSession {
@@ -219,17 +222,16 @@ export default function StockAdvisor() {
   useEffect(() => {
     const loadStockListings = async () => {
       try {
+        if (!process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY) {
+          throw new Error("API key is missing. Please configure NEXT_PUBLIC_TWELVEDATA_API_KEY.");
+        }
         const listings = await fetchStockListings();
         setStockListings(listings);
         setStockListingsError(null);
-      } catch (error: unknown) {
+      } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        setStockListingsError("Failed to load stock listings. Some features may be limited. Please try refreshing the page.");
-        toast({
-          title: "Error",
-          description: "Failed to load stock listings. Some features may be limited.",
-          variant: "destructive",
-        });
+        setStockListingsError(`Failed to load US stock listings: ${errorMessage}. Some features may be limited.`);
+        toast({ title: "Error", description: "Failed to load stock listings.", variant: "destructive" });
       }
     };
     loadStockListings();
@@ -238,17 +240,12 @@ export default function StockAdvisor() {
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Hey there! I’m your Stock Buddy, here to help you dive into the stock market. Ask me anything—like "Analyze AAPL" or "What’s the RSI for Tesla?"—and I’ll give you the latest insights. What’s on your mind?`,
+      content: "Hey there! I’m your Stock Buddy, here to help with US stocks (NASDAQ/NYSE only). Ask me anything—like 'Analyze AAPL' or 'What’s the RSI for TSLA?'—and I’ll fetch the latest data. What’s on your mind?",
       timestamp: new Date().toLocaleTimeString(),
     };
-
     if (!chatHistories.has(currentChatId)) {
       chatHistories.set(currentChatId, new InMemoryChatMessageHistory());
-      const newSession: ChatSession = {
-        id: currentChatId,
-        title: "Welcome Chat",
-        messages: [initialMessage],
-      };
+      const newSession: ChatSession = { id: currentChatId, title: "Welcome Chat", messages: [initialMessage] };
       setChatSessions((prev) => [...prev, newSession]);
       setMessages([initialMessage]);
     }
@@ -256,27 +253,15 @@ export default function StockAdvisor() {
 
   useEffect(() => {
     const currentSession = chatSessions.find((session) => session.id === currentChatId);
-    if (currentSession) {
-      setMessages(currentSession.messages);
-    } else {
-      setMessages([]);
-    }
+    setMessages(currentSession?.messages || []);
   }, [currentChatId, chatSessions]);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1024) {
-        setIsSidebarOpen(false);
-      } else {
-        setIsSidebarOpen(true);
-      }
-    };
+    const handleResize = () => setIsSidebarOpen(window.innerWidth >= 1024);
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -286,29 +271,18 @@ export default function StockAdvisor() {
     setMessages([]);
     chatHistories.set(currentChatId, new InMemoryChatMessageHistory());
     setChatSessions((prev) =>
-      prev.map((session) =>
-        session.id === currentChatId ? { ...session, messages: [] } : session
-      )
+      prev.map((session) => (session.id === currentChatId ? { ...session, messages: [] } : session))
     );
-    toast({
-      title: "Chat Cleared",
-      description: "Your chat history has been cleared.",
-    });
+    toast({ title: "Chat Cleared", description: "Your chat history has been cleared." });
   };
 
   const handleNewChat = () => {
     setChatSessions((prev) =>
-      prev.map((session) =>
-        session.id === currentChatId ? { ...session, messages } : session
-      )
+      prev.map((session) => (session.id === currentChatId ? { ...session, messages } : session))
     );
     const newChatId = Date.now().toString();
     chatHistories.set(newChatId, new InMemoryChatMessageHistory());
-    const newSession: ChatSession = {
-      id: newChatId,
-      title: `Chat ${chatSessions.length + 1}`,
-      messages: [],
-    };
+    const newSession: ChatSession = { id: newChatId, title: `Chat ${chatSessions.length + 1}`, messages: [] };
     setChatSessions((prev) => [...prev, newSession]);
     setCurrentChatId(newChatId);
     setMessages([]);
@@ -316,17 +290,13 @@ export default function StockAdvisor() {
 
   const handleSwitchChat = (chatId: string) => {
     setChatSessions((prev) =>
-      prev.map((session) =>
-        session.id === currentChatId ? { ...session, messages } : session
-      )
+      prev.map((session) => (session.id === currentChatId ? { ...session, messages } : session))
     );
     setCurrentChatId(chatId);
   };
 
   const handleDeleteChat = (chatId: string) => {
-    if (chatSessions.length === 1) {
-      handleNewChat();
-    }
+    if (chatSessions.length === 1) handleNewChat();
     setChatSessions((prev) => {
       const updatedSessions = prev.filter((session) => session.id !== chatId);
       chatHistories.delete(chatId);
@@ -335,229 +305,129 @@ export default function StockAdvisor() {
       }
       return updatedSessions;
     });
-    toast({
-      title: "Chat Deleted",
-      description: "The chat has been removed from your history.",
-    });
+    toast({ title: "Chat Deleted", description: "The chat has been removed." });
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen((prev) => !prev);
-  };
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const systemPrompt = `
-You are an AI stock advisor for FinanceAI, a platform that provides financial data analysis for stocks. Your task is to assist users by interpreting stock data and technical indicators for a given stock symbol or company name. Follow these steps:
-
-1. **Identify the Symbol**:
-   - The user will provide a stock symbol (e.g., "AAPL" for Apple, "TSLA" for Tesla) or a company name (e.g., "Apple", "Tesla").
-   - Be robust to typos in the symbol or company name:
-     - For symbols, if the input is close to a valid symbol (e.g., "APPL" instead of "AAPL"), correct it to the closest match from the stock listings.
-     - For company names, if the input has a typo (e.g., "Aple" instead of "Apple"), use fuzzy matching to find the closest match in the stock listings.
-   - If a company name is provided, map it to the correct stock symbol using the stock listings data (e.g., "Apple" -> "AAPL").
-   - If the user does not provide a symbol in the current message, check the chat history for the most recent symbol mentioned and use that. Do not ask for a symbol if it’s already clear from the context.
-
-2. **Validate the Symbol**:
-   - Validate the symbol against a list of known stock symbols provided in the stock listings data.
-   - If the symbol is invalid, inform the user and suggest trying a valid stock symbol (e.g., "I couldn’t find 'XYZ' in the stock listings. Did you mean 'AAPL' for Apple? Please try a valid symbol like 'AAPL' for Apple or 'TSLA' for Tesla.").
-
-3. **Identify Requested Data**:
-   - Determine what the user is asking for:
-     - If the user asks for general analysis (e.g., "Analyze AAPL"), provide a full analysis including stock data (current price, daily change, 30-day trend) and all available technical indicators.
-     - If the user asks for specific indicators (e.g., "What’s the RSI for AAPL?" or "Show me the EMA and MACD for AAPL"), only provide analysis for the requested indicators.
-     - If the user asks for stock statistics (e.g., "What’s the current price of AAPL?"), only provide the requested stock data.
-   - The available technical indicators are: EMA (20-day and 50-day), RSI (14-day), MACD (12-day, 26-day, 9-day signal line), BBANDS (Bollinger Bands, 20-day, 2 standard deviations), ADX (14-day), ATR (14-day), AROON (14-day).
-   - Stock data includes: current price, daily change, volume, and 30-day price trend.
-
-4. **Use Provided Data**:
-   - The data has already been fetched and provided to you in the input as JSON under "API Data". Do not attempt to fetch data yourself.
-   - The data includes:
-     - **Stock Data**:
-       - Quote: Current price, daily change, volume, etc.
-       - Time Series: Historical price data (up to 30 days for trend analysis).
-     - **Technical Indicators** (only the requested indicators will be provided):
-       - EMA: 20-day and 50-day Exponential Moving Average.
-       - RSI: 14-day Relative Strength Index.
-       - MACD: Moving Average Convergence Divergence (12-day, 26-day, 9-day signal line).
-       - BBANDS: Bollinger Bands (20-day, 2 standard deviations).
-       - ADX: Average Directional Index (14-day).
-       - ATR: Average True Range (14-day).
-       - AROON: Aroon Indicator (14-day).
-   - If the data for a requested indicator or stock data is null or missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol] due to an API error. Please try again later.").
-
-5. **Deep Analysis**:
-   - Provide a detailed analysis based on the user’s request:
-     - **For General Analysis**: Include current price, daily change, 30-day trend, and all available technical indicators.
-     - **For Specific Indicators**: Only analyze the requested indicators.
-     - **For Stock Statistics**: Only provide the requested stock data (e.g., current price, volume).
-   - Include the following in your analysis (where applicable):
-     - **Current Values**: Report the most recent value for each indicator or data point (e.g., "The current price is $174.55", "The 14-day RSI is 54.21").
-     - **Trend Analysis**: Analyze the trend over the past 30 days using the time series data or indicator values (e.g., "The price has increased by 5% over the past 30 days", "The RSI has risen from 50 to 54.21, indicating growing bullish momentum").
-     - **Comparisons**: Compare indicators to identify confirmations or divergences (e.g., "The price is above both the 20-day and 50-day EMA, confirming a bullish trend, but the RSI is nearing overbought levels at 70").
-     - **Momentum and Volatility**: Assess momentum using RSI, MACD, and AROON, and volatility using BBANDS and ATR (e.g., "The ATR indicates increasing volatility, suggesting larger price swings").
-     - **Trend Strength**: Use ADX to evaluate trend strength (e.g., "An ADX of 30 indicates a strong trend").
-     - **Actionable Insights**: Provide potential trading strategies based on the analysis (e.g., "The MACD histogram is positive and increasing, suggesting a buy opportunity, but monitor for a potential pullback as the price nears the upper Bollinger Band").
-   - Avoid speculative advice (e.g., don’t say "This stock will definitely go up"). Instead, provide data-driven insights.
-
-6. **Handle Additional Indicator Requests**:
-   - If the user requests additional indicators not currently provided (e.g., "Can you show me the SMA?"), inform them that you currently have data for EMA, RSI, MACD, BBANDS, ADX, ATR, and AROON. Suggest they ask for one of those or provide a general analysis.
-
-7. **Handle Errors**:
-   - If the symbol is invalid or the API data is unavailable, inform the user and suggest trying a different symbol (e.g., "I couldn't find data for 'XYZ'. Did you mean 'AAPL' for Apple? Please try a valid symbol like 'AAPL' for Apple.").
-
-8. **Maintain Conversational Context**:
-   - Use the chat history to maintain context (e.g., if the user asks "What’s the RSI?" after discussing AAPL, provide the RSI for AAPL).
-   - Do not ask for the symbol again unless the context is unclear.
-
-9. **Response Format**:
-   - Respond in a clear, professional tone.
-   - Use bullet points or short paragraphs for readability.
-   - Do not invent or hallucinate data. Only use the provided API data.
-   - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
+  You are an AI stock advisor for FinanceAI, focused on US stocks (NASDAQ/NYSE only) due to free plan limitations. Your task is to assist users by interpreting stock data and technical indicators for a given US stock symbol or company name. Follow these steps:
+  
+  1. **Identify the Symbol**:
+     - The user provides a stock symbol (e.g., "AAPL" for Apple) or company name (e.g., "Tesla").
+     - Correct typos: If "APPL" is entered, suggest "AAPL". For "Tesl", match to "Tesla" (TSLA).
+     - Map company names to symbols using stock listings (e.g., "Apple" -> "AAPL").
+     - Use the most recent symbol from chat history if not provided in the current message. Do not interpret common English words like "can," "will," or "is" as stock symbols unless explicitly intended (e.g., "CAN" is a symbol only if standalone or clearly a stock reference).
+     - Persist with the last discussed symbol for follow-up questions unless a new symbol is explicitly introduced.
+  
+  2. **Validate the Symbol**:
+     - Check against US stock listings (NASDAQ/NYSE). If invalid, suggest a valid symbol (e.g., "I couldn’t find 'XYZ'. Try 'AAPL' for Apple.").
+  
+  3. **Identify Requested Data**:
+     - General analysis (e.g., "Analyze AAPL"): Provide current price, daily change, 30-day trend, EMA, and RSI.
+     - Specific indicators (e.g., "What’s the RSI for TSLA?"): Analyze only requested indicators.
+     - Stock stats (e.g., "Price of AAPL?"): Provide only requested data.
+     - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20-day, 2sd), ADX (14-day), ATR (14-day), AROON (14-day).
+     - Stock data: price, change, volume, 30-day trend.
+  
+  4. **Use Provided Data**:
+     - Use only "API Data" from the input. If data is missing, say so (e.g., "I couldn’t fetch RSI for AAPL.").
+  
+  5. **Deep Analysis**:
+     - Provide concise answers by default, but when the user requests elaboration (e.g., "in detail," "elaborate," "tell me more"), give a thorough explanation:
+       - Include current values, historical context (if available from API data), trends, and actionable insights.
+       - For RSI, explain its value, range (0-100), overbought (>70), oversold (<30), and momentum implications. Build on prior responses if applicable.
+     - Examples:
+       - General: "AAPL price: $174.55, up 1.2%, 30-day trend: +5%, RSI: 65 (neutral)."
+       - Specific: "TSLA RSI: 70 (overbought)."
+       - Stats: "AAPL price: $174.55."
+  
+  6. **Handle Errors**:
+     - If symbol is invalid or data fails, suggest a US stock (e.g., "No data for 'XYZ'. Try 'AAPL'.").
+  
+  7. **Context**:
+     - Use the full chat history to maintain context, especially for follow-up questions. Reference prior symbols and data when elaborating unless instructed otherwise.
+  
+  8. **Response Format**:
+     - Clear, concise, professional by default. Use bullet points or short sentences.
+     - When elaboration is requested, use detailed paragraphs or expanded bullet points.
+     - Only use provided data—do not invent historical trends beyond API data.
   `;
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-
-    const userMessage: Message = {
-      role: "user",
-      content: input,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-
+  
+    const userMessage: Message = { role: "user", content: input, timestamp: new Date().toLocaleTimeString() };
     setMessages((prev) => {
       const updatedMessages = [...prev, userMessage];
       setChatSessions((prevSessions) =>
         prevSessions.map((session) =>
-          session.id === currentChatId
-            ? { ...session, messages: updatedMessages }
-            : session
+          session.id === currentChatId ? { ...session, messages: updatedMessages } : session
         )
       );
       return updatedMessages;
     });
-
+  
     if (messages.filter((msg) => msg.role === "user").length === 0) {
       let newTitle = `Chat ${chatSessions.length}`;
-      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/)?.[0];
-      const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
-      const requestedIndicator = indicators.find((indicator) =>
-        input.toLowerCase().includes(indicator)
-      );
-      if (symbolMatch) {
-        const potentialSymbol = symbolMatch.toUpperCase();
-        const stock = stockListings.find((s) => s.symbol === potentialSymbol);
-        if (stock) {
-          if (requestedIndicator) {
-            newTitle = `${requestedIndicator.toUpperCase()} for ${potentialSymbol}`;
-          } else if (input.toLowerCase().includes("analyz")) {
-            newTitle = `Analysis for ${potentialSymbol}`;
-          } else {
-            newTitle = `Query for ${potentialSymbol}`;
-          }
-        }
-      }
-      if (!newTitle.includes("Analysis for") && !newTitle.includes("Query for")) {
-        const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const matchedStock = stockListings.find((s) =>
-          s.name.toLowerCase().includes(companyName)
-        );
-        if (matchedStock) {
-          newTitle = `Analysis for ${matchedStock.symbol}`;
-        }
+      const symbolMatch = input.match(/\b[A-Z]{1,5}\b/)?.[0]; // Stricter: only uppercase, standalone
+      if (symbolMatch && stockListings.some((s) => s.symbol === symbolMatch)) {
+        newTitle = input.toLowerCase().includes("analyz")
+          ? `Analysis for ${symbolMatch}`
+          : `Query for ${symbolMatch}`;
       }
       setChatSessions((prev) =>
-        prev.map((session) =>
-          session.id === currentChatId ? { ...session, title: newTitle } : session
-        )
+        prev.map((session) => (session.id === currentChatId ? { ...session, title: newTitle } : session))
       );
     }
-
+  
     setInput("");
     setLoading(true);
-
+  
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
         model: "llama3-70b-8192",
         temperature: 0.5,
       });
-
+  
       const chatHistory = chatHistories.get(currentChatId);
-      if (!chatHistory) {
-        throw new Error("Chat history not initialized for this session.");
-      }
+      if (!chatHistory) throw new Error("Chat history not initialized.");
       await chatHistory.addMessage(new HumanMessage(input));
-
-      const prompt = ChatPromptTemplate.fromMessages([
-        ["system", systemPrompt],
-        ["human", "{input}"],
-      ]);
-
+  
+      const prompt = ChatPromptTemplate.fromMessages([["system", systemPrompt], ["human", "{input}"]]);
+  
       let symbol: string | null = null;
-
-      const symbolMatch = input.match(/\b[A-Za-z]{1,5}\b/)?.[0];
-      if (symbolMatch) {
-        const potentialSymbol = symbolMatch.toUpperCase();
-        const stock = stockListings.find((s) => s.symbol === potentialSymbol);
-        if (stock) {
-          symbol = potentialSymbol;
-        } else {
-          const closestSymbol = stockListings.reduce((closest: any, s: any) => {
-            const distance = levenshteinDistance(potentialSymbol, s.symbol);
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
-          }, { symbol: "", distance: Infinity });
-          if (closestSymbol.distance <= 2) {
-            symbol = closestSymbol.symbol;
-          }
-        }
-      }
-
-      if (!symbol) {
+      const symbolMatch = input.match(/\b[A-Z]{1,5}\b/)?.[0]; // Stricter regex for symbols
+      if (symbolMatch && stockListings.some((s) => s.symbol === symbolMatch)) {
+        symbol = symbolMatch;
+      } else {
         const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const stock = stockListings.find((s: any) =>
-          s.name.toLowerCase().includes(companyName)
-        );
-        if (stock) {
-          symbol = stock.symbol;
-        } else {
-          const closestStock = stockListings.reduce((closest: any, s: any) => {
-            const distance = levenshteinDistance(companyName, s.name.toLowerCase());
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, name: s.name, distance } : closest;
-          }, { symbol: "", name: "", distance: Infinity });
-          if (closestStock.distance <= 3) {
-            symbol = closestStock.symbol;
-          }
-        }
+        const stock = stockListings.find((s) => s.name.toLowerCase().includes(companyName));
+        if (stock) symbol = stock.symbol;
       }
-
+  
       if (!symbol) {
         for (let i = messages.length - 1; i >= 0; i--) {
-          const msg = messages[i];
-          const historySymbolMatch = msg.content.match(/\b[A-Za-z]{1,5}\b/)?.[0];
-          if (historySymbolMatch) {
-            const potentialSymbol = historySymbolMatch.toUpperCase();
-            const stock = stockListings.find((s: any) => s.symbol === potentialSymbol);
-            if (stock) {
-              symbol = potentialSymbol;
-              break;
-            }
+          const match = messages[i].content.match(/\b[A-Z]{1,5}\b/)?.[0];
+          if (match && stockListings.some((s) => s.symbol === match)) {
+            symbol = match;
+            break;
           }
         }
       }
-
+  
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
-          content: "Please provide a stock symbol or company name to analyze (e.g., 'AAPL' for Apple, 'Tesla').",
+          content: "Please provide a US stock symbol (e.g., 'AAPL') or company name (e.g., 'Tesla').",
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
           const updatedMessages = [...prev, errorMessage];
           setChatSessions((prevSessions) =>
             prevSessions.map((session) =>
-              session.id === currentChatId
-                ? { ...session, messages: updatedMessages }
-                : session
+              session.id === currentChatId ? { ...session, messages: updatedMessages } : session
             )
           );
           return updatedMessages;
@@ -565,67 +435,54 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
         setLoading(false);
         return;
       }
-
-      if (stockListings.length > 0) {
-        const isValidSymbol = stockListings.some((stock: any) => stock.symbol === symbol);
-        if (!isValidSymbol) {
-          const closestSymbol = stockListings.reduce((closest: any, s: any) => {
-            const distance = levenshteinDistance(symbol, s.symbol);
-            return distance < (closest.distance || Infinity) ? { symbol: s.symbol, distance } : closest;
-          }, { symbol: "", distance: Infinity });
-          const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
-          const errorMessage: Message = {
-            role: "assistant",
-            content: `I couldn’t find '${symbol}' in the stock listings.${suggestion} Please try a valid symbol like 'AAPL' for Apple or 'TSLA' for Tesla.`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          setMessages((prev) => {
-            const updatedMessages = [...prev, errorMessage];
-            setChatSessions((prevSessions) =>
-              prevSessions.map((session) =>
-                session.id === currentChatId
-                  ? { ...session, messages: updatedMessages }
-                  : session
-              )
-            );
-            return updatedMessages;
-          });
-          setLoading(false);
-          return;
-        }
+  
+      if (!stockListings.some((s) => s.symbol === symbol)) {
+        const errorMessage: Message = {
+          role: "assistant",
+          content: `I couldn’t find '${symbol}' in US stock listings (NASDAQ/NYSE). Try 'AAPL' for Apple or 'TSLA' for Tesla.`,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setMessages((prev) => {
+          const updatedMessages = [...prev, errorMessage];
+          setChatSessions((prevSessions) =>
+            prevSessions.map((session) =>
+              session.id === currentChatId ? { ...session, messages: updatedMessages } : session
+            )
+          );
+          return updatedMessages;
+        });
+        setLoading(false);
+        return;
       }
-
+  
       const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
-      const requestedIndicators = indicators.filter((indicator) =>
-        input.toLowerCase().includes(indicator)
-      );
+      const requestedIndicators = indicators.filter((ind) => input.toLowerCase().includes(ind));
       const needsStockData =
         input.toLowerCase().includes("price") ||
         input.toLowerCase().includes("change") ||
         input.toLowerCase().includes("volume") ||
         input.toLowerCase().includes("trend") ||
         input.toLowerCase().includes("analyz");
-
-      let stockData, indicatorsData;
+  
+      let stockData: any = undefined;
+      let indicatorsData: { [key: string]: IndicatorData } | undefined = undefined;
       const apiCallCount = { count: 0 };
-
-      if (needsStockData || requestedIndicators.length === 0) {
+  
+      if (needsStockData) {
         try {
           stockData = await fetchStockData(symbol, apiCallCount);
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
           const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch stock data for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
+            content: `Failed to fetch data for ${symbol}: ${errorMessage}. Try again later.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
             const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
-                session.id === currentChatId
-                  ? { ...session, messages: updatedMessages }
-                  : session
+                session.id === currentChatId ? { ...session, messages: updatedMessages } : session
               )
             );
             return updatedMessages;
@@ -634,25 +491,23 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
           return;
         }
       }
-
-      if (requestedIndicators.length > 0 || (!needsStockData && input.toLowerCase().includes("analyz"))) {
-        const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : indicators;
+  
+      if (requestedIndicators.length > 0 || input.toLowerCase().includes("analyz")) {
+        const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : ["ema", "rsi"];
         try {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
           const errorMsg: Message = {
             role: "assistant",
-            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
+            content: `Failed to fetch indicators for ${symbol}: ${errorMessage}. Try again later.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
             const updatedMessages = [...prev, errorMsg];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
-                session.id === currentChatId
-                  ? { ...session, messages: updatedMessages }
-                  : session
+                session.id === currentChatId ? { ...session, messages: updatedMessages } : session
               )
             );
             return updatedMessages;
@@ -661,61 +516,54 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
           return;
         }
       }
-
+  
       const combinedData = {
-        stockData,
-        indicators: indicatorsData,
-        stockListings,
+        stockData: stockData || null,
+        indicators: indicatorsData
+          ? Object.fromEntries(
+              Object.entries(indicatorsData).map(([key, value]: [string, IndicatorData]) => [key, value.data])
+            )
+          : null,
       };
-      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(messages)}`;
-
+  
+      const recentChatHistory = messages.slice(-10);
+      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(recentChatHistory)}`;
+  
       const chain = prompt.pipe(llm);
-      const response = await chain.invoke({
-        input: enhancedInput,
-        chat_history: await chatHistory.getMessages(),
-      });
-
+      const response = await chain.invoke({ input: enhancedInput, chat_history: await chatHistory.getMessages() });
+  
       const assistantMessage: Message = {
         role: "assistant",
-        content: response.content,
+        content: response.content as string,
         timestamp: new Date().toLocaleTimeString(),
         stockData,
         indicatorsData,
       };
-
+  
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
         setChatSessions((prevSessions) =>
           prevSessions.map((session) =>
-            session.id === currentChatId
-              ? { ...session, messages: updatedMessages }
-              : session
+            session.id === currentChatId ? { ...session, messages: updatedMessages } : session
           )
         );
         return updatedMessages;
       });
-
-      await chatHistory.addMessage(new SystemMessage(response.content));
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error("Error in chatbot:", errorMessage);
-      toast({
-        title: "Error",
-        description: "Failed to process your request. Please try again.",
-        variant: "destructive",
-      });
+  
+      await chatHistory.addMessage(new SystemMessage(response.content as string));
+    } catch (error) {
+      console.error("Chatbot error:", error);
+      toast({ title: "Error", description: "Failed to process your request.", variant: "destructive" });
       const errorMsg: Message = {
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content: "Sorry, I hit an error. Please try again.",
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {
         const updatedMessages = [...prev, errorMsg];
         setChatSessions((prevSessions) =>
           prevSessions.map((session) =>
-            session.id === currentChatId
-              ? { ...session, messages: updatedMessages }
-              : session
+            session.id === currentChatId ? { ...session, messages: updatedMessages } : session
           )
         );
         return updatedMessages;
@@ -725,36 +573,8 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
     }
   };
 
-  function levenshteinDistance(a: string, b: string): number {
-    const matrix: number[][] = [];
-
-    for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= a.length; j++) {
-      matrix[0][j] = j;
-    }
-
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        if (b.charAt(i - 1) === a.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
-      }
-    }
-
-    return matrix[b.length][a.length];
-  }
-
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: whiteBg }}>
-      {/* Header */}
       <header className="border-b" style={{ background: `linear-gradient(to right, ${blue500}, ${indigo600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
@@ -763,20 +583,20 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
                 <Menu className="h-6 w-6" />
               </Button>
               <TrendingUp className="h-8 w-8" style={{ color: "white" }} />
-              <span className="text-2xl font-bold" style={{ color: "white" }}>Stock Advisor</span>
+              <span className="text-2xl font-bold" style={{ color: "white" }}>
+                Stock Advisor (US Only)
+              </span>
             </div>
             <div className="flex space-x-4">
-              <Link href="/choose-market">
-                <Button variant="ghost" style={{ color: "white" }}>All Markets</Button>
-              </Link>
               <Link href="/stocks">
-                <Button variant="ghost" style={{ color: "white" }}>Stock Market</Button>
-              </Link>
-              <Link href="/choose-advisor">
-                <Button variant="ghost" style={{ color: "white" }}>Other Advisors</Button>
+                <Button variant="ghost" style={{ color: "white" }}>
+                  Stock Market
+                </Button>
               </Link>
               <Link href="/">
-                <Button variant="outline" style={{ borderColor: "white", color: "blue" }}>Back Home</Button>
+                <Button variant="outline" style={{ borderColor: "white", color: blue500 }}>
+                  Back Home
+                </Button>
               </Link>
             </div>
           </div>
@@ -784,7 +604,6 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
       </header>
 
       <div className="flex-1 flex">
-        {/* Sidebar */}
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
@@ -796,7 +615,9 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
               style={{ backgroundColor: whiteBg }}
             >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold" style={{ color: indigo600 }}>Chat History</h2>
+                <h2 className="text-lg font-semibold" style={{ color: indigo600 }}>
+                  Chat History
+                </h2>
                 <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden" style={{ color: indigo600 }}>
                   <X className="h-5 w-5" />
                 </Button>
@@ -820,7 +641,9 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
                     }`}
                   >
                     <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
-                      <span className="text-sm font-medium" style={{ color: indigo600 }}>{session.title}</span>
+                      <span className="text-sm font-medium" style={{ color: indigo600 }}>
+                        {session.title}
+                      </span>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
@@ -832,7 +655,6 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
           )}
         </AnimatePresence>
 
-        {/* Chat Area */}
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto p-4">
             {stockListingsError && (
@@ -848,9 +670,7 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg shadow-md ${
-                    message.role === "user"
-                      ? "text-white"
-                      : "bg-white text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-white text-gray-800"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${blue500}, ${indigo600})` : undefined,
@@ -873,22 +693,17 @@ You are an AI stock advisor for FinanceAI, a platform that provides financial da
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, ${whiteBg}, #E5E7EB)` }}>
             <div className="flex space-x-2">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  variant="outline"
-                  onClick={handleClearChat}
-                  style={{ borderColor: blue500, color: blue500 }}
-                >
+                <Button variant="outline" onClick={handleClearChat} style={{ borderColor: blue500, color: blue500 }}>
                   <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
                 </Button>
               </motion.div>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about a stock (e.g., 'Analyze AAPL', 'What’s the RSI for Tesla?')"
+                placeholder="Ask about a US stock (e.g., 'Analyze AAPL', 'RSI for TSLA')"
                 className="flex-1 resize-none shadow-md"
                 rows={2}
                 style={{ borderColor: blue500, backgroundColor: "white", color: indigo600 }}

@@ -127,8 +127,8 @@ interface TechnicalIndicators {
 
 export default function ForexDetails() {
   const params = useParams();
-  const encodedSymbol = params?.symbol as string;
-  const symbol = encodedSymbol ? decodeURIComponent(encodedSymbol) : null;
+  const encodedSymbol = params?.symbol as string | undefined;
+  const symbol: string | null = encodedSymbol ? decodeURIComponent(encodedSymbol) : null;
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [forexData, setForexData] = useState<ForexData | null>(null);
   const [technicalIndicators, setTechnicalIndicators] = useState<TechnicalIndicators | null>(null);
@@ -158,7 +158,7 @@ export default function ForexDetails() {
           const errorData = await overviewResponse.json();
           throw new Error(errorData.error || "Failed to fetch overview data");
         }
-        const overviewData = await overviewResponse.json();
+        const overviewData: OverviewData = await overviewResponse.json();
         console.log("Overview data:", overviewData);
         setOverview(overviewData);
 
@@ -167,7 +167,7 @@ export default function ForexDetails() {
           const errorData = await forexResponse.json();
           throw new Error(errorData.error || "Failed to fetch forex data");
         }
-        const forexData = await forexResponse.json();
+        const forexData: ForexData = await forexResponse.json();
         console.log("Forex data:", forexData);
         setForexData(forexData);
 
@@ -176,14 +176,15 @@ export default function ForexDetails() {
           const errorData = await indicatorsResponse.json();
           throw new Error(errorData.error || "Failed to fetch technical indicators");
         }
-        const indicatorsData = await indicatorsResponse.json();
+        const indicatorsData: TechnicalIndicators = await indicatorsResponse.json();
         console.log("Technical indicators:", indicatorsData);
         setTechnicalIndicators(indicatorsData);
-      } catch (error) {
-        console.error("Error fetching data:", error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Error fetching data:", errorMessage);
         toast({
           title: "Error",
-          description: error.message || "Failed to fetch forex data",
+          description: errorMessage || "Failed to fetch forex data",
           variant: "destructive",
         });
         setForexData(null);
@@ -222,32 +223,18 @@ export default function ForexDetails() {
   }
 
   // Prepare chart data for time series
-  const timeSeries = forexData.timeSeries.values || [];
+  const timeSeries = forexData.timeSeries.values ?? [];
   const labels = timeSeries.map((entry) => entry.datetime).reverse();
   const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
 
-  // Prepare SMA and Ichimoku data for overlay
-  const sma20Data = technicalIndicators.sma.sma20
-    ? technicalIndicators.sma.sma20.map((entry) => parseFloat(entry.sma)).reverse()
-    : [];
-  const sma50Data = technicalIndicators.sma.sma50
-    ? technicalIndicators.sma.sma50.map((entry) => parseFloat(entry.sma)).reverse()
-    : [];
-  const tenkanSenData = technicalIndicators.ichimoku
-    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.tenkan_sen)).reverse()
-    : [];
-  const kijunSenData = technicalIndicators.ichimoku
-    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.kijun_sen)).reverse()
-    : [];
-  const senkouSpanAData = technicalIndicators.ichimoku
-    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.senkou_span_a)).reverse()
-    : [];
-  const senkouSpanBData = technicalIndicators.ichimoku
-    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.senkou_span_b)).reverse()
-    : [];
-  const chikouSpanData = technicalIndicators.ichimoku
-    ? technicalIndicators.ichimoku.map((entry) => parseFloat(entry.chikou_span)).reverse()
-    : [];
+  // Prepare SMA and Ichimoku data for overlay with null checks
+  const sma20Data = technicalIndicators.sma.sma20?.map((entry) => parseFloat(entry.sma)).reverse() ?? [];
+  const sma50Data = technicalIndicators.sma.sma50?.map((entry) => parseFloat(entry.sma)).reverse() ?? [];
+  const tenkanSenData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.tenkan_sen)).reverse() ?? [];
+  const kijunSenData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.kijun_sen)).reverse() ?? [];
+  const senkouSpanAData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.senkou_span_a)).reverse() ?? [];
+  const senkouSpanBData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.senkou_span_b)).reverse() ?? [];
+  const chikouSpanData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.chikou_span)).reverse() ?? [];
 
   // Closing Price Chart with SMA and Ichimoku
   const closingPriceData = {
@@ -319,12 +306,8 @@ export default function ForexDetails() {
   };
 
   // RSI Chart
-  const rsiLabels = technicalIndicators.rsi
-    ? technicalIndicators.rsi.map((entry) => entry.datetime).reverse()
-    : [];
-  const rsiData = technicalIndicators.rsi
-    ? technicalIndicators.rsi.map((entry) => parseFloat(entry.rsi)).reverse()
-    : [];
+  const rsiLabels = technicalIndicators.rsi?.map((entry) => entry.datetime).reverse() ?? [];
+  const rsiData = technicalIndicators.rsi?.map((entry) => parseFloat(entry.rsi)).reverse() ?? [];
 
   const rsiChartData = {
     labels: rsiLabels,
@@ -352,7 +335,7 @@ export default function ForexDetails() {
       annotation: {
         annotations: [
           {
-            type: "line",
+            type: "line" as const,
             yMin: 70,
             yMax: 70,
             borderColor: "red",
@@ -360,11 +343,11 @@ export default function ForexDetails() {
             label: {
               content: "Overbought (70)",
               display: true,
-              position: "end",
+              position: "end" as const,
             },
           },
           {
-            type: "line",
+            type: "line" as const,
             yMin: 30,
             yMax: 30,
             borderColor: "green",
@@ -372,7 +355,7 @@ export default function ForexDetails() {
             label: {
               content: "Oversold (30)",
               display: true,
-              position: "end",
+              position: "end" as const,
             },
           },
         ],
@@ -387,18 +370,10 @@ export default function ForexDetails() {
   };
 
   // MACD Chart
-  const macdLabels = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => entry.datetime).reverse()
-    : [];
-  const macdData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd)).reverse()
-    : [];
-  const macdSignalData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd_signal)).reverse()
-    : [];
-  const macdHistData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd_hist)).reverse()
-    : [];
+  const macdLabels = technicalIndicators.macd?.map((entry) => entry.datetime).reverse() ?? [];
+  const macdData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd)).reverse() ?? [];
+  const macdSignalData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_signal)).reverse() ?? [];
+  const macdHistData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_hist)).reverse() ?? [];
 
   const macdChartData = {
     labels: macdLabels,
@@ -442,12 +417,8 @@ export default function ForexDetails() {
   };
 
   // ATR Chart
-  const atrLabels = technicalIndicators.atr
-    ? technicalIndicators.atr.map((entry) => entry.datetime).reverse()
-    : [];
-  const atrData = technicalIndicators.atr
-    ? technicalIndicators.atr.map((entry) => parseFloat(entry.atr)).reverse()
-    : [];
+  const atrLabels = technicalIndicators.atr?.map((entry) => entry.datetime).reverse() ?? [];
+  const atrData = technicalIndicators.atr?.map((entry) => parseFloat(entry.atr)).reverse() ?? [];
 
   const atrChartData = {
     labels: atrLabels,
@@ -538,15 +509,9 @@ export default function ForexDetails() {
   };
 
   // AROON Chart
-  const aroonLabels = technicalIndicators.aroon
-    ? technicalIndicators.aroon.map((entry) => entry.datetime).reverse()
-    : [];
-  const aroonUpData = technicalIndicators.aroon
-    ? technicalIndicators.aroon.map((entry) => parseFloat(entry.aroon_up)).reverse()
-    : [];
-  const aroonDownData = technicalIndicators.aroon
-    ? technicalIndicators.aroon.map((entry) => parseFloat(entry.aroon_down)).reverse()
-    : [];
+  const aroonLabels = technicalIndicators.aroon?.map((entry) => entry.datetime).reverse() ?? [];
+  const aroonUpData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_up)).reverse() ?? [];
+  const aroonDownData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_down)).reverse() ?? [];
 
   const aroonChartData = {
     labels: aroonLabels,
@@ -581,7 +546,7 @@ export default function ForexDetails() {
       annotation: {
         annotations: [
           {
-            type: "line",
+            type: "line" as const,
             yMin: 70,
             yMax: 70,
             borderColor: "blue",
@@ -589,11 +554,11 @@ export default function ForexDetails() {
             label: {
               content: "Strong Trend (70)",
               display: true,
-              position: "end",
+              position: "end" as const,
             },
           },
           {
-            type: "line",
+            type: "line" as const,
             yMin: 30,
             yMax: 30,
             borderColor: "blue",
@@ -601,7 +566,7 @@ export default function ForexDetails() {
             label: {
               content: "Weak Trend (30)",
               display: true,
-              position: "end",
+              position: "end" as const,
             },
           },
         ],
@@ -625,7 +590,7 @@ export default function ForexDetails() {
     : "N/A";
 
   // RSI Interpretation
-  const latestRsi = technicalIndicators.rsi ? technicalIndicators.rsi[0] : null;
+  const latestRsi = technicalIndicators.rsi?.[0] ?? null;
   const rsiValue = latestRsi ? parseFloat(latestRsi.rsi) : null;
   let rsiInterpretation = "N/A";
   if (rsiValue !== null) {
@@ -639,7 +604,7 @@ export default function ForexDetails() {
   }
 
   // MACD Interpretation
-  const latestMacd = technicalIndicators.macd ? technicalIndicators.macd[0] : null;
+  const latestMacd = technicalIndicators.macd?.[0] ?? null;
   let macdInterpretation = "N/A";
   if (latestMacd) {
     const macdLine = parseFloat(latestMacd.macd);
@@ -654,7 +619,7 @@ export default function ForexDetails() {
   }
 
   // ATR Interpretation
-  const latestAtr = technicalIndicators.atr ? technicalIndicators.atr[0] : null;
+  const latestAtr = technicalIndicators.atr?.[0] ?? null;
   const atrValue = latestAtr ? parseFloat(latestAtr.atr) : null;
   const latestClose = forexData.quote ? parseFloat(forexData.quote.close) : null;
   let atrInterpretation = "N/A";
@@ -670,7 +635,7 @@ export default function ForexDetails() {
   }
 
   // Ichimoku Interpretation
-  const latestIchimoku = technicalIndicators.ichimoku ? technicalIndicators.ichimoku[0] : null;
+  const latestIchimoku = technicalIndicators.ichimoku?.[0] ?? null;
   let ichimokuInterpretation = "N/A";
   if (latestIchimoku && latestClose !== null) {
     const tenkanSen = parseFloat(latestIchimoku.tenkan_sen);
@@ -696,7 +661,7 @@ export default function ForexDetails() {
   }
 
   // AROON Interpretation
-  const latestAroon = technicalIndicators.aroon ? technicalIndicators.aroon[0] : null;
+  const latestAroon = technicalIndicators.aroon?.[0] ?? null;
   let aroonInterpretation = "N/A";
   if (latestAroon) {
     const aroonUp = parseFloat(latestAroon.aroon_up);
@@ -877,13 +842,13 @@ export default function ForexDetails() {
                   <h3 className="text-lg font-medium mb-2">Moving Averages</h3>
                   <p>
                     <strong>20-Day SMA:</strong>{" "}
-                    {technicalIndicators.sma.sma20 && technicalIndicators.sma.sma20[0]
+                    {technicalIndicators.sma.sma20?.[0]?.sma
                       ? parseFloat(technicalIndicators.sma.sma20[0].sma).toFixed(4)
                       : "N/A"}
                   </p>
                   <p>
                     <strong>50-Day SMA:</strong>{" "}
-                    {technicalIndicators.sma.sma50 && technicalIndicators.sma.sma50[0]
+                    {technicalIndicators.sma.sma50?.[0]?.sma
                       ? parseFloat(technicalIndicators.sma.sma50[0].sma).toFixed(4)
                       : "N/A"}
                   </p>
@@ -894,7 +859,7 @@ export default function ForexDetails() {
                   <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
                   <p>
                     <strong>14-Day RSI:</strong>{" "}
-                    {latestRsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
+                    {latestRsi?.rsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
                   </p>
                   <p>
                     <strong>Interpretation:</strong>{" "}
@@ -956,7 +921,7 @@ export default function ForexDetails() {
                   <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
                   <p>
                     <strong>14-Day ATR:</strong>{" "}
-                    {latestAtr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
+                    {latestAtr?.atr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
                   </p>
                   <p>
                     <strong>Interpretation:</strong>{" "}
@@ -1188,7 +1153,6 @@ export default function ForexDetails() {
               <MessageCircle className="h-6 w-6 text-white" />
             </Button>
           </Link>
-          {/* Tooltip */}
           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
             Your Forex Advisor
           </div>

@@ -40,15 +40,7 @@ export async function GET() {
   // Define the top 10 exchanges to fetch
   const exchanges = [
     "NYSE",      // New York Stock Exchange (USA)
-    "NASDAQ",    // NASDAQ (USA)
-    "SSE",       // Shanghai Stock Exchange (China)
-    "SZSE",      // Shenzhen Stock Exchange (China)
-    "Euronext",  // Euronext (Europe)
-    "JPX",       // Japan Exchange Group (Japan)
-    "LSE",       // London Stock Exchange (UK)
-    "HKEX",      // Hong Kong Stock Exchange (Hong Kong)
-    "TSX",       // Toronto Stock Exchange (Canada)
-    "NSE"        // National Stock Exchange of India (India)
+    "NASDAQ"    // NASDAQ (USA)
   ];
 
   const allStocks = new Map<string, Stock>(); // Use a Map to avoid duplicates (key: symbol)

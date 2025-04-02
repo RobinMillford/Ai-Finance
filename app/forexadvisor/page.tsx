@@ -18,8 +18,8 @@ const emerald600 = "#059669"; // Tailwind to-emerald-600
 const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for forex data and indicators
-const forexDataCache = new Map();
-const indicatorsCache = new Map();
+const forexDataCache = new Map<string, { data: any; timestamp: number }>();
+const indicatorsCache = new Map<string, { [key: string]: { data: any; timestamp: number } }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Rate limit: 8 requests per minute (60 seconds / 8 = 7.5 seconds per request)
@@ -27,10 +27,10 @@ const REQUEST_DELAY_MS = 7500; // 7.5 seconds delay between requests
 const API_CALL_THRESHOLD = 4; // Apply delay only if API calls exceed this threshold
 
 // Utility function to delay execution
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Utility function to fetch with retry on rate limit
-async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
+async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000): Promise<any> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(url);
@@ -60,7 +60,7 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
 }
 
 // Fetch forex pairs using the provided API route
-async function fetchForexPairs(apiCallCount: { count: number }) {
+async function fetchForexPairs(apiCallCount: { count: number }): Promise<any[]> {
   const cacheKey = "forexPairs";
   const cachedData = forexDataCache.get(cacheKey);
   const now = Date.now();
@@ -69,27 +69,21 @@ async function fetchForexPairs(apiCallCount: { count: number }) {
     return cachedData.data;
   }
 
-  try {
-    const url = "/api/forexs?page=1&perPage=1000¤cyGroup=All";
-    const response = await fetchWithRetry(url);
-    apiCallCount.count += 1;
-    if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS);
-    }
-
-    const data = response || { pairs: [] };
-    const forexPairs = data.pairs || [];
-    forexDataCache.set(cacheKey, { data: forexPairs, timestamp: now });
-    return forexPairs;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error fetching forex pairs:", errorMessage);
-    throw error;
+  const url = "/api/forexs?page=1&perPage=1000¤cyGroup=All";
+  const response = await fetchWithRetry(url);
+  apiCallCount.count += 1;
+  if (apiCallCount.count > API_CALL_THRESHOLD) {
+    await delay(REQUEST_DELAY_MS);
   }
+
+  const data = response || { pairs: [] };
+  const forexPairs = data.pairs ?? [];
+  forexDataCache.set(cacheKey, { data: forexPairs, timestamp: now });
+  return forexPairs;
 }
 
 // Fetch forex data (quote, time series) using Twelve Data API
-async function fetchForexData(symbol: string, apiCallCount: { count: number }) {
+async function fetchForexData(symbol: string, apiCallCount: { count: number }, fields: string[] = ["quote"]): Promise<any> {
   const cacheKey = `forexData_${symbol.toUpperCase()}`;
   const cachedData = forexDataCache.get(cacheKey);
   const now = Date.now();
@@ -98,112 +92,113 @@ async function fetchForexData(symbol: string, apiCallCount: { count: number }) {
     return cachedData.data;
   }
 
-  try {
-    const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-    const quoteResponse = await fetchWithRetry(quoteUrl);
-    apiCallCount.count += 1;
-    if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS);
-    }
-
-    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-    const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
-    apiCallCount.count += 1;
-    if (apiCallCount.count > API_CALL_THRESHOLD) {
-      await delay(REQUEST_DELAY_MS);
-    }
-
-    const data = {
-      quote: quoteResponse,
-      timeSeries: timeSeriesResponse,
-    };
-    forexDataCache.set(cacheKey, { data, timestamp: now });
-    return data;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Error fetching forex data for ${symbol}:`, errorMessage);
-    throw error;
+  const apiKey = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
+  if (!apiKey) {
+    throw new Error("Twelve Data API key is not configured.");
   }
+
+  const data: any = {};
+  if (fields.includes("quote")) {
+    const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`;
+    data.quote = await fetchWithRetry(quoteUrl);
+    apiCallCount.count += 1;
+    if (apiCallCount.count > API_CALL_THRESHOLD) {
+      await delay(REQUEST_DELAY_MS);
+    }
+  }
+  if (fields.includes("timeSeries")) {
+    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${apiKey}`;
+    data.timeSeries = await fetchWithRetry(timeSeriesUrl);
+    apiCallCount.count += 1;
+    if (apiCallCount.count > API_CALL_THRESHOLD) {
+      await delay(REQUEST_DELAY_MS);
+    }
+  }
+
+  forexDataCache.set(cacheKey, { data, timestamp: now });
+  return data;
 }
 
 // Fetch specific technical indicators using Twelve Data API
-async function fetchIndicators(symbol: string, requestedIndicators: string[], apiCallCount: { count: number }) {
+async function fetchIndicators(
+  symbol: string,
+  requestedIndicators: string[],
+  apiCallCount: { count: number }
+): Promise<{ [key: string]: { data: any; timestamp: number } }> {
   const cacheKey = `indicators_${symbol.toUpperCase()}`;
-  const cachedData = indicatorsCache.get(cacheKey) || {};
+  const cachedData = indicatorsCache.get(cacheKey) ?? {};
   const now = Date.now();
 
   const missingIndicators = requestedIndicators.filter(
     (indicator) => !cachedData[indicator] || (now - cachedData[indicator]?.timestamp >= CACHE_DURATION)
   );
 
-  const indicatorsData: { [key: string]: any } = { ...cachedData };
-
-  try {
-    for (const indicator of missingIndicators) {
-      let url = "";
-      switch (indicator.toLowerCase()) {
-        case "rsi":
-          url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "ema":
-          url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          const ema20Response = await fetchWithRetry(url);
-          apiCallCount.count += 1;
-          if (apiCallCount.count > API_CALL_THRESHOLD) {
-            await delay(REQUEST_DELAY_MS);
-          }
-          url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=50&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          const ema50Response = await fetchWithRetry(url);
-          apiCallCount.count += 1;
-          if (apiCallCount.count > API_CALL_THRESHOLD) {
-            await delay(REQUEST_DELAY_MS);
-          }
-          indicatorsData["ema"] = { ema20: ema20Response, ema50: ema50Response, timestamp: now };
-          continue;
-        case "macd":
-          url = `https://api.twelvedata.com/macd?symbol=${symbol}&interval=1day&fast_period=12&slow_period=26&signal_period=9&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "bbands":
-          url = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&sd=2&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "adx":
-          url = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "atr":
-          url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "ichimoku":
-          url = `https://api.twelvedata.com/ichimoku?symbol=${symbol}&interval=1day&tenkan_period=9&kijun_period=26&senkou_span_b_period=52&displacement=26&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "stoch":
-          url = `https://api.twelvedata.com/stoch?symbol=${symbol}&interval=1day&fast_k_period=14&slow_k_period=3&slow_d_period=3&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "cci":
-          url = `https://api.twelvedata.com/cci?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "mom":
-          url = `https://api.twelvedata.com/mom?symbol=${symbol}&interval=1day&time_period=10&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        case "pivot_points_hl":
-          url = `https://api.twelvedata.com/pivot_points_hl?symbol=${symbol}&interval=1day&time_period=20&apikey=${process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY}`;
-          break;
-        default:
-          continue;
-      }
-      const response = await fetchWithRetry(url);
-      apiCallCount.count += 1;
-      if (apiCallCount.count > API_CALL_THRESHOLD) {
-        await delay(REQUEST_DELAY_MS);
-      }
-      indicatorsData[indicator.toLowerCase()] = { data: response, timestamp: now };
-    }
-    indicatorsCache.set(cacheKey, indicatorsData);
-    return indicatorsData;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Error fetching technical indicators for ${symbol}:`, errorMessage);
-    throw error;
+  const indicatorsData: { [key: string]: { data: any; timestamp: number } } = { ...cachedData };
+  const apiKey = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
+  if (!apiKey) {
+    throw new Error("Twelve Data API key is not configured.");
   }
+
+  for (const indicator of missingIndicators) {
+    let url = "";
+    switch (indicator.toLowerCase()) {
+      case "rsi":
+        url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${apiKey}`;
+        break;
+      case "ema":
+        const ema20Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${apiKey}`;
+        const ema20Response = await fetchWithRetry(ema20Url);
+        apiCallCount.count += 1;
+        if (apiCallCount.count > API_CALL_THRESHOLD) {
+          await delay(REQUEST_DELAY_MS);
+        }
+        const ema50Url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=50&apikey=${apiKey}`;
+        const ema50Response = await fetchWithRetry(ema50Url);
+        apiCallCount.count += 1;
+        if (apiCallCount.count > API_CALL_THRESHOLD) {
+          await delay(REQUEST_DELAY_MS);
+        }
+        indicatorsData["ema"] = { data: { ema20: ema20Response, ema50: ema50Response }, timestamp: now };
+        continue;
+      case "macd":
+        url = `https://api.twelvedata.com/macd?symbol=${symbol}&interval=1day&fast_period=12&slow_period=26&signal_period=9&apikey=${apiKey}`;
+        break;
+      case "bbands":
+        url = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&sd=2&apikey=${apiKey}`;
+        break;
+      case "adx":
+        url = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&apikey=${apiKey}`;
+        break;
+      case "atr":
+        url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${apiKey}`;
+        break;
+      case "ichimoku":
+        url = `https://api.twelvedata.com/ichimoku?symbol=${symbol}&interval=1day&tenkan_period=9&kijun_period=26&senkou_span_b_period=52&displacement=26&apikey=${apiKey}`;
+        break;
+      case "stoch":
+        url = `https://api.twelvedata.com/stoch?symbol=${symbol}&interval=1day&fast_k_period=14&slow_k_period=3&slow_d_period=3&apikey=${apiKey}`;
+        break;
+      case "cci":
+        url = `https://api.twelvedata.com/cci?symbol=${symbol}&interval=1day&time_period=14&apikey=${apiKey}`;
+        break;
+      case "mom":
+        url = `https://api.twelvedata.com/mom?symbol=${symbol}&interval=1day&time_period=10&apikey=${apiKey}`;
+        break;
+      case "pivot_points_hl":
+        url = `https://api.twelvedata.com/pivot_points_hl?symbol=${symbol}&interval=1day&time_period=20&apikey=${apiKey}`;
+        break;
+      default:
+        continue;
+    }
+    const response = await fetchWithRetry(url);
+    apiCallCount.count += 1;
+    if (apiCallCount.count > API_CALL_THRESHOLD) {
+      await delay(REQUEST_DELAY_MS);
+    }
+    indicatorsData[indicator.toLowerCase()] = { data: response, timestamp: now };
+  }
+  indicatorsCache.set(cacheKey, indicatorsData);
+  return indicatorsData;
 }
 
 interface Message {
@@ -276,26 +271,16 @@ export default function ForexAdvisor() {
 
   useEffect(() => {
     const currentSession = chatSessions.find((session) => session.id === currentChatId);
-    if (currentSession) {
-      setMessages(currentSession.messages);
-    } else {
-      setMessages([]);
-    }
+    setMessages(currentSession?.messages ?? []);
   }, [currentChatId, chatSessions]);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 1024) {
-        setIsSidebarOpen(false);
-      } else {
-        setIsSidebarOpen(true);
-      }
+      setIsSidebarOpen(window.innerWidth >= 1024);
     };
     handleResize();
     window.addEventListener("resize", handleResize);
@@ -395,30 +380,26 @@ export default function ForexAdvisor() {
       );
       if (symbolMatch) {
         const potentialSymbol = symbolMatch.toUpperCase();
-        const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+        const pair = forexPairs.find((p) => p.symbol === potentialSymbol);
         if (pair) {
-          if (requestedIndicator) {
-            newTitle = `${requestedIndicator.toUpperCase()} for ${potentialSymbol}`;
-          } else if (input.toLowerCase().includes("analyz")) {
-            newTitle = `Analysis for ${potentialSymbol}`;
-          } else {
-            newTitle = `Query for ${potentialSymbol}`;
-          }
+          newTitle = requestedIndicator
+            ? `${requestedIndicator.toUpperCase()} for ${potentialSymbol}`
+            : input.toLowerCase().includes("analyz")
+            ? `Analysis for ${potentialSymbol}`
+            : `Query for ${potentialSymbol}`;
         }
       }
       if (!newTitle.includes("Analysis for") && !newTitle.includes("Query for")) {
         const pairName = input.toLowerCase().replace(/forex|pair/gi, "").trim();
-        const matchedPair = forexPairs.find((p: any) =>
-          p.name.toLowerCase().includes(pairName)
+        const matchedPair = forexPairs.find((p) =>
+          p.name?.toLowerCase().includes(pairName)
         );
         if (matchedPair) {
-          if (requestedIndicator) {
-            newTitle = `${requestedIndicator.toUpperCase()} for ${matchedPair.symbol}`;
-          } else if (input.toLowerCase().includes("analyz")) {
-            newTitle = `Analysis for ${matchedPair.symbol}`;
-          } else {
-            newTitle = `Query for ${matchedPair.symbol}`;
-          }
+          newTitle = requestedIndicator
+            ? `${requestedIndicator.toUpperCase()} for ${matchedPair.symbol}`
+            : input.toLowerCase().includes("analyz")
+            ? `Analysis for ${matchedPair.symbol}`
+            : `Query for ${matchedPair.symbol}`;
         }
       }
       setChatSessions((prev) =>
@@ -432,8 +413,12 @@ export default function ForexAdvisor() {
     setLoading(true);
 
     try {
+      const apiKey = process.env.NEXT_PUBLIC_GROK_API_KEY;
+      if (!apiKey) {
+        throw new Error("Grok API key is not configured.");
+      }
       const llm = new ChatGroq({
-        apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
+        apiKey,
         model: "llama3-70b-8192",
         temperature: 0.5,
       });
@@ -445,78 +430,37 @@ export default function ForexAdvisor() {
       await chatHistory.addMessage(new HumanMessage(input));
 
       const systemPrompt = `
-        You are an AI forex advisor for FinanceAI, a platform that provides financial data analysis for forex trading. Your task is to assist users by interpreting forex data and technical indicators for a given forex pair symbol (e.g., "EUR/USD" for Euro to US Dollar, "GBP/JPY" for British Pound to Japanese Yen). Follow these steps:
+        You are an AI forex advisor for FinanceAI, a platform that provides financial data analysis for forex trading. Your task is to assist users by interpreting forex data and technical indicators for a given forex pair symbol (e.g., "EUR/USD", "GBP/JPY"). Follow these steps:
 
         1. **Identify the Symbol**:
-           - The user will provide a forex pair symbol (e.g., "EUR/USD", "GBP/JPY") or a pair name (e.g., "Euro to US Dollar", "British Pound to Yen").
-           - Be robust to typos in the symbol or pair name:
-             - For symbols, if the input is close to a valid symbol (e.g., "EURUSD" instead of "EUR/USD"), the code will correct it to the closest match from the forex pairs list.
-             - For pair names, if the input has a typo (e.g., "Euro to Doller" instead of "Euro to Dollar"), the code will use fuzzy matching to find the closest match in the forex pairs list.
-           - If a pair name is provided, the code will map it to the correct forex pair symbol using the forex pairs data (e.g., "Euro to US Dollar" -> "EUR/USD").
-           - If the user does not provide a symbol in the current message, check the chat history for the most recent symbol mentioned and use that. Do not ask for a symbol if it’s already clear from the context.
+           - The user may provide a symbol (e.g., "EUR/USD") or pair name (e.g., "Euro to US Dollar").
+           - If no symbol is provided in the current message, use the most recent symbol from the chat history.
+           - The code has already validated the symbol, so assume it’s valid when provided.
 
-        2. **Validate the Symbol**:
-           - The symbol has already been validated by the code against a list of known forex pair symbols provided in the forex pairs data, which includes pairs from currency groups like Major, Minor, and Exotic.
-           - If the symbol is invalid, the code will handle it and prompt the user, so you can assume the symbol provided to you is valid.
+        2. **Identify Requested Data**:
+           - For "analyze [symbol]", provide a concise analysis with current price, daily change, 30-day trend, and a few key indicators (EMA, RSI, MACD).
+           - For specific indicators (e.g., "What’s the RSI for [symbol]?"), only provide the requested indicator.
+           - For forex stats (e.g., "current price of [symbol]"), only provide the requested data.
+           - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20, 2 SD), ADX (14), ATR (14), Ichimoku, STOCH, CCI, MOM, Pivot Points.
 
-        3. **Identify Requested Data**:
-           - Determine what the user is asking for:
-             - If the user asks for general analysis (e.g., "Analyze EUR/USD"), provide a full analysis including forex data (current price, daily change, 30-day trend) and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
-             - If the user asks for specific indicators (e.g., "What’s the RSI for EUR/USD?" or "Show me the ADX and STOCH for GBP/JPY"), only provide analysis for the requested indicators.
-             - If the user asks for forex statistics (e.g., "What’s the current price of EUR/USD?"), only provide the requested forex data.
-           - The available technical indicators are: EMA (20-day and 50-day), RSI (14-day), MACD (12-day, 26-day, 9-day signal line), BBANDS (Bollinger Bands, 20-day, 2 standard deviations), ADX (14-day), ATR (14-day), Ichimoku (Tenkan 9, Kijun 26, Senkou Span B 52, displacement 26), STOCH (Stochastic Oscillator, fast K 14, slow K 3, slow D 3), CCI (Commodity Channel Index, 14-day), MOM (Momentum, 10-day), Pivot Points (High/Low method, 20-day).
-           - Forex data includes: current price, daily change, and 30-day price trend.
+        3. **Use Provided Data**:
+           - Use only the API data provided in the input under "API Data". Do not fetch data yourself.
+           - If data is missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol].").
 
-        4. **Use Provided Data**:
-           - The data has already been fetched and provided to you in the input as JSON under "API Data". Do not attempt to fetch data yourself.
-           - The data includes:
-             - **Forex Data**:
-               - Quote: Current price, daily change, etc.
-               - Time Series: Historical price data (up to 30 days for trend analysis).
-             - **Technical Indicators** (only the requested indicators will be provided):
-               - EMA: 20-day and 50-day Exponential Moving Average (under "ema" with subfields "ema20" and "ema50").
-               - RSI: 14-day Relative Strength Index.
-               - MACD: Moving Average Convergence Divergence (12-day, 26-day, 9-day signal line).
-               - BBANDS: Bollinger Bands (20-day, 2 standard deviations).
-               - ADX: Average Directional Index (14-day).
-               - ATR: Average True Range (14-day).
-               - Ichimoku: Ichimoku Cloud (Tenkan-sen, Kijun-sen, Senkou Span A, Senkou Span B, Chikou Span).
-               - STOCH: Stochastic Oscillator (fast K, slow K, slow D).
-               - CCI: Commodity Channel Index (14-day).
-               - MOM: Momentum (10-day).
-               - Pivot Points: High/Low method (pivot, support, and resistance levels).
-           - If the data for a requested indicator or forex data is null or missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol] due to an API error. Please try again later.").
+        4. **Deep Analysis**:
+           - For general analysis: Include price, change, trend, and key indicators (EMA, RSI, MACD).
+           - For specific indicators: Provide current value, trend, and insights.
+           - Use data-driven insights (e.g., "RSI at 70 suggests overbought conditions").
 
-        5. **Deep Analysis**:
-           - Provide a detailed analysis based on the user’s request:
-             - **For General Analysis**: Include current price, daily change, 30-day trend, and a selection of common technical indicators (e.g., EMA, RSI, MACD, BBANDS, ADX, ATR).
-             - **For Specific Indicators**: Only analyze the requested indicators.
-             - **For Forex Statistics**: Only provide the requested forex data (e.g., current price).
-           - Include the following in your analysis (where applicable):
-             - **Current Values**: Report the most recent value for each indicator or data point (e.g., "The current price is 1.1850", "The 14-day RSI is 54.21").
-             - **Trend Analysis**: Analyze the trend over the past 30 days using the time series data or indicator values (e.g., "The price has increased by 0.5% over the past 30 days", "The RSI has risen from 50 to 54.21, indicating growing bullish momentum").
-             - **Comparisons**: Compare indicators to identify confirmations or divergences (e.g., "The price is above both the 20-day and 50-day EMA, confirming a bullish trend, but the RSI is nearing overbought levels at 70").
-             - **Momentum and Volatility**: Assess momentum and volatility where applicable (e.g., "The ATR indicates increasing volatility, suggesting larger price swings", "The Stochastic Oscillator shows the pair is in overbought territory").
-             - **Trend Strength**: Evaluate trend strength where applicable (e.g., "An ADX of 30 indicates a strong trend").
-             - **Support and Resistance**: Use indicators like Pivot Points to identify key levels (e.g., "The price is approaching the R1 pivot point at 1.1900, which may act as resistance").
-             - **Actionable Insights**: Provide potential trading strategies based on the analysis (e.g., "The MACD histogram is positive and increasing, suggesting a buy opportunity, but monitor for a potential pullback as the price nears the upper Bollinger Band").
-           - Avoid speculative advice (e.g., don’t say "This pair will definitely go up"). Instead, provide data-driven insights.
+        5. **Handle Unsupported Indicators**:
+           - If an indicator isn’t supported, say: "Indicator 'XYZ' isn’t available. Try EMA, RSI, MACD, etc."
 
-        6. **Handle Unsupported Indicators**:
-           - If the user requests an indicator that is not in the supported list, inform them that the indicator is not available and suggest a similar indicator (e.g., "The indicator 'XYZ' is not supported. Did you mean 'RSI' or 'MACD'? I support indicators like EMA, RSI, MACD, BBANDS, ADX, ATR, Ichimoku, STOCH, CCI, MOM, and Pivot Points.").
+        6. **Maintain Context**:
+           - Use chat history for context (e.g., if "What’s the RSI?" follows EUR/USD discussion, answer for EUR/USD).
 
-        7. **Handle Errors**:
-           - If the API data is unavailable, the code will handle it and prompt the user, so you can assume the data provided to you is valid. If a specific piece of data (e.g., an indicator) is missing, inform the user (e.g., "I couldn't fetch the RSI for [symbol] due to an API error. Please try again later.").
-
-        8. **Maintain Conversational Context**:
-           - Use the chat history to maintain context (e.g., if the user asks "What’s the RSI?" after discussing EUR/USD, provide the RSI for EUR/USD).
-           - Do not ask for the symbol again unless the context is unclear.
-
-        9. **Response Format**:
-           - Respond in a clear, professional tone.
-           - Use bullet points or short paragraphs for readability.
-           - Do not invent or hallucinate data. Only use the provided API data.
-           - Do not include chart-related notes (e.g., "[Chart Available]") since visualizations are not needed.
+        7. **Response Format**:
+           - Use clear, concise language with bullet points or short paragraphs.
+           - Do not invent data. Use only what’s provided.
       `;
 
       const prompt = ChatPromptTemplate.fromMessages([
@@ -529,14 +473,17 @@ export default function ForexAdvisor() {
       const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
       if (symbolMatch) {
         const potentialSymbol = symbolMatch.toUpperCase();
-        const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+        const pair = forexPairs.find((p) => p.symbol === potentialSymbol);
         if (pair) {
           symbol = potentialSymbol;
         } else {
-          const closestSymbol = forexPairs.reduce((closest: any, p: any) => {
-            const distance = levenshteinDistance(potentialSymbol.replace("/", ""), p.symbol.replace("/", ""));
-            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, distance } : closest;
-          }, { symbol: "", distance: Infinity });
+          const closestSymbol = forexPairs.reduce(
+            (closest: { symbol: string; distance: number }, p) => {
+              const distance = levenshteinDistance(potentialSymbol.replace("/", ""), p.symbol.replace("/", ""));
+              return distance < closest.distance ? { symbol: p.symbol, distance } : closest;
+            },
+            { symbol: "", distance: Infinity }
+          );
           if (closestSymbol.distance <= 2) {
             symbol = closestSymbol.symbol;
           }
@@ -545,16 +492,17 @@ export default function ForexAdvisor() {
 
       if (!symbol) {
         const pairName = input.toLowerCase().replace(/forex|pair/gi, "").trim();
-        const pair = forexPairs.find((p: any) =>
-          p.name.toLowerCase().includes(pairName)
-        );
+        const pair = forexPairs.find((p) => p.name?.toLowerCase().includes(pairName));
         if (pair) {
           symbol = pair.symbol;
         } else {
-          const closestPair = forexPairs.reduce((closest: any, p: any) => {
-            const distance = levenshteinDistance(pairName, p.name.toLowerCase());
-            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, name: p.name, distance } : closest;
-          }, { symbol: "", name: "", distance: Infinity });
+          const closestPair = forexPairs.reduce(
+            (closest: { symbol: string; name: string; distance: number }, p) => {
+              const distance = levenshteinDistance(pairName, p.name?.toLowerCase() ?? "");
+              return distance < closest.distance ? { symbol: p.symbol, name: p.name ?? "", distance } : closest;
+            },
+            { symbol: "", name: "", distance: Infinity }
+          );
           if (closestPair.distance <= 3) {
             symbol = closestPair.symbol;
           }
@@ -567,7 +515,7 @@ export default function ForexAdvisor() {
           const historySymbolMatch = msg.content.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
           if (historySymbolMatch) {
             const potentialSymbol = historySymbolMatch.toUpperCase();
-            const pair = forexPairs.find((p: any) => p.symbol === potentialSymbol);
+            const pair = forexPairs.find((p) => p.symbol === potentialSymbol);
             if (pair) {
               symbol = potentialSymbol;
               break;
@@ -579,7 +527,7 @@ export default function ForexAdvisor() {
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
-          content: "Please provide a forex pair symbol or pair name to analyze (e.g., 'EUR/USD' for Euro to US Dollar, 'British Pound to Yen').",
+          content: "Please provide a forex pair symbol or name (e.g., 'EUR/USD' or 'Euro to US Dollar').",
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -598,16 +546,19 @@ export default function ForexAdvisor() {
       }
 
       if (forexPairs.length > 0) {
-        const isValidSymbol = forexPairs.some((pair: any) => pair.symbol === symbol);
+        const isValidSymbol = forexPairs.some((pair) => pair.symbol === symbol);
         if (!isValidSymbol) {
-          const closestSymbol = forexPairs.reduce((closest: any, p: any) => {
-            const distance = levenshteinDistance(symbol.replace("/", ""), p.symbol.replace("/", ""));
-            return distance < (closest.distance || Infinity) ? { symbol: p.symbol, distance } : closest;
-          }, { symbol: "", distance: Infinity });
+          const closestSymbol = forexPairs.reduce(
+            (closest: { symbol: string; distance: number }, p) => {
+              const distance = levenshteinDistance(symbol.replace("/", ""), p.symbol.replace("/", ""));
+              return distance < closest.distance ? { symbol: p.symbol, distance } : closest;
+            },
+            { symbol: "", distance: Infinity }
+          );
           const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
           const errorMessage: Message = {
             role: "assistant",
-            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Please try a valid symbol like 'EUR/USD' or 'GBP/JPY'.`,
+            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Try 'EUR/USD' or 'GBP/JPY'.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
@@ -633,72 +584,52 @@ export default function ForexAdvisor() {
       const needsForexData =
         input.toLowerCase().includes("price") ||
         input.toLowerCase().includes("change") ||
-        input.toLowerCase().includes("trend") ||
-        input.toLowerCase().includes("analyz");
+        input.toLowerCase().includes("trend");
+      const isGeneralAnalysis = input.toLowerCase().includes("analyz") && requestedIndicators.length === 0;
 
-      let forexData;
-      let indicatorsData;
+      let forexData: any = undefined;
+      let indicatorsData: { [key: string]: { data: any; timestamp: number } } | undefined = undefined;
       const apiCallCount = { count: 0 };
 
-      if (needsForexData || requestedIndicators.length === 0) {
-        try {
-          forexData = await fetchForexData(symbol, apiCallCount);
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          const errorMsg: Message = {
-            role: "assistant",
-            content: `I couldn't fetch forex data for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          setMessages((prev) => {
-            const updatedMessages = [...prev, errorMsg];
-            setChatSessions((prevSessions) =>
-              prevSessions.map((session) =>
-                session.id === currentChatId
-                  ? { ...session, messages: updatedMessages }
-                  : session
-              )
-            );
-            return updatedMessages;
-          });
-          setLoading(false);
-          return;
+      // Fetch only what’s needed
+      if (needsForexData || isGeneralAnalysis) {
+        const fields = [];
+        if (input.toLowerCase().includes("price") || input.toLowerCase().includes("change") || isGeneralAnalysis) {
+          fields.push("quote");
         }
+        if (input.toLowerCase().includes("trend") || isGeneralAnalysis) {
+          fields.push("timeSeries");
+        }
+        forexData = await fetchForexData(symbol, apiCallCount, fields);
       }
 
-      if (requestedIndicators.length > 0 || (!needsForexData && input.toLowerCase().includes("analyz"))) {
-        const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : indicators;
-        try {
+      if (requestedIndicators.length > 0 || isGeneralAnalysis) {
+        const indicatorsToFetch = requestedIndicators.length > 0
+          ? requestedIndicators
+          : isGeneralAnalysis
+          ? ["ema", "rsi", "macd"] // Limit to a few key indicators for general analysis
+          : [];
+        if (indicatorsToFetch.length > 0) {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          const errorMsg: Message = {
-            role: "assistant",
-            content: `I couldn't fetch technical indicators for ${symbol} due to an API error: ${errorMessage}. Please try again later or use a different symbol.`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          setMessages((prev) => {
-            const updatedMessages = [...prev, errorMsg];
-            setChatSessions((prevSessions) =>
-              prevSessions.map((session) =>
-                session.id === currentChatId
-                  ? { ...session, messages: updatedMessages }
-                  : session
-              )
-            );
-            return updatedMessages;
-          });
-          setLoading(false);
-          return;
         }
       }
 
-      const combinedData = {
-        forexData,
-        indicators: indicatorsData,
-        forexPairs,
-      };
-      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(messages)}`;
+      // Prepare minimal data for LLM
+      const apiData: any = {};
+      if (forexData) {
+        if (forexData.quote) apiData.quote = forexData.quote;
+        if (forexData.timeSeries) apiData.timeSeries = forexData.timeSeries;
+      }
+      if (indicatorsData) {
+        apiData.indicators = {};
+        for (const indicator of requestedIndicators.length > 0 ? requestedIndicators : ["ema", "rsi", "macd"]) {
+          if (indicatorsData[indicator]) {
+            apiData.indicators[indicator] = indicatorsData[indicator].data;
+          }
+        }
+      }
+
+      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(apiData)}`;
 
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
@@ -708,7 +639,7 @@ export default function ForexAdvisor() {
 
       const assistantMessage: Message = {
         role: "assistant",
-        content: response.content,
+        content: response.content as string,
         timestamp: new Date().toLocaleTimeString(),
         forexData,
         indicatorsData,
@@ -726,7 +657,7 @@ export default function ForexAdvisor() {
         return updatedMessages;
       });
 
-      await chatHistory.addMessage(new SystemMessage(response.content));
+      await chatHistory.addMessage(new SystemMessage(response.content as string));
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       console.error("Error in chatbot:", errorMessage);
@@ -757,10 +688,12 @@ export default function ForexAdvisor() {
   };
 
   function levenshteinDistance(a: string, b: string): number {
-    const matrix: number[][] = [];
+    const matrix: number[][] = Array(b.length + 1)
+      .fill(null)
+      .map(() => Array(a.length + 1).fill(0));
 
     for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
+      matrix[i][0] = i;
     }
     for (let j = 0; j <= a.length; j++) {
       matrix[0][j] = j;
@@ -807,7 +740,7 @@ export default function ForexAdvisor() {
                 <Button variant="ghost" style={{ color: "white" }}>Other Advisors</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline" style={{ borderColor: "white", color: "green" }}>Back Home</Button>
+                <Button variant="outline" style={{ borderColor: "white", color: "white" }}>Back Home</Button>
               </Link>
             </div>
           </div>

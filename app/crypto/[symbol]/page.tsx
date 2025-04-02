@@ -17,11 +17,14 @@ import {
   Title,
   Tooltip,
   Legend,
+  ChartData,
+  ChartOptions,
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle } from "lucide-react";
+import { AnnotationOptions } from "chartjs-plugin-annotation";
 
 // Register Chart.js components
 ChartJS.register(
@@ -204,11 +207,12 @@ export default function CryptoDetails() {
         }
         const indicatorsData = await indicatorsResponse.json();
         setTechnicalIndicators(indicatorsData);
-      } catch (error) {
-        console.error("Error fetching data:", error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Error fetching data:", errorMessage);
         toast({
           title: "Error",
-          description: error.message || "Failed to fetch crypto data",
+          description: errorMessage || "Failed to fetch crypto data",
           variant: "destructive",
         });
         setOverview(null);
@@ -279,7 +283,7 @@ export default function CryptoDetails() {
     : [];
 
   // Closing Price Chart with EMA, BBANDS, and Supertrend
-  const closingPriceData = {
+  const closingPriceData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -336,7 +340,7 @@ export default function CryptoDetails() {
     ],
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },
@@ -352,7 +356,7 @@ export default function CryptoDetails() {
     ? technicalIndicators.rsi.map((entry) => parseFloat(entry.rsi)).reverse()
     : [];
 
-  const rsiChartData = {
+  const rsiChartData: ChartData<"line", number[], string> = {
     labels: rsiLabels,
     datasets: [
       {
@@ -365,7 +369,13 @@ export default function CryptoDetails() {
     ],
   };
 
-  const rsiChartOptions = {
+  const rsiChartOptions: ChartOptions<"line"> & {
+    plugins: {
+      annotation: {
+        annotations: AnnotationOptions<"line">[];
+      };
+    };
+  } = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },
@@ -408,35 +418,35 @@ export default function CryptoDetails() {
     ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd_hist)).reverse()
     : [];
 
-  const macdChartData = {
+  const macdChartData: ChartData<"bar" | "line", number[], string> = {
     labels: macdLabels,
     datasets: [
       {
+        type: "line" as const,
         label: "MACD",
         data: macdData,
         borderColor: "rgb(0, 191, 255)",
         backgroundColor: "rgba(0, 191, 255, 0.5)",
         fill: false,
-        type: "line" as const,
       },
       {
+        type: "line" as const,
         label: "Signal Line",
         data: macdSignalData,
         borderColor: "rgb(255, 165, 0)",
         backgroundColor: "rgba(255, 165, 0, 0.5)",
         fill: false,
-        type: "line" as const,
       },
       {
+        type: "bar" as const,
         label: "Histogram",
         data: macdHistData,
         backgroundColor: "rgba(128, 128, 128, 0.5)",
-        type: "bar" as const,
       },
     ],
   };
 
-  const macdChartOptions = {
+  const macdChartOptions: ChartOptions<"bar"> = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },
@@ -452,7 +462,7 @@ export default function CryptoDetails() {
     ? technicalIndicators.atr.map((entry) => parseFloat(entry.atr)).reverse()
     : [];
 
-  const atrChartData = {
+  const atrChartData: ChartData<"line", number[], string> = {
     labels: atrLabels,
     datasets: [
       {
@@ -465,7 +475,7 @@ export default function CryptoDetails() {
     ],
   };
 
-  const atrChartOptions = {
+  const atrChartOptions: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },
@@ -474,7 +484,7 @@ export default function CryptoDetails() {
   };
 
   // Supertrend Chart
-  const supertrendChartData = {
+  const supertrendChartData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -496,7 +506,7 @@ export default function CryptoDetails() {
     ],
   };
 
-  const supertrendChartOptions = {
+  const supertrendChartOptions: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },
@@ -512,7 +522,7 @@ export default function CryptoDetails() {
     ? technicalIndicators.obv.map((entry) => parseFloat(entry.obv)).reverse()
     : [];
 
-  const obvChartData = {
+  const obvChartData: ChartData<"line", number[], string> = {
     labels: obvLabels,
     datasets: [
       {
@@ -525,7 +535,7 @@ export default function CryptoDetails() {
     ],
   };
 
-  const obvChartOptions = {
+  const obvChartOptions: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: { position: "top" as const },

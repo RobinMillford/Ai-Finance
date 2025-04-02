@@ -44,22 +44,23 @@ export default function Forex() {
   const fetchForexPairs = async () => {
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate network delay
       const response = await fetch(
-        `/api/forexs?page=${page}&perPage=${perPage}&currencyGroup=${selectedType}&searchQuery=${encodeURIComponent(
+        `/api/forexs?page=${page}&perPage=${perPage}¤cyGroup=${selectedType}&searchQuery=${encodeURIComponent(
           searchQuery
         )}`
       );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+        throw new Error(errorData?.error || `HTTP error! Status: ${response.status}`);
       }
       const data: ForexResponse = await response.json();
 
-      setAllForexPairs(data.pairs);
-      setFilteredForexPairs(data.pairs);
-      setTotalCount(data.totalCount);
-      setTotalPages(Math.ceil(data.totalCount / perPage));
+      const pairs = data.pairs ?? [];
+      setAllForexPairs(pairs);
+      setFilteredForexPairs(pairs);
+      setTotalCount(data.totalCount ?? 0);
+      setTotalPages(Math.ceil((data.totalCount ?? 0) / perPage));
 
       // Fetch filter options from the first page (without filters) if not already set
       if (typeOptions.length === 0) {
@@ -67,28 +68,32 @@ export default function Forex() {
         if (optionsResponse.ok) {
           const optionsData: ForexResponse = await optionsResponse.json();
           const types = Array.from(
-            new Set(optionsData.pairs.map((pair: ForexPair) => pair.status))
+            new Set((optionsData.pairs ?? []).map((pair: ForexPair) => pair.status ?? "Unknown"))
           ).sort();
           setTypeOptions(["All", ...types]);
+        } else {
+          console.warn("Failed to fetch type options, using defaults.");
+          setTypeOptions(["All", "Major", "Exotic", "Minor"]); // Fallback options
         }
       }
 
-      if (data.pairs.length === 0) {
+      if (pairs.length === 0) {
         toast({
           title: "Warning",
           description: "No forex pairs found. Check your API key, rate limits, or filters.",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error("Fetch error:", error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Fetch error:", errorMessage);
       setAllForexPairs([]);
       setFilteredForexPairs([]);
       setTotalCount(0);
       setTotalPages(1);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch forex listings",
+        description: errorMessage || "Failed to fetch forex listings",
         variant: "destructive",
       });
     } finally {
@@ -111,16 +116,17 @@ export default function Forex() {
   };
 
   // Function to check if a Forex pair is supported
-  const checkPairSupport = async (symbol: string) => {
+  const checkPairSupport = async (symbol: string): Promise<boolean> => {
     try {
       const response = await fetch(`/api/forex?symbol=${symbol}`);
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch forex data");
+        throw new Error(errorData?.error || "Failed to fetch forex data");
       }
       return true; // Pair is supported
-    } catch (error) {
-      console.error(`Error checking support for ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`Error checking support for ${symbol}:`, errorMessage);
       return false; // Pair is unsupported
     }
   };
@@ -307,11 +313,11 @@ export default function Forex() {
                           transition={{ duration: 0.5, delay: index * 0.05 }}
                           className="border-b border-muted hover:bg-muted/50 transition-colors"
                         >
-                          <td className="py-3 px-4 font-medium">{pair.symbol}</td>
-                          <td className="py-3 px-4">{pair.name}</td>
-                          <td className="py-3 px-4">{pair.base_currency || "N/A"}</td>
-                          <td className="py-3 px-4">{pair.quote_currency || "N/A"}</td>
-                          <td className="py-3 px-4">{pair.exchange}</td>
+                          <td className="py-3 px-4 font-medium">{pair.symbol ?? "N/A"}</td>
+                          <td className="py-3 px-4">{pair.name ?? "N/A"}</td>
+                          <td className="py-3 px-4">{pair.base_currency ?? "N/A"}</td>
+                          <td className="py-3 px-4">{pair.quote_currency ?? "N/A"}</td>
+                          <td className="py-3 px-4">{pair.exchange ?? "N/A"}</td>
                           <td className="py-3 px-4">
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -322,13 +328,13 @@ export default function Forex() {
                                   : "bg-blue-100 text-blue-800"
                               }`}
                             >
-                              {pair.status}
+                              {pair.status ?? "Unknown"}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right">
                             <Link
-                              href={`/forex/${encodeURIComponent(pair.symbol)}`}
-                              onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
+                              href={`/forex/${encodeURIComponent(pair.symbol ?? "")}`}
+                              onClick={(e) => handleAnalyzeClick(pair.symbol ?? "", e)}
                             >
                               <Button
                                 variant="ghost"

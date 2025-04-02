@@ -90,11 +90,12 @@ export default function CryptoList() {
         // If the current page is empty due to filtering, reset to page 1
         setPage(1);
       }
-    } catch (error) {
-      console.error("Error fetching cryptocurrency pairs:", error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error fetching cryptocurrency pairs:", errorMessage);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch cryptocurrency pairs",
+        description: errorMessage || "Failed to fetch cryptocurrency pairs",
         variant: "destructive",
       });
       setAllCryptoPairs([]);
@@ -128,11 +129,12 @@ export default function CryptoList() {
         throw new Error(errorData.error || `Cryptocurrency pair ${symbol} is not supported`);
       }
       router.push(`/crypto/${encodeURIComponent(symbol)}`);
-    } catch (error) {
-      console.error(`Error validating symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error validating symbol ${symbol}:`, errorMessage);
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     }

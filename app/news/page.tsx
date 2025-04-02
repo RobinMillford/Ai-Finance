@@ -13,7 +13,7 @@ import Sentiment from "sentiment";
 
 interface NewsArticle {
   title: string;
-  description: string;
+  description: string | null; // Updated to allow null explicitly
   url: string;
   urlToImage: string | null;
   publishedAt: string;
@@ -51,10 +51,10 @@ export default function News() {
   const sentiment = new Sentiment();
 
   // Function to analyze sentiment of an article
-  const analyzeSentiment = (title: string, description: string): SentimentResult => {
-    const text = `${title} ${description || ""}`.trim();
+  const analyzeSentiment = (title: string, description: string | null): SentimentResult => {
+    const text = `${title} ${description ?? ""}`.trim(); // Use nullish coalescing for description
     const result = sentiment.analyze(text);
-    const score = result.score;
+    const score = result.score ?? 0; // Ensure score is a number
 
     if (score > 0) {
       return { label: "Positive", score };
@@ -73,16 +73,21 @@ export default function News() {
       const cacheKey = `news_${searchQuery}_${category}_${page}`;
       const cachedData = localStorage.getItem(cacheKey);
       if (cachedData) {
-        const parsedData: CachedNews = JSON.parse(cachedData);
-        const now = Date.now();
-        const cacheAge = now - parsedData.timestamp;
-        const cacheDuration = 60 * 60 * 1000; // 1 hour in milliseconds
+        try {
+          const parsedData: CachedNews = JSON.parse(cachedData);
+          const now = Date.now();
+          const cacheAge = now - parsedData.timestamp;
+          const cacheDuration = 60 * 60 * 1000; // 1 hour in milliseconds
 
-        if (cacheAge < cacheDuration) {
-          setNewsArticles(parsedData.articles);
-          setTotalPages(Math.ceil(100 / perPage)); // NewsAPI free tier limits to 100 results
-          setLoading(false);
-          return;
+          if (cacheAge < cacheDuration) {
+            setNewsArticles(parsedData.articles);
+            setTotalPages(Math.ceil(100 / perPage)); // NewsAPI free tier limits to 100 results
+            setLoading(false);
+            return;
+          }
+        } catch (error: unknown) {
+          console.warn("Failed to parse cached news data:", error instanceof Error ? error.message : "Unknown error");
+          localStorage.removeItem(cacheKey); // Clear invalid cache
         }
       }
 
@@ -106,11 +111,16 @@ export default function News() {
         const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${perPage}&page=${page}&apiKey=${apiKey}`;
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
+          const errorData = await response.json();
+          throw new Error(errorData?.message || `Failed to fetch news: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
         if (data.status === "ok") {
-          const articles = data.articles;
+          const articles = (data.articles ?? []).map((article: NewsArticle) => ({
+            ...article,
+            description: article.description ?? null, // Ensure nullable fields are handled
+            urlToImage: article.urlToImage ?? null,
+          }));
           setNewsArticles(articles);
           setTotalPages(Math.ceil(100 / perPage)); // NewsAPI free tier limits to 100 results
 
@@ -126,11 +136,12 @@ export default function News() {
         } else {
           throw new Error(data.message || "Failed to fetch news articles");
         }
-      } catch (error) {
-        console.error("Error fetching news:", error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Error fetching news:", errorMessage);
         toast({
           title: "Error",
-          description: error.message || "Failed to fetch news articles",
+          description: errorMessage || "Failed to fetch news articles",
           variant: "destructive",
         });
         setNewsArticles([]);
@@ -288,15 +299,18 @@ export default function News() {
                           <div className="relative h-48 w-full mb-4">
                             <Image
                               src={article.urlToImage}
-                              alt={article.title}
+                              alt={article.title ?? "News Image"}
                               layout="fill"
                               objectFit="cover"
                               className="rounded-lg"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/placeholder-image.jpg"; // Fallback image
+                              }}
                             />
                           </div>
                         )}
                         <div className="flex justify-between items-start mb-2">
-                          <h3 className="text-lg font-semibold">{article.title}</h3>
+                          <h3 className="text-lg font-semibold">{article.title ?? "Untitled"}</h3>
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               sentimentResult.label === "Positive"
@@ -309,19 +323,21 @@ export default function News() {
                             {sentimentResult.label}
                           </span>
                         </div>
-                        <p className="text-muted-foreground text-sm mb-4">{article.description}</p>
+                        <p className="text-muted-foreground text-sm mb-4">{article.description ?? "No description available"}</p>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
-                          <span>{article.source.name}</span>
+                          <span>{article.source?.name ?? "Unknown Source"}</span>
                           <span>
-                            {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
+                            {article.publishedAt
+                              ? new Date(article.publishedAt).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : "Date Unknown"}
                           </span>
                         </div>
                         <a
-                          href={article.url}
+                          href={article.url ?? "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-4 inline-flex items-center text-primary hover:underline"

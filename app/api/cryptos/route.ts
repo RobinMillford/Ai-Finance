@@ -25,11 +25,12 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
         throw new Error(`API error: ${JSON.stringify(errorData)}`);
       }
       return await response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       if (attempt === maxRetries) {
         throw error;
       }
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
       await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
   }
@@ -111,10 +112,11 @@ export async function GET(request: Request) {
       // Cache the result
       cryptoCache.set(cacheKey, { data: cryptoPairs, timestamp: now });
       console.log("Successfully fetched and cached cryptocurrency pairs");
-    } catch (error) {
-      console.error("Error fetching cryptocurrency pairs:", error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error fetching cryptocurrency pairs:", errorMessage);
       return NextResponse.json(
-        { error: "Failed to fetch cryptocurrency pairs: " + error.message },
+        { error: "Failed to fetch cryptocurrency pairs: " + errorMessage },
         { status: 500 }
       );
     }
@@ -152,10 +154,11 @@ export async function GET(request: Request) {
         price: parseFloat(priceData.close),
         percent_change: parseFloat(priceData.percent_change),
       });
-    } catch (error) {
-      console.error(`Error fetching real-time data for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching real-time data for symbol ${symbol}:`, errorMessage);
       return NextResponse.json(
-        { error: `Failed to fetch real-time data for ${symbol}: ${error.message}` },
+        { error: `Failed to fetch real-time data for ${symbol}: ${errorMessage}` },
         { status: 500 }
       );
     }

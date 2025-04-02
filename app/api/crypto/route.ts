@@ -138,10 +138,11 @@ export async function GET(request: Request) {
     console.log(`Successfully fetched and cached crypto data for symbol: ${symbol}`);
 
     return NextResponse.json(response);
-  } catch (error) {
-    console.error(`Error fetching crypto data for symbol ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error fetching crypto data for symbol ${symbol}:`, errorMessage);
     return NextResponse.json(
-      { error: `Failed to fetch crypto data: ${error.message}` },
+      { error: `Failed to fetch crypto data: ${errorMessage}` },
       { status: 500 }
     );
   }

@@ -90,8 +90,9 @@ export async function GET(request: Request) {
       const ema20ResponseData = await fetchWithRetry(ema20Url);
       emaData.ema20 = ema20ResponseData.values || null;
       console.log(`Successfully fetched 20-day EMA for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching 20-day EMA for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching 20-day EMA for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -102,8 +103,9 @@ export async function GET(request: Request) {
       const ema50ResponseData = await fetchWithRetry(ema50Url);
       emaData.ema50 = ema50ResponseData.values || null;
       console.log(`Successfully fetched 50-day EMA for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching 50-day EMA for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching 50-day EMA for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -114,8 +116,9 @@ export async function GET(request: Request) {
       const rsiResponseData = await fetchWithRetry(rsiUrl);
       rsiData = rsiResponseData.values || null;
       console.log(`Successfully fetched RSI for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching RSI for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching RSI for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -126,8 +129,9 @@ export async function GET(request: Request) {
       const macdResponseData = await fetchWithRetry(macdUrl);
       macdData = macdResponseData.values || null;
       console.log(`Successfully fetched MACD for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching MACD for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching MACD for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -138,8 +142,9 @@ export async function GET(request: Request) {
       const bbandsResponseData = await fetchWithRetry(bbandsUrl);
       bbandsData = bbandsResponseData.values || null;
       console.log(`Successfully fetched BBANDS for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching BBANDS for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching BBANDS for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -150,8 +155,9 @@ export async function GET(request: Request) {
       const atrResponseData = await fetchWithRetry(atrUrl);
       atrData = atrResponseData.values || null;
       console.log(`Successfully fetched ATR for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching ATR for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching ATR for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -162,8 +168,9 @@ export async function GET(request: Request) {
       const obvResponseData = await fetchWithRetry(obvUrl);
       obvData = obvResponseData.values || null;
       console.log(`Successfully fetched OBV for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching OBV for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching OBV for symbol ${symbol}:`, errorMessage);
     }
     await delay(REQUEST_DELAY_MS);
 
@@ -174,8 +181,9 @@ export async function GET(request: Request) {
       const supertrendResponseData = await fetchWithRetry(supertrendUrl);
       supertrendData = supertrendResponseData.values || null;
       console.log(`Successfully fetched Supertrend for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching Supertrend for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching Supertrend for symbol ${symbol}:`, errorMessage);
     }
 
     // Combine all indicator data
@@ -194,10 +202,11 @@ export async function GET(request: Request) {
     console.log(`Successfully fetched and cached technical indicators for symbol: ${symbol}`);
 
     return NextResponse.json(indicatorsData);
-  } catch (error) {
-    console.error(`Error fetching technical indicators for symbol ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error fetching technical indicators for symbol ${symbol}:`, errorMessage);
     return NextResponse.json(
-      { error: "Failed to fetch technical indicators: " + error.message },
+      { error: "Failed to fetch technical indicators: " + errorMessage },
       { status: 500 }
     );
   }

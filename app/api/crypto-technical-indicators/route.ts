@@ -32,11 +32,12 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
         throw new Error(`API error: ${JSON.stringify(errorData)}`);
       }
       return await response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       if (attempt === maxRetries) {
         throw error;
       }
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
       await delay(retryDelayMs);
     }
   }

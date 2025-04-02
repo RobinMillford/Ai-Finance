@@ -1,7 +1,17 @@
 import { NextResponse } from 'next/server';
 
+// Interface for ForexPair to improve type safety
+interface ForexPair {
+  symbol: string;
+  name: string;
+  exchange: string;
+  status: string;
+  base_currency: string;
+  quote_currency: string;
+}
+
 // In-memory cache
-const cache = new Map<string, { data: any; timestamp: number }>();
+const cache = new Map<string, { data: { pairs: ForexPair[]; totalCount: number }; timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export async function GET(request: Request) {
@@ -54,7 +64,7 @@ export async function GET(request: Request) {
     }
 
     // Map the API response to the ForexPair interface
-    let forexPairs = forexPairsArray.map((pair: any) => ({
+    let forexPairs: ForexPair[] = forexPairsArray.map((pair: any) => ({
       symbol: pair.symbol,
       name: `${pair.currency_base} to ${pair.currency_quote}`,
       exchange: "FOREX",
@@ -64,27 +74,24 @@ export async function GET(request: Request) {
     }));
     console.log("Mapped Forex Pairs (before filtering):", forexPairs.length, "pairs");
 
-    const availableCurrencyGroups = [...new Set(forexPairs.map((pair: any) => pair.status))];
+    // Use Array.from instead of spread operator to avoid downlevel iteration issue
+    const availableCurrencyGroups = Array.from(new Set(forexPairs.map((pair) => pair.status)));
     console.log("Available Currency Groups:", availableCurrencyGroups);
 
     // Apply filters server-side
     if (searchQuery.trim() !== '') {
       const lowerQuery = searchQuery.toLowerCase();
-      forexPairs = forexPairs.filter(
-        (pair: ForexPair) => {
-          return (
-            pair.symbol.toLowerCase().includes(lowerQuery) ||
-            pair.name.toLowerCase().includes(lowerQuery) ||
-            (pair.base_currency && pair.base_currency.toLowerCase().includes(lowerQuery)) ||
-            (pair.quote_currency && pair.quote_currency.toLowerCase().includes(lowerQuery))
-          );
-        }
+      forexPairs = forexPairs.filter((pair) =>
+        pair.symbol.toLowerCase().includes(lowerQuery) ||
+        pair.name.toLowerCase().includes(lowerQuery) ||
+        (pair.base_currency && pair.base_currency.toLowerCase().includes(lowerQuery)) ||
+        (pair.quote_currency && pair.quote_currency.toLowerCase().includes(lowerQuery))
       );
       console.log("After searchQuery filter:", forexPairs.length, "pairs");
     }
 
     if (currencyGroup !== "All") {
-      forexPairs = forexPairs.filter((pair: ForexPair) => pair.status === currencyGroup);
+      forexPairs = forexPairs.filter((pair) => pair.status === currencyGroup);
       console.log("After currencyGroup filter:", forexPairs.length, "pairs");
     }
 
@@ -103,8 +110,9 @@ export async function GET(request: Request) {
     console.log("Cached response for key:", cacheKey);
 
     return NextResponse.json(responseData);
-  } catch (error) {
-    console.error("Error fetching forex pairs:", error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error fetching forex pairs:", errorMessage);
     return NextResponse.json({ pairs: [], totalCount: 0 }, { status: 200 });
   }
 }

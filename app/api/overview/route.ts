@@ -68,8 +68,9 @@ export async function GET(request: Request) {
           logoData = { url: null, logo_base: null, logo_quote: null };
         }
       }
-    } catch (error) {
-      console.error(`Error fetching logo data for symbol ${symbol} from Twelve Data:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching logo data for symbol ${symbol} from Twelve Data:`, errorMessage);
       // Continue with default logo data (null values)
       logoData = { url: null, logo_base: null, logo_quote: null };
     }
@@ -86,10 +87,11 @@ export async function GET(request: Request) {
     console.log(`Successfully fetched and cached overview data for symbol: ${symbol}`);
 
     return NextResponse.json(overviewData);
-  } catch (error) {
-    console.error(`Error processing overview data for symbol ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error processing overview data for symbol ${symbol}:`, errorMessage);
     return NextResponse.json(
-      { error: `Failed to process overview data: ${error.message}` },
+      { error: `Failed to process overview data: ${errorMessage}` },
       { status: 500 }
     );
   }

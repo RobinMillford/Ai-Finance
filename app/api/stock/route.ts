@@ -72,8 +72,9 @@ export async function GET(request: Request) {
       }
       quoteData = await quoteResponse.json();
       console.log(`Successfully fetched quote data for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching quote data for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching quote data for symbol ${symbol}:`, errorMessage);
       // Continue with null quote data
     }
 
@@ -90,8 +91,9 @@ export async function GET(request: Request) {
       }
       priceData = await priceResponse.json();
       console.log(`Successfully fetched current price data for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching current price data for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching current price data for symbol ${symbol}:`, errorMessage);
       // Continue with null price data
     }
 
@@ -108,8 +110,9 @@ export async function GET(request: Request) {
       }
       eodData = await eodResponse.json();
       console.log(`Successfully fetched EOD data for symbol: ${symbol}`);
-    } catch (error) {
-      console.error(`Error fetching EOD data for symbol ${symbol}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching EOD data for symbol ${symbol}:`, errorMessage);
       // Continue with null EOD data
     }
 
@@ -126,10 +129,11 @@ export async function GET(request: Request) {
     console.log(`Successfully fetched and cached stock data for symbol: ${symbol}`);
 
     return NextResponse.json(stockData);
-  } catch (error) {
-    console.error(`Error fetching stock data for symbol ${symbol}:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error fetching stock data for symbol ${symbol}:`, errorMessage);
     return NextResponse.json(
-      { error: "Failed to fetch stock data: " + error.message },
+      { error: "Failed to fetch stock data: " + errorMessage },
       { status: 500 }
     );
   }

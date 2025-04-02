@@ -3,9 +3,19 @@ import { NextResponse } from 'next/server';
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
 
+// Interface for Stock to improve type safety
+interface Stock {
+  symbol: string;
+  name: string;
+  currency: string;
+  exchange: string;
+  country: string;
+  status: string;
+}
+
 // In-memory cache for stock listings
-let cachedStocks = null;
-let cacheTimestamp = null;
+let cachedStocks: Stock[] | null = null;
+let cacheTimestamp: number | null = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export async function GET() {
@@ -41,7 +51,7 @@ export async function GET() {
     "NSE"        // National Stock Exchange of India (India)
   ];
 
-  const allStocks = new Map(); // Use a Map to avoid duplicates (key: symbol)
+  const allStocks = new Map<string, Stock>(); // Use a Map to avoid duplicates (key: symbol)
 
   for (const exchange of exchanges) {
     const url = `https://api.twelvedata.com/stocks?source=docs&exchange=${exchange}&apikey=${TWELVE_DATA_API_KEY}`;
@@ -63,7 +73,7 @@ export async function GET() {
       }
 
       // Transform and add stocks to the Map
-      data.data.forEach(stock => {
+      data.data.forEach((stock: any) => {
         // Only add the stock if we haven't seen this symbol yet
         if (!allStocks.has(stock.symbol)) {
           allStocks.set(stock.symbol, {
@@ -78,8 +88,9 @@ export async function GET() {
       });
 
       console.log(`Successfully fetched ${data.data.length} stocks from ${exchange}`);
-    } catch (error) {
-      console.error(`Error fetching stock listings for ${exchange}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching stock listings for ${exchange}:`, errorMessage);
       // Continue to the next exchange if this one fails
       continue;
     }

@@ -174,15 +174,10 @@ export default function News() {
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">Analyze Market</Button>
+                <Button variant="ghost">Analyze Markets</Button>
               </Link>
-              {/* <Link href="/news">
-                <Button variant="ghost" className="bg-muted">
-                  News
-                </Button>
-              </Link> */}
-              <Link href="/advisor">
-                <Button variant="ghost">AI Advisor</Button>
+              <Link href="/choose-advisor">
+                <Button variant="ghost">AI Advisors</Button>
               </Link>
               <Link href="/">
                 <Button variant="outline">Back Home</Button>

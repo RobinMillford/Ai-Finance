@@ -128,7 +128,7 @@ export default function Home() {
       icon: Brain,
       title: "AI-Powered Analysis",
       description: "Get intelligent insights and predictions powered by advanced machine learning algorithms.",
-      link: "/advisor",
+      link: "/choose-advisor",
     },
     {
       icon: Newspaper,
@@ -155,7 +155,7 @@ export default function Home() {
               <Link href="/news">
                 <Button variant="ghost">News</Button>
               </Link>
-              <Link href="/advisor">
+              <Link href="/choose-advisor">
                 <Button variant="ghost">AI Advisor</Button>
               </Link>
               <Link href="/choose-market">
@@ -188,7 +188,7 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="flex justify-center gap-4"
             >
-              <Link href="/advisor">
+              <Link href="/choose-advisor">
                 <Button size="lg" className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700">
                   Try AI Advisor
                 </Button>

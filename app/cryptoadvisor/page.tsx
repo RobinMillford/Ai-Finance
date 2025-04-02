@@ -566,9 +566,12 @@ export default function CryptoAdvisor() {
               <Link href="/choose-market">
                 <Button variant="ghost" style={{ color: "white" }}>All Markets</Button>
               </Link>
-              <Link href="/news">
-                <Button variant="ghost" style={{ color: "white" }}>News</Button>
+              <Link href="/cryptos">
+                <Button variant="ghost" style={{ color: "white" }}>Crypto Market</Button>
               </Link>
+              <Link href="/choose-advisor">
+                <Button variant="ghost" style={{ color: "white" }}>Other Advisors</Button>
+              </Link> 
               <Link href="/">
                 <Button variant="outline" style={{ borderColor: "white", color: "orange" }}>Back Home</Button>
               </Link>

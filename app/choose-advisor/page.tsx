@@ -6,33 +6,33 @@ import { Button } from "@/components/ui/button";
 import { BarChart3, DollarSign, Bitcoin, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-// Market data for the cards
-const markets = [
+// Advisor data for the cards
+const advisors = [
   {
     icon: BarChart3,
-    title: "Stocks",
-    description: "Analyze real-time stock data from global exchanges with detailed insights and technical indicators.",
-    link: "/stocks",
+    title: "Stocks Advisor",
+    description: "Get expert insights on stocks with real-time data and technical analysis from global exchanges.",
+    link: "/stockadvisor",
     gradient: "from-blue-500 to-indigo-600",
   },
   {
     icon: DollarSign,
-    title: "Forex",
-    description: "Dive into forex market analysis with real-time data on major, minor, and exotic currency pairs.",
-    link: "/forexs",
+    title: "Forex Advisor",
+    description: "Your guide to forex markets, offering real-time analysis on currency pairs and trading strategies.",
+    link: "/forexadvisor",
     gradient: "from-green-500 to-emerald-600",
   },
   {
     icon: Bitcoin,
-    title: "Crypto",
-    description: "Explore cryptocurrency pairs with comprehensive market data and exchange information.",
-    link: "/cryptos",
+    title: "Crypto Advisor",
+    description: "Navigate the crypto world with detailed market data and insights on cryptocurrency pairs.",
+    link: "/cryptoadvisor",
     gradient: "from-orange-500 to-yellow-600",
   },
 ];
 
-// Market Card Component
-const MarketCard = ({ icon: Icon, title, description, link, gradient }: any) => (
+// Advisor Card Component
+const AdvisorCard = ({ icon: Icon, title, description, link, gradient }: any) => (
   <motion.div
     whileHover={{ scale: 1.05, rotateY: 5 }}
     whileTap={{ scale: 0.95 }}
@@ -54,7 +54,7 @@ const MarketCard = ({ icon: Icon, title, description, link, gradient }: any) => 
         <Button
           className={`w-full bg-gradient-to-r ${gradient} hover:opacity-90 transition-opacity`}
         >
-          Select Market
+          Select Advisor
           <ArrowRight className="ml-2 h-5 w-5" />
         </Button>
       </Link>
@@ -62,7 +62,7 @@ const MarketCard = ({ icon: Icon, title, description, link, gradient }: any) => 
   </motion.div>
 );
 
-export default function ChooseMarket() {
+export default function ChooseAdvisor() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -77,8 +77,8 @@ export default function ChooseMarket() {
               <Link href="/news">
                 <Button variant="ghost">News</Button>
               </Link>
-              <Link href="/choose-advisor">
-                <Button variant="ghost">AI Advisor</Button>
+              <Link href="/choose-market">
+                <Button variant="ghost">Markets</Button>
               </Link>
               <Link href="/">
                 <Button variant="outline">Back to Home</Button>
@@ -98,23 +98,23 @@ export default function ChooseMarket() {
               transition={{ duration: 0.8 }}
             >
               <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
-                Choose Your Market
+                Choose Your Advisor
               </h1>
               <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-                Select a market to explore real-time data, technical indicators, and AI-powered insights tailored to your investment needs.
+                Pick an AI-powered advisor to get tailored insights and real-time data for your financial queries.
               </p>
             </motion.div>
 
-            {/* Market Cards */}
+            {/* Advisor Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {markets.map((market, index) => (
+              {advisors.map((advisor, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: index * 0.2 }}
                 >
-                  <MarketCard {...market} />
+                  <AdvisorCard {...advisor} />
                 </motion.div>
               ))}
             </div>

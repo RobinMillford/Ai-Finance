@@ -14,12 +14,13 @@ import {
   PointElement,
   LineElement,
   BarElement,
+  BarController, // Added to fix bar chart error
   Title,
   Tooltip,
   Legend,
   ChartData,
 } from "chart.js";
-import { Chart, Line } from "react-chartjs-2"; // Updated import: Replace Bar with Chart
+import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, ArrowRight, MessageCircle } from "lucide-react";
@@ -31,6 +32,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  BarController, // Critical for bar charts
   Title,
   Tooltip,
   Legend,

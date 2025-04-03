@@ -588,9 +588,19 @@ export default function StockAdvisor() {
               </span>
             </div>
             <div className="flex space-x-4">
+            <Link href="/choose-market">
+                <Button variant="ghost" style={{ color: "white" }}>
+                  All Markets
+                </Button>
+              </Link>
               <Link href="/stocks">
                 <Button variant="ghost" style={{ color: "white" }}>
                   Stock Market
+                </Button>
+              </Link>
+              <Link href="/choose-advisor">
+                <Button variant="ghost" style={{ color: "white" }}>
+                  Other Advisors
                 </Button>
               </Link>
               <Link href="/">

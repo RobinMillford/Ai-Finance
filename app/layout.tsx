@@ -3,9 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import Head from "next/head";
-import '../lib/chartConfig';
-
-console.log('Chart.js registration imported');
+import { useChartConfig } from '../lib/useChartConfig'; // Import client-side hook
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,6 +17,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  useChartConfig(); // Call the hook (client-side only)
+
   return (
     <html lang="en" suppressHydrationWarning>
       <Head>

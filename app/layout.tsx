@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import Head from "next/head";
-import '../lib/chartConfig'; // Add this import to register Chart.js globally
+import '../lib/chartConfig';
+
+console.log('Chart.js registration imported');
 
 const inter = Inter({ subsets: ['latin'] });
 

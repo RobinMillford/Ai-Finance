@@ -17,8 +17,9 @@ import {
   Title,
   Tooltip,
   Legend,
+  ChartData,
 } from "chart.js";
-import { Line, Bar } from "react-chartjs-2";
+import { Chart, Line } from "react-chartjs-2"; // Updated import: Replace Bar with Chart
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, ArrowRight, MessageCircle } from "lucide-react";
@@ -287,7 +288,7 @@ export default function StockDetails() {
     ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
     : [];
 
-  const closingPriceData = {
+  const closingPriceData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -315,7 +316,7 @@ export default function StockDetails() {
     ],
   };
 
-  const adjustedClosingPriceData = {
+  const adjustedClosingPriceData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -338,7 +339,7 @@ export default function StockDetails() {
 
   const rsiLabels = technicalIndicators?.rsi?.map((entry) => entry.datetime).reverse() || [];
   const rsiData = technicalIndicators?.rsi?.map((entry) => parseFloat(entry.rsi)).reverse() || [];
-  const rsiChartData = {
+  const rsiChartData: ChartData<"line", number[], string> = {
     labels: rsiLabels,
     datasets: [
       {
@@ -369,7 +370,7 @@ export default function StockDetails() {
   const macdData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd)).reverse() || [];
   const macdSignalData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd_signal)).reverse() || [];
   const macdHistData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd_hist)).reverse() || [];
-  const macdChartData = {
+  const macdChartData: ChartData<"bar" | "line", number[], string> = {
     labels: macdLabels,
     datasets: [
       ...(macdData.length
@@ -393,7 +394,7 @@ export default function StockDetails() {
 
   const adxLabels = technicalIndicators?.adx?.map((entry) => entry.datetime).reverse() || [];
   const adxData = technicalIndicators?.adx?.map((entry) => parseFloat(entry.adx)).reverse() || [];
-  const adxChartData = {
+  const adxChartData: ChartData<"line", number[], string> = {
     labels: adxLabels,
     datasets: [
       {
@@ -421,7 +422,7 @@ export default function StockDetails() {
 
   const atrLabels = technicalIndicators?.atr?.map((entry) => entry.datetime).reverse() || [];
   const atrData = technicalIndicators?.atr?.map((entry) => parseFloat(entry.atr)).reverse() || [];
-  const atrChartData = {
+  const atrChartData: ChartData<"line", number[], string> = {
     labels: atrLabels,
     datasets: [
       {
@@ -444,7 +445,7 @@ export default function StockDetails() {
   const aroonLabels = technicalIndicators?.aroon?.map((entry) => entry.datetime).reverse() || [];
   const aroonUpData = technicalIndicators?.aroon?.map((entry) => parseFloat(entry.aroon_up)).reverse() || [];
   const aroonDownData = technicalIndicators?.aroon?.map((entry) => parseFloat(entry.aroon_down)).reverse() || [];
-  const aroonChartData = {
+  const aroonChartData: ChartData<"line", number[], string> = {
     labels: aroonLabels,
     datasets: [
       ...(aroonUpData.length
@@ -725,7 +726,11 @@ export default function StockDetails() {
                   {technicalIndicators.macd && (
                     <div>
                       <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
-                      <Bar options={macdChartOptions} data={macdChartData} />
+                      <Chart
+                        type="bar"
+                        options={macdChartOptions}
+                        data={macdChartData as ChartData<"bar", number[], string>}
+                      />
                     </div>
                   )}
                   {technicalIndicators.adx && (

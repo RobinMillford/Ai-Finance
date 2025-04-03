@@ -17,8 +17,9 @@ import {
   Title,
   Tooltip,
   Legend,
+  ChartData,
 } from "chart.js";
-import { Line, Bar } from "react-chartjs-2";
+import { Chart, Line } from "react-chartjs-2"; // Updated import: Replace Bar with Chart
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle } from "lucide-react";
@@ -237,7 +238,7 @@ export default function ForexDetails() {
   const chikouSpanData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.chikou_span)).reverse() ?? [];
 
   // Closing Price Chart with SMA and Ichimoku
-  const closingPriceData = {
+  const closingPriceData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -309,7 +310,7 @@ export default function ForexDetails() {
   const rsiLabels = technicalIndicators.rsi?.map((entry) => entry.datetime).reverse() ?? [];
   const rsiData = technicalIndicators.rsi?.map((entry) => parseFloat(entry.rsi)).reverse() ?? [];
 
-  const rsiChartData = {
+  const rsiChartData: ChartData<"line", number[], string> = {
     labels: rsiLabels,
     datasets: [
       {
@@ -375,7 +376,7 @@ export default function ForexDetails() {
   const macdSignalData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_signal)).reverse() ?? [];
   const macdHistData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_hist)).reverse() ?? [];
 
-  const macdChartData = {
+  const macdChartData: ChartData<"bar" | "line", number[], string> = {
     labels: macdLabels,
     datasets: [
       {
@@ -420,7 +421,7 @@ export default function ForexDetails() {
   const atrLabels = technicalIndicators.atr?.map((entry) => entry.datetime).reverse() ?? [];
   const atrData = technicalIndicators.atr?.map((entry) => parseFloat(entry.atr)).reverse() ?? [];
 
-  const atrChartData = {
+  const atrChartData: ChartData<"line", number[], string> = {
     labels: atrLabels,
     datasets: [
       {
@@ -447,7 +448,7 @@ export default function ForexDetails() {
   };
 
   // Ichimoku Cloud Chart
-  const ichimokuChartData = {
+  const ichimokuChartData: ChartData<"line", number[], string> = {
     labels,
     datasets: [
       {
@@ -513,7 +514,7 @@ export default function ForexDetails() {
   const aroonUpData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_up)).reverse() ?? [];
   const aroonDownData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_down)).reverse() ?? [];
 
-  const aroonChartData = {
+  const aroonChartData: ChartData<"line", number[], string> = {
     labels: aroonLabels,
     datasets: [
       {
@@ -1084,7 +1085,11 @@ export default function ForexDetails() {
                 <div>
                   <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
                   {technicalIndicators.macd ? (
-                    <Bar options={macdChartOptions} data={macdChartData} />
+                    <Chart
+                      type="bar"
+                      options={macdChartOptions}
+                      data={macdChartData as ChartData<"bar", number[], string>}
+                    />
                   ) : (
                     <p className="text-muted-foreground">
                       No MACD data available for {symbol}.

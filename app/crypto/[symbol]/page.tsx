@@ -20,7 +20,7 @@ import {
   ChartData,
   ChartOptions,
 } from "chart.js";
-import { Line, Bar } from "react-chartjs-2";
+import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle } from "lucide-react";
@@ -1085,7 +1085,11 @@ export default function CryptoDetails() {
                 <div>
                   <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
                   {technicalIndicators.macd ? (
-                    <Bar options={macdChartOptions} data={macdChartData} />
+                    <Chart
+                      type="bar"
+                      options={macdChartOptions}
+                      data={macdChartData as ChartData<"bar", number[], string>}
+                    />
                   ) : (
                     <p className="text-muted-foreground">
                       No MACD data available for {symbol}.

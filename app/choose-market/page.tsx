@@ -78,7 +78,7 @@ export default function ChooseMarket() {
                 <Button variant="ghost">News</Button>
               </Link>
               <Link href="/choose-advisor">
-                <Button variant="ghost">AI Advisor</Button>
+                <Button variant="ghost">AI Advisors</Button>
               </Link>
               <Link href="/">
                 <Button variant="outline">Back to Home</Button>

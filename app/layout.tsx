@@ -7,7 +7,7 @@ import Head from "next/head"; // Import Head from next/head
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Financial Markets Analysis',
+  title: 'Finance Markets Analysis',
   description: 'Real-time stock, forex and crypto markets analysis with news and AI-powered insights',
 };
 

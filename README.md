@@ -249,7 +249,7 @@ NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key      # From groq.com
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ## 👥 Authors
 

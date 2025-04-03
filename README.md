@@ -5,7 +5,9 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 ## 🌟 Features
 
 ### Market Analysis
+
 - **Stocks Analysis**
+
   - Real-time stock market data from Twelve Data API
   - Technical indicators and patterns
   - AI-powered market sentiment analysis
@@ -13,6 +15,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - Stock list with curated selection of stocks
 
 - **Cryptocurrency Analysis**
+
   - Live crypto market data
   - Technical analysis tools
   - Market sentiment indicators
@@ -27,6 +30,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - Live forex pair prices (USD/JPY, EUR/USD)
 
 ### AI-Powered Insights
+
 - Personalized financial advice using Groq API and LLaMA 3 model
 - Market sentiment analysis
 - Trend prediction
@@ -34,6 +38,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - AI-driven recommendations for investments
 
 ### Financial News
+
 - Up to 500 unique finance-related news articles
 - Sentiment analysis for each article
 - Multiple query coverage (finance, stocks, economy, banking, markets)
@@ -42,6 +47,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - Excludes cryptocurrency-related terms
 
 ### User Interface
+
 - Modern, responsive design with shadcn/ui components
 - Interactive charts and graphs using Chart.js and Recharts
 - Real-time data updates
@@ -51,6 +57,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **Framework:** Next.js 15
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
@@ -63,16 +70,18 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - **Icons:** Lucide React
 
 ### Backend
+
 - **API:** Next.js API Routes
-- **AI Integration:** 
+- **AI Integration:**
   - Groq API with LLaMA 3 model for financial insights
   - LangChain for AI processing
-- **Data Processing:** 
+- **Data Processing:**
   - NewsAPI for financial news
   - Twelve Data API for market data
 - **Authentication:** Next.js Middleware
 
 ### Development Tools
+
 - ESLint for code linting
 - TypeScript for type safety
 - PostCSS for CSS processing
@@ -84,7 +93,6 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 ai-finance/
 ├── app/                    # Next.js app directory
 │   ├── api/               # API routes
-│   │   ├── analyze/       # AI analysis endpoints
 │   │   ├── crypto/        # Cryptocurrency data
 │   │   ├── forex/         # Forex market data
 │   │   ├── news/          # Financial news
@@ -138,18 +146,21 @@ The project is deployed on Vercel and can be accessed at:
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js (Latest LTS version recommended)
 - npm or yarn package manager
 
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone [your-repository-url]
 cd ai-finance
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 # or
@@ -157,6 +168,7 @@ yarn install
 ```
 
 3. Create a `.env.local` file in the root directory with required environment variables:
+
 ```env
 NEXT_PUBLIC_NEWSAPI_KEY=your_newsapi_key
 TWELVE_DATA_API_KEY=your_twelve_data_key
@@ -164,6 +176,7 @@ NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key
 ```
 
 4. Start the development server:
+
 ```bash
 npm run dev
 # or
@@ -193,6 +206,7 @@ Vercel will automatically build and deploy your application with each push to th
 ## 🔒 Environment Variables
 
 Required environment variables:
+
 ```env
 NEXT_PUBLIC_NEWSAPI_KEY=your_newsapi_key        # From newsapi.org
 TWELVE_DATA_API_KEY=your_key        # From twelvedata.com
@@ -223,4 +237,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - NewsAPI for financial news data
 - Twelve Data API for market data
 - Groq API and LLaMA 3 for AI insights
-- All other open-source contributors 
+- All other open-source contributors

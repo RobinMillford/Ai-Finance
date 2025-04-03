@@ -15,7 +15,7 @@ const cache = new Map<string, { data: { pairs: ForexPair[]; totalCount: number }
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export async function GET(request: Request) {
-  const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY;
+  const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
   if (!TWELVE_DATA_API_KEY) {
     console.error("API key missing");
     return NextResponse.json({ pairs: [], totalCount: 0 }, { status: 200 });

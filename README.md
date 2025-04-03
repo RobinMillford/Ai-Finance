@@ -147,27 +147,27 @@ The project is deployed on render and can be accessed at:
 
 #### Front Page
 
-![Finance AI Front Page](/Finance-Markets-Analysis%20front%20page.png)
+![Finance AI Front Page](public/Finance-Markets-Analysis%20front%20page.png)
 
 #### Market Analysis Page 2
 
-![Market Analysis Page 2](/Finance-Markets-Analysis%20page%202.png)
+![Market Analysis Page 2](public/Finance-Markets-Analysis%20page%202.png)
 
 #### Market Analysis Page 3
 
-![Market Analysis Page 3](/Finance-Markets-Analysis%20page%203.png)
+![Market Analysis Page 3](public/Finance-Markets-Analysis%20page%203.png)
 
 #### Market Analysis Page 4
 
-![Market Analysis Page 4](/Finance-Markets-Analysis%20page%204.png)
+![Market Analysis Page 4](public/Finance-Markets-Analysis%20page%204.png)
 
 #### Market Analysis Page 5
 
-![Market Analysis Page 5](/Finance-Markets-Analysis%20page%205.png)
+![Market Analysis Page 5](public/Finance-Markets-Analysis%20page%205.png)
 
 #### Market Analysis Page 6
 
-![Market Analysis Page 6](/Finance-Markets-Analysis%20page%206.png)
+![Market Analysis Page 6](public/Finance-Markets-Analysis%20page%206.png)
 
 ## 🚀 Getting Started
 

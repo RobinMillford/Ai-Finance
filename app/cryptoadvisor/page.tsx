@@ -163,7 +163,7 @@ interface ChatSession {
   id: string;
   title: string;
   messages: Message[];
-  lastSymbol?: string; // Track the last symbol used in the session
+  lastSymbol?: string | null | undefined; // Updated to allow null
 }
 
 const chatHistories = new Map<string, InMemoryChatMessageHistory>();
@@ -214,6 +214,7 @@ export default function CryptoAdvisor() {
         id: currentChatId,
         title: "Welcome Chat",
         messages: [initialMessage],
+        lastSymbol: null, // Explicitly set to null initially
       };
       setChatSessions((prev) => [...prev, newSession]);
       setMessages([initialMessage]);
@@ -242,7 +243,7 @@ export default function CryptoAdvisor() {
     chatHistories.set(currentChatId, new InMemoryChatMessageHistory());
     setChatSessions((prev) =>
       prev.map((session) =>
-        session.id === currentChatId ? { ...session, messages: [], lastSymbol: undefined } : session
+        session.id === currentChatId ? { ...session, messages: [], lastSymbol: null } : session
       )
     );
     toast({ title: "Chat Cleared", description: "Chat history cleared." });
@@ -260,6 +261,7 @@ export default function CryptoAdvisor() {
       id: newChatId,
       title: `Chat ${chatSessions.length + 1}`,
       messages: [],
+      lastSymbol: null, // Explicitly set to null
     };
     setChatSessions((prev) => [...prev, newSession]);
     setCurrentChatId(newChatId);
@@ -388,7 +390,7 @@ export default function CryptoAdvisor() {
           symbol = currentSession.lastSymbol; // Use the last symbol from the session
         } else {
           for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].symbol !== undefined) { // Check for undefined explicitly
+            if (messages[i].symbol !== undefined) {
               symbol = messages[i].symbol as string; // Type assertion since we know it’s string if not undefined
               break;
             }
@@ -428,7 +430,6 @@ export default function CryptoAdvisor() {
         return;
       }
   
-      // Rest of the function remains unchanged...
       const isValidSymbol = cryptoPairs.some((pair: any) => pair.symbol === symbol);
       if (!isValidSymbol && cryptoPairs.length > 0) {
         const errorMessage: Message = {

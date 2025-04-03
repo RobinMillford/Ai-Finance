@@ -156,7 +156,7 @@ export default function Home() {
                 <Button variant="ghost">News</Button>
               </Link>
               <Link href="/choose-advisor">
-                <Button variant="ghost">AI Advisor</Button>
+                <Button variant="ghost">AI Advisors</Button>
               </Link>
               <Link href="/choose-market">
                 <Button>Get Started</Button>
@@ -190,7 +190,7 @@ export default function Home() {
             >
               <Link href="/choose-advisor">
                 <Button size="lg" className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700">
-                  Try AI Advisor
+                  Try AI Advisors
                 </Button>
               </Link>
               <Link href="/choose-market">

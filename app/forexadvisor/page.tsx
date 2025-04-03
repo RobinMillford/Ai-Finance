@@ -550,7 +550,7 @@ export default function ForexAdvisor() {
         if (!isValidSymbol) {
           const closestSymbol = forexPairs.reduce(
             (closest: { symbol: string; distance: number }, p) => {
-              const distance = levenshteinDistance(symbol.replace("/", ""), p.symbol.replace("/", ""));
+              const distance = levenshteinDistance(symbol!.replace("/", ""), p.symbol.replace("/", "")); // Non-null assertion
               return distance < closest.distance ? { symbol: p.symbol, distance } : closest;
             },
             { symbol: "", distance: Infinity }

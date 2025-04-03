@@ -740,7 +740,7 @@ export default function ForexAdvisor() {
                 <Button variant="ghost" style={{ color: "white" }}>Other Advisors</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline" style={{ borderColor: "white", color: "white" }}>Back Home</Button>
+                <Button variant="outline" style={{ borderColor: "white", color: "green" }}>Back Home</Button>
               </Link>
             </div>
           </div>

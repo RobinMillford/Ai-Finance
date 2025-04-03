@@ -37,6 +37,10 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - Risk assessment
 - AI-driven recommendations for investments
 
+#### Stock Advisor Chatbot Architecture
+
+![Stock Advisor Chatbot Architecture](public/Diagram%20of%20the%20chatbot.png)
+
 ### Financial News
 
 - Up to 500 unique finance-related news articles

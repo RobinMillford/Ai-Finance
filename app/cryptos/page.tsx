@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight, MessageCircle } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, ChevronRight, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -17,6 +17,11 @@ interface CryptoPair {
   currency_quote: string;
   available_exchanges: string[];
 }
+
+// Theme colors - Crypto themed
+const orange500 = "#F97316"; // Tailwind from-orange-500
+const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
+const whiteBg = "#F9FAFB"; // Light background
 
 export default function CryptoList() {
   const [allCryptoPairs, setAllCryptoPairs] = useState<CryptoPair[]>([]);
@@ -162,275 +167,252 @@ export default function CryptoList() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">FinanceAI</span>
-            </div>
-            <div className="flex space-x-4">
-              <Link href="/choose-market">
-                <Button variant="ghost">Other Markets</Button>
-              </Link>
-              <Link href="/choose-advisor">
-                <Button variant="ghost">AI Advisors</Button>
-              </Link>
-              <Link href="/">
-                <Button variant="outline">Back to Home</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
-        {/* Hero Section */}
-        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
-          <div className="max-w-full mx-auto text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
-                Cryptocurrency Market Analysis
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-                Explore real-time cryptocurrency pair data, filter by quote currency, and dive
-                into detailed analysis for your favorite pairs.
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 gap-6">
-          {/* Search and Filter Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-          >
-            <Card className="p-6 bg-card">
-              <div className="flex items-center gap-4 flex-wrap">
-                {/* Search Bar */}
-                <div className="relative flex-1 min-w-[200px]">
-                  <Input
-                    type="text"
-                    placeholder="Search by symbol, base, or quote currency (e.g., BTC/USD)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border border-muted rounded-lg focus:ring-2 focus:ring-primary"
-                  />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+    <div className="min-h-screen p-6 bg-background">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="max-w-7xl mx-auto space-y-6"
+      >
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
+                  <Coins className="h-6 w-6 text-white" />
                 </div>
-                <Button
-                  onClick={handleSearch}
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-yellow-600 bg-clip-text text-transparent">
+                  Crypto Market
+                </h1>
+              </div>
+              <div className="flex space-x-4">
+                <Link href="/choose-market">
+                  <Button variant="ghost" className="text-foreground hover:text-orange-500">
+                    Other Markets
+                  </Button>
+                </Link>
+                <Link href="/choose-advisor">
+                  <Button variant="ghost" className="text-foreground hover:text-orange-500">
+                    AI Advisors
+                  </Button>
+                </Link>
+                <Link href="/cryptoadvisor">
+                  <Button
+                    className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <MessageCircle className="h-5 w-5" />
+                      Crypto Advisor
+                    </span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 to-orange-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+                  </Button>
+                </Link>
+                <Link href="/">
+                  <Button variant="outline" className="border-orange-500 text-orange-500 hover:bg-orange-50">
+                    Back to Home
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* Search and Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Search Input */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search crypto pairs by symbol or name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-white border-orange-200 focus:border-orange-500 focus:ring-orange-500 text-gray-900 placeholder-gray-500"
+                />
+              </div>
+
+              {/* Quote Currency Filter */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="quote-currency-filter" className="text-sm font-medium text-gray-600">
+                  Quote Currency:
+                </label>
+                <select
+                  id="quote-currency-filter"
+                  value={quoteCurrencyFilter}
+                  onChange={(e) => handleQuoteCurrencyChange(e.target.value)}
+                  className="border border-orange-200 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   disabled={loading}
-                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
                 >
+                  {quoteCurrencyOptions.map((currency) => (
+                    <option key={currency} value={currency} className="text-gray-900">
+                      {currency === "All" ? "All Quote Currencies" : currency}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Button
+                onClick={handleSearch}
+                disabled={loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105"
+              >
+                <span className="relative z-10 flex items-center gap-2">
                   {loading ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
                       Searching...
-                    </span>
+                    </>
                   ) : (
-                    "Search Crypto Pair"
+                    <>
+                      <Search className="h-5 w-5" />
+                      Search
+                    </>
                   )}
-                </Button>
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 to-orange-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
 
-                {/* Quote Currency Filter */}
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="quote-currency-filter"
-                    className="text-sm font-medium text-muted-foreground"
-                  >
-                    Quote Currency:
-                  </label>
-                  <select
-                    id="quote-currency-filter"
-                    value={quoteCurrencyFilter}
-                    onChange={(e) => handleQuoteCurrencyChange(e.target.value)}
-                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                    disabled={loading}
-                  >
-                    {quoteCurrencyOptions.map((currency) => (
-                      <option key={currency} value={currency}>
-                        {currency === "All" ? "All Quote Currencies" : currency}
-                      </option>
-                    ))}
-                  </select>
+        {/* Crypto Listings */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
                 </div>
+                <h2 className="text-2xl font-semibold bg-gradient-to-r from-orange-500 to-yellow-600 bg-clip-text text-transparent">
+                  {searchQuery ? `Search Results (Page ${page})` : `Top Crypto Listings (Page ${page})`}
+                </h2>
               </div>
-            </Card>
-          </motion.div>
-
-          {/* Crypto Listings */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative group"
-          >
-            <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
-            ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
-                    <BarChart3 className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-2xl md:text-3xl font-semibold">
-                    {searchQuery
-                      ? `Search Results (Page ${page})`
-                      : `Top Crypto Listings (Page ${page})`}
-                  </h2>
-                </div>
-                <Button
-                  onClick={fetchCryptoPairs}
-                  disabled={loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
-                >
+              <Button
+                onClick={fetchCryptoPairs}
+                disabled={loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105"
+              >
+                <span className="relative z-10 flex items-center gap-2">
                   {loading ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
                       Refreshing...
-                    </span>
+                    </>
                   ) : (
-                    "Refresh"
+                    <>
+                      <BarChart3 className="h-5 w-5" />
+                      Refresh
+                    </>
                   )}
-                </Button>
-              </div>
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 to-orange-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+              </Button>
+            </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-muted">
-                      <th className="text-left py-3 px-4 text-muted-foreground">Symbol</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Base Currency</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Quote Currency</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">
-                        Available Exchanges
-                      </th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Analyze</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Symbol</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Base Currency</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Quote Currency</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Available Exchanges</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Analyze</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence>
                     {filteredCryptoPairs.length > 0 ? (
                       filteredCryptoPairs.map((pair, index) => (
                         <motion.tr
-                          key={index}
+                          key={pair.symbol}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: index * 0.05 }}
-                          className="border-b border-muted hover:bg-muted/50 transition-colors"
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="border-b border-gray-100 hover:bg-orange-50/50 transition-colors"
                         >
-                          <td className="py-3 px-4 font-medium">{pair.symbol}</td>
-                          <td className="py-3 px-4">{pair.currency_base}</td>
-                          <td className="py-3 px-4">{pair.currency_quote}</td>
-                          <td className="py-3 px-4">{pair.available_exchanges.join(", ")}</td>
-                          <td className="py-3 px-4 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAnalyze(pair.symbol)}
-                              className="text-orange-600 hover:text-yellow-700 flex items-center gap-1"
-                            >
-                              Analyze
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
+                          <td className="py-3 px-4 font-medium text-orange-600">{pair.symbol}</td>
+                          <td className="py-3 px-4 text-foreground">{pair.currency_base}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{pair.currency_quote}</td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            {pair.available_exchanges.join(", ")}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Link href={`/crypto/${encodeURIComponent(pair.symbol)}`}>
+                              <Button
+                                variant="ghost"
+                                className="group relative overflow-hidden rounded-lg hover:bg-orange-50"
+                              >
+                                <span className="relative z-10 flex items-center gap-2 text-orange-600">
+                                  Analyze
+                                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                </span>
+                              </Button>
+                            </Link>
                           </td>
                         </motion.tr>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan={5} className="py-3 px-4 text-center text-muted-foreground">
-                          {loading ? (
-                            <span className="flex items-center justify-center">
-                              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                              Loading crypto pairs...
-                            </span>
-                          ) : (
-                            "No crypto pairs found"
-                          )}
+                      <motion.tr
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="border-b border-gray-100"
+                      >
+                        <td colSpan={5} className="py-8 text-center text-gray-500">
+                          No crypto pairs found
                         </td>
-                      </tr>
+                      </motion.tr>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
 
-              {/* Pagination Controls */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.6 }}
-                className="flex justify-between mt-6"
+            {/* Pagination */}
+            <div className="flex justify-between items-center mt-6">
+              <Button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
               >
-                <Button
-                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={page === 1 || loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
-                >
-                  ⬅ Previous
-                </Button>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-lg text-muted-foreground">Page:</span>
-                  <select
-                    value={page}
-                    onChange={(e) => setPage(parseInt(e.target.value))}
-                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                    disabled={loading}
-                  >
-                    {pageOptions.map((pageNum) => (
-                      <option key={pageNum} value={pageNum}>
-                        {pageNum}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-lg text-muted-foreground">of {totalPages}</span>
-                </div>
-
-                <Button
-                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={page >= totalPages || loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
-                >
-                  Next ➡
-                </Button>
-              </motion.div>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Floating Chatbot Logo */}
-        <motion.div
-          className="fixed bottom-6 right-6 z-50 group"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
-          whileHover={{ scale: 1.1 }}
-        >
-          <Link href="/cryptoadvisor">
-            <Button
-              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-yellow-600 hover:from-orange-600 hover:to-yellow-700 transition-all duration-300"
-            >
-              <MessageCircle className="h-6 w-6 text-white" />
-            </Button>
-          </Link>
-          {/* Tooltip */}
-          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
-            Your Crypto Advisor
-          </div>
+                Previous
+              </Button>
+              <span className="text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
+              >
+                Next
+              </Button>
+            </div>
+          </Card>
         </motion.div>
-      </main>
+      </motion.div>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight, MessageCircle } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, TrendingUp, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
@@ -18,6 +18,13 @@ interface Stock {
   currency?: string;
   country?: string;
 }
+
+// Theme colors
+const blue500 = "#3B82F6";
+const indigo600 = "#4F46E5";
+const whiteBg = "#F9FAFB";
+const gradientStart = "#3B82F6";
+const gradientEnd = "#4F46E5";
 
 export default function Stocks() {
   const [allStocks, setAllStocks] = useState<Stock[]>([]);
@@ -120,178 +127,194 @@ export default function Stocks() {
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">FinanceAI</span>
-            </div>
-            <div className="flex space-x-4">
-              <Link href="/choose-market">
-                <Button variant="ghost">Other Markets</Button>
-              </Link>
-              <Link href="/choose-advisor">
-                <Button variant="ghost">AI Advisors</Button>
-              </Link>
-              <Link href="/">
-                <Button variant="outline">Back to Home</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
-        {/* Hero Section */}
-        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
-          <div className="max-w-full mx-auto text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
-                Stock Market Analysis
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-                Explore real-time stock data, filter by exchange and type, and dive into detailed analysis for your favorite stocks.
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 gap-6">
-          {/* Search and Filter Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-          >
-            <Card className="p-6 bg-card">
-              <div className="flex items-center gap-4 flex-wrap">
-                {/* Search Bar */}
-                <div className="relative flex-1 min-w-[200px]">
-                  <Input
-                    type="text"
-                    placeholder="Search by symbol or name (e.g., AAPL)"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      handleSearch(e.target.value);
-                    }}
-                    className="pl-10 border border-muted rounded-lg focus:ring-2 focus:ring-primary"
-                    disabled={loading}
-                  />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+    <div className="min-h-screen p-6 bg-background">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="max-w-7xl mx-auto space-y-6"
+      >
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+                  <TrendingUp className="h-6 w-6 text-white" />
                 </div>
-
-                {/* Exchange Filter */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="exchange-filter" className="text-sm font-medium text-muted-foreground">
-                    Exchange:
-                  </label>
-                  <select
-                    id="exchange-filter"
-                    value={selectedExchange}
-                    onChange={(e) => setSelectedExchange(e.target.value)}
-                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                    disabled={loading}
-                  >
-                    {exchangeOptions.map((exchange) => (
-                      <option key={exchange} value={exchange}>
-                        {exchange}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Type Filter */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="type-filter" className="text-sm font-medium text-muted-foreground">
-                    Type:
-                  </label>
-                  <select
-                    id="type-filter"
-                    value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value)}
-                    className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                    disabled={loading}
-                  >
-                    {typeOptions.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
+                  Stock Market
+                </h1>
               </div>
-            </Card>
-          </motion.div>
-
-          {/* Stock Listings */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative group"
-          >
-            <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
-            ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
-                    <BarChart3 className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-2xl md:text-3xl font-semibold">
-                    {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
-                  </h2>
-                </div>
-                <Button
-                  onClick={fetchStocks}
-                  disabled={loading}
-                  variant="outline"
-                  className="border border-muted hover:bg-muted/50"
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Refreshing...
+              <div className="flex space-x-4">
+                <Link href="/choose-market">
+                  <Button variant="ghost" className="text-foreground hover:text-blue-500">
+                    Other Markets
+                  </Button>
+                </Link>
+                <Link href="/choose-advisor">
+                  <Button variant="ghost" className="text-foreground hover:text-blue-500">
+                    AI Advisors
+                  </Button>
+                </Link>
+                <Link href="/stockadvisor">
+                  <Button
+                    className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-2 text-white transition-all hover:scale-105"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <MessageCircle className="h-5 w-5" />
+                      Stock Advisor
                     </span>
-                  ) : (
-                    "Refresh"
-                  )}
-                </Button>
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+                  </Button>
+                </Link>
+                <Link href="/">
+                  <Button variant="outline" className="border-blue-500 text-blue-500 hover:bg-blue-50">
+                    Back to Home
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* Search and Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Search Input */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search stocks by symbol or name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-white border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+                />
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-muted">
-                      <th className="text-left py-3 px-4 text-muted-foreground">Symbol</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Name</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Exchange</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Type</th>
-                      <th className="text-left py-3 px-4 text-muted-foreground">Analyze</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              {/* Exchange Filter */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="exchange-filter" className="text-sm font-medium text-gray-600">
+                  Exchange:
+                </label>
+                <select
+                  id="exchange-filter"
+                  value={selectedExchange}
+                  onChange={(e) => setSelectedExchange(e.target.value)}
+                  className="border border-blue-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading}
+                >
+                  {exchangeOptions.map((exchange) => (
+                    <option key={exchange} value={exchange}>
+                      {exchange}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="type-filter" className="text-sm font-medium text-gray-600">
+                  Type:
+                </label>
+                <select
+                  id="type-filter"
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="border border-blue-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading}
+                >
+                  {typeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* Stock Listings */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative p-6 bg-card">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
+                  {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
+                </h2>
+              </div>
+              <Button
+                onClick={fetchStocks}
+                disabled={loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-2 text-white transition-all hover:scale-105"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <BarChart3 className="h-5 w-5" />
+                      Refresh
+                    </>
+                  )}
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Symbol</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Name</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Exchange</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Type</th>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Analyze</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence>
                     {filteredStocks.length > 0 ? (
                       filteredStocks.map((stock, index) => (
                         <motion.tr
-                          key={stock.symbol} // Use symbol as key for uniqueness
+                          key={stock.symbol}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: index * 0.05 }}
-                          className="border-b border-muted hover:bg-muted/50 transition-colors"
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors"
                         >
-                          <td className="py-3 px-4 font-medium">{stock.symbol}</td>
-                          <td className="py-3 px-4">{stock.name}</td>
-                          <td className="py-3 px-4">{stock.exchange}</td>
+                          <td className="py-3 px-4 font-medium text-blue-600">{stock.symbol}</td>
+                          <td className="py-3 px-4 text-foreground">{stock.name}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{stock.exchange}</td>
                           <td className="py-3 px-4">
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -303,106 +326,60 @@ export default function Stocks() {
                               {stock.status}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4">
                             <Link href={`/stock/${stock.symbol}`}>
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="text-blue-600 hover:text-indigo-700 flex items-center gap-1"
+                                className="group relative overflow-hidden rounded-lg hover:bg-blue-50"
                               >
-                                Analyze
-                                <ArrowRight className="h-4 w-4" />
+                                <span className="relative z-10 flex items-center gap-2 text-blue-600">
+                                  Analyze
+                                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                </span>
                               </Button>
                             </Link>
                           </td>
                         </motion.tr>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan={5} className="py-3 px-4 text-center text-muted-foreground">
-                          {loading ? (
-                            <span className="flex items-center justify-center">
-                              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                              Loading stocks...
-                            </span>
-                          ) : (
-                            "No stocks found"
-                          )}
+                      <motion.tr
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="border-b border-gray-100"
+                      >
+                        <td colSpan={5} className="py-8 text-center text-gray-500">
+                          No stocks found
                         </td>
-                      </tr>
+                      </motion.tr>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
 
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.6 }}
-                  className="flex justify-between mt-6"
-                >
-                  <Button
-                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={page === 1 || loading}
-                    variant="outline"
-                    className="border border-muted hover:bg-muted/50"
-                  >
-                    ⬅ Previous
-                  </Button>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg text-muted-foreground">Page:</span>
-                    <select
-                      value={page}
-                      onChange={(e) => setPage(parseInt(e.target.value))}
-                      className="border border-muted rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-primary"
-                      disabled={loading}
-                    >
-                      {pageOptions.map((pageNum) => (
-                        <option key={pageNum} value={pageNum}>
-                          {pageNum}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-lg text-muted-foreground">of {totalPages}</span>
-                  </div>
-
-                  <Button
-                    onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={page >= totalPages || loading}
-                    variant="outline"
-                    className="border border-muted hover:bg-muted/50"
-                  >
-                    Next ➡
-                  </Button>
-                </motion.div>
-              )}
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Floating Chatbot Logo */}
-        <motion.div
-          className="fixed bottom-6 right-6 z-50 group"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
-          whileHover={{ scale: 1.1 }}
-        >
-          <Link href="/stockadvisor">
-            <Button
-              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transition-all duration-300"
-            >
-              <MessageCircle className="h-6 w-6 text-white" />
-            </Button>
-          </Link>
-          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
-            Your Stock Advisor
-          </div>
+            {/* Pagination */}
+            <div className="flex justify-between items-center mt-6">
+              <Button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
+              >
+                Previous
+              </Button>
+              <span className="text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || loading}
+                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
+              >
+                Next
+              </Button>
+            </div>
+          </Card>
         </motion.div>
-      </main>
+      </motion.div>
     </div>
   );
 }

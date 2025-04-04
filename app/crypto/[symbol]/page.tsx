@@ -20,11 +20,12 @@ import {
   ChartData,
   ChartOptions,
 } from "chart.js";
-import { Chart, Line } from "react-chartjs-2";
+import { Chart, Line, Bar } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle } from "lucide-react";
 import { AnnotationOptions } from "chartjs-plugin-annotation";
+import { toast } from "react-hot-toast";
 
 // Register Chart.js components
 ChartJS.register(
@@ -39,9 +40,24 @@ ChartJS.register(
   annotationPlugin
 );
 
+// Theme colors
+const orange500 = "#F97316"; // Tailwind from-orange-500
+const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
+const whiteBg = "#F9FAFB"; // Light background
+
 interface OverviewData {
   logo_base: string | null;
   logo_quote: string | null;
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  dayHigh: number;
+  dayLow: number;
+  volume: number;
+  marketCap: number;
+  lastUpdated: string;
 }
 
 interface CryptoData {
@@ -88,6 +104,31 @@ interface CryptoData {
     datetime: string;
     close: string;
   };
+  overview: OverviewData;
+  technicalIndicators: {
+    rsi: number[];
+    macd: {
+      macdLine: number[];
+      signalLine: number[];
+      histogram: number[];
+    };
+    bollingerBands: {
+      upper: number[];
+      middle: number[];
+      lower: number[];
+    };
+    adx: number[];
+    atr: number[];
+    aroon: {
+      up: number[];
+      down: number[];
+    };
+  };
+  priceHistory: {
+    date: string;
+    close: number;
+    adjustedClose: number;
+  }[];
 }
 
 interface TechnicalIndicators {
@@ -213,7 +254,7 @@ export default function CryptoDetails() {
         toast({
           title: "Error",
           description: errorMessage || "Failed to fetch crypto data",
-          variant: "destructive",
+          variant: "destructive"
         });
         setOverview(null);
         setCryptoData(null);
@@ -1085,11 +1126,7 @@ export default function CryptoDetails() {
                 <div>
                   <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
                   {technicalIndicators.macd ? (
-                    <Chart
-                      type="bar"
-                      options={macdChartOptions}
-                      data={macdChartData as ChartData<"bar", number[], string>}
-                    />
+                    <Bar data={macdChartData as ChartData<"bar", number[], string>} options={macdChartOptions} />
                   ) : (
                     <p className="text-muted-foreground">
                       No MACD data available for {symbol}.

@@ -15,7 +15,7 @@ import { MessageContentComplex } from "@langchain/core/messages"; // Import for 
 
 // Theme colors inspired by from-orange-500 to-yellow-600
 const orange500 = "#F97316"; // Tailwind from-orange-500
-const yellow600 = "#D97706"; // Tailwind to-yellow-600
+const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
 const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for crypto data and indicators
@@ -300,13 +300,18 @@ export default function CryptoAdvisor() {
       content: input,
       timestamp: new Date().toLocaleTimeString(),
     };
+    
+    // Update messages state first
     setMessages((prev) => {
       const updatedMessages = [...prev, userMessage];
-      setChatSessions((prevSessions) =>
-        prevSessions.map((session) =>
-          session.id === currentChatId ? { ...session, messages: updatedMessages } : session
-        )
-      );
+      // Update chat sessions in a separate operation to avoid state update conflicts
+      setTimeout(() => {
+        setChatSessions((prevSessions) =>
+          prevSessions.map((session) =>
+            session.id === currentChatId ? { ...session, messages: updatedMessages } : session
+          )
+        );
+      }, 0);
       return updatedMessages;
     });
   
@@ -326,6 +331,7 @@ export default function CryptoAdvisor() {
       );
     }
   
+    const userInput = input; // Store input before clearing
     setInput("");
     setLoading(true);
   
@@ -338,7 +344,7 @@ export default function CryptoAdvisor() {
   
       const chatHistory = chatHistories.get(currentChatId);
       if (!chatHistory) throw new Error("Chat history not initialized.");
-      await chatHistory.addMessage(new HumanMessage(input));
+      await chatHistory.addMessage(new HumanMessage(userInput));
   
       const systemPrompt = `
         You are Crypto Buddy, a friendly AI assistant for anyone curious about cryptocurrencies, from beginners to experts. Your goal is to understand casual or vague questions and provide clear, helpful answers about crypto prices, trends, or indicators. Use a conversational tone and avoid jargon unless explaining it.
@@ -568,7 +574,7 @@ export default function CryptoAdvisor() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <header className="border-b" style={{ background: `linear-gradient(to right, ${orange500}, ${yellow600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -598,7 +604,7 @@ export default function CryptoAdvisor() {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <AnimatePresence>
           {isSidebarOpen && (
@@ -607,8 +613,8 @@ export default function CryptoAdvisor() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-64 border-r p-4 flex flex-col lg:w-80"
-              style={{ backgroundColor: whiteBg }}
+              className="w-64 border-r p-4 flex flex-col lg:w-80 overflow-hidden"
+              style={{ backgroundColor: "var(--background)" }}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold" style={{ color: yellow600 }}>Chat History</h2>
@@ -631,7 +637,7 @@ export default function CryptoAdvisor() {
                     key={session.id}
                     whileHover={{ scale: 1.02 }}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-orange-100" : "hover:bg-gray-100"
+                      session.id === currentChatId ? "bg-orange-100 dark:bg-orange-900" : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
                     <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
@@ -648,10 +654,10 @@ export default function CryptoAdvisor() {
         </AnimatePresence>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4">
             {cryptoPairsError && (
-              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{cryptoPairsError}</div>
+              <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-4 rounded-lg mb-4">{cryptoPairsError}</div>
             )}
             {messages.map((message, index) => (
               <motion.div
@@ -663,7 +669,7 @@ export default function CryptoAdvisor() {
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg shadow-md ${
-                    message.role === "user" ? "text-white" : "bg-white text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${orange500}, ${yellow600})` : undefined,
@@ -678,7 +684,7 @@ export default function CryptoAdvisor() {
             ))}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-white p-3 rounded-lg shadow-md">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md">
                   <Loader2 className="h-5 w-5 animate-spin" style={{ color: yellow600 }} />
                 </div>
               </div>
@@ -687,7 +693,7 @@ export default function CryptoAdvisor() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, ${whiteBg}, #E5E7EB)` }}>
+          <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, var(--background), var(--muted))` }}>
             <div className="flex space-x-2">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
@@ -704,7 +710,7 @@ export default function CryptoAdvisor() {
                 placeholder="Ask me anything—like 'How's Bitcoin?' or 'What's ETH worth?'"
                 className="flex-1 resize-none shadow-md"
                 rows={2}
-                style={{ borderColor: orange500, backgroundColor: "white", color: yellow600 }}
+                style={{ borderColor: orange500, backgroundColor: "var(--background)", color: "var(--foreground)" }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

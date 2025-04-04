@@ -37,6 +37,11 @@ ChartJS.register(
   annotationPlugin
 );
 
+// Add theme colors at the top of the file after imports
+const green500 = "#10B981";
+const emerald600 = "#059669";
+const whiteBg = "#F9FAFB";
+
 interface OverviewData {
   logo_base: string | null;
   logo_quote: string | null;
@@ -298,10 +303,32 @@ export default function ForexDetails() {
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+        },
       },
       title: {
         display: true,
-        text: `${symbol} Price History with Indicators`,
+        text: "Price History",
+        color: "#6B7280",
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+        },
       },
     },
   };
@@ -520,15 +547,15 @@ export default function ForexDetails() {
       {
         label: "Aroon Up",
         data: aroonUpData,
-        borderColor: "rgb(0, 255, 0)",
-        backgroundColor: "rgba(0, 255, 0, 0.5)",
+        borderColor: green500,
+        backgroundColor: `${green500}80`,
         fill: false,
       },
       {
         label: "Aroon Down",
         data: aroonDownData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        borderColor: emerald600,
+        backgroundColor: `${emerald600}80`,
         fill: false,
       },
     ],
@@ -696,7 +723,12 @@ export default function ForexDetails() {
                 <Button variant="ghost">Other Markets</Button>
               </Link>
               <Link href="/forexs">
-                <Button variant="outline">Back to Forex Listings</Button>
+                <Button
+                  variant="outline"
+                  className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
+                >
+                  Back to Forex Listings
+                </Button>
               </Link>
             </div>
           </div>
@@ -731,7 +763,7 @@ export default function ForexDetails() {
                     />
                   </div>
                 ) : null}
-                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
+                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600">
                   {symbol} - {forexData.quote.name || "Unknown"}
                 </h1>
               </div>

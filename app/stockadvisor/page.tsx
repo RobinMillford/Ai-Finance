@@ -358,13 +358,18 @@ export default function StockAdvisor() {
     if (!input.trim()) return;
   
     const userMessage: Message = { role: "user", content: input, timestamp: new Date().toLocaleTimeString() };
+    
+    // Update messages state first
     setMessages((prev) => {
       const updatedMessages = [...prev, userMessage];
-      setChatSessions((prevSessions) =>
-        prevSessions.map((session) =>
-          session.id === currentChatId ? { ...session, messages: updatedMessages } : session
-        )
-      );
+      // Update chat sessions in a separate operation to avoid state update conflicts
+      setTimeout(() => {
+        setChatSessions((prevSessions) =>
+          prevSessions.map((session) =>
+            session.id === currentChatId ? { ...session, messages: updatedMessages } : session
+          )
+        );
+      }, 0);
       return updatedMessages;
     });
   
@@ -381,6 +386,7 @@ export default function StockAdvisor() {
       );
     }
   
+    const userInput = input; // Store input before clearing
     setInput("");
     setLoading(true);
   
@@ -393,7 +399,7 @@ export default function StockAdvisor() {
   
       const chatHistory = chatHistories.get(currentChatId);
       if (!chatHistory) throw new Error("Chat history not initialized.");
-      await chatHistory.addMessage(new HumanMessage(input));
+      await chatHistory.addMessage(new HumanMessage(userInput));
   
       const prompt = ChatPromptTemplate.fromMessages([["system", systemPrompt], ["human", "{input}"]]);
   
@@ -574,7 +580,7 @@ export default function StockAdvisor() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: whiteBg }}>
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       <header className="border-b" style={{ background: `linear-gradient(to right, ${blue500}, ${indigo600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
@@ -588,7 +594,7 @@ export default function StockAdvisor() {
               </span>
             </div>
             <div className="flex space-x-4">
-            <Link href="/choose-market">
+              <Link href="/choose-market">
                 <Button variant="ghost" style={{ color: "white" }}>
                   All Markets
                 </Button>
@@ -613,7 +619,7 @@ export default function StockAdvisor() {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
@@ -621,8 +627,8 @@ export default function StockAdvisor() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-64 border-r p-4 flex flex-col lg:w-80"
-              style={{ backgroundColor: whiteBg }}
+              className="w-64 border-r p-4 flex flex-col lg:w-80 overflow-hidden"
+              style={{ backgroundColor: "var(--background)" }}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold" style={{ color: indigo600 }}>
@@ -647,7 +653,7 @@ export default function StockAdvisor() {
                     key={session.id}
                     whileHover={{ scale: 1.02 }}
                     className={`flex justify-between items-center p-2 rounded-lg mb-2 cursor-pointer ${
-                      session.id === currentChatId ? "bg-blue-100" : "hover:bg-gray-100"
+                      session.id === currentChatId ? "bg-blue-100 dark:bg-blue-900" : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
                     <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
@@ -665,10 +671,10 @@ export default function StockAdvisor() {
           )}
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4">
             {stockListingsError && (
-              <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{stockListingsError}</div>
+              <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-4 rounded-lg mb-4">{stockListingsError}</div>
             )}
             {messages.map((message, index) => (
               <motion.div
@@ -680,7 +686,7 @@ export default function StockAdvisor() {
               >
                 <div
                   className={`max-w-[70%] p-3 rounded-lg shadow-md ${
-                    message.role === "user" ? "text-white" : "bg-white text-gray-800"
+                    message.role === "user" ? "text-white" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${blue500}, ${indigo600})` : undefined,
@@ -695,7 +701,7 @@ export default function StockAdvisor() {
             ))}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-white p-3 rounded-lg shadow-md">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md">
                   <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
                 </div>
               </div>
@@ -703,7 +709,7 @@ export default function StockAdvisor() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, ${whiteBg}, #E5E7EB)` }}>
+          <div className="border-t p-4" style={{ background: `linear-gradient(to bottom, var(--background), var(--muted))` }}>
             <div className="flex space-x-2">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="outline" onClick={handleClearChat} style={{ borderColor: blue500, color: blue500 }}>
@@ -716,7 +722,7 @@ export default function StockAdvisor() {
                 placeholder="Ask about a US stock (e.g., 'Analyze AAPL', 'RSI for TSLA')"
                 className="flex-1 resize-none shadow-md"
                 rows={2}
-                style={{ borderColor: blue500, backgroundColor: "white", color: indigo600 }}
+                style={{ borderColor: blue500, backgroundColor: "var(--background)", color: "var(--foreground)" }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

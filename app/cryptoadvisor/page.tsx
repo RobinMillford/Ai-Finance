@@ -204,7 +204,7 @@ export default function CryptoAdvisor() {
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Hey there! I’m your Crypto Buddy, here to help you with Bitcoin and other cryptocurrencies. You can ask me anything—like "How’s Bitcoin doing?" or "What’s ETH worth?"—and I’ll figure it out for you. What’s on your mind?`,
+      content: `Hey there! I'm your Crypto Buddy, here to help you with Bitcoin and other cryptocurrencies. You can ask me anything—like "How's Bitcoin doing?" or "What's ETH worth?"—and I'll figure it out for you. What's on your mind?`,
       timestamp: new Date().toLocaleTimeString(),
     };
 
@@ -317,7 +317,7 @@ export default function CryptoAdvisor() {
       const cryptoMatch = cryptoNames.find((name) => input.toLowerCase().includes(name));
       if (symbolMatch || cryptoMatch) {
         const symbol = symbolMatch || (cryptoMatch === "bitcoin" || cryptoMatch === "btc" ? "BTC/USD" : "ETH/USD");
-        newTitle = input.toLowerCase().includes("how") ? `How’s ${symbol}?` : `Query about ${symbol}`;
+        newTitle = input.toLowerCase().includes("how") ? `How's ${symbol}?` : `Query about ${symbol}`;
       }
       setChatSessions((prev) =>
         prev.map((session) =>
@@ -343,32 +343,32 @@ export default function CryptoAdvisor() {
       const systemPrompt = `
         You are Crypto Buddy, a friendly AI assistant for anyone curious about cryptocurrencies, from beginners to experts. Your goal is to understand casual or vague questions and provide clear, helpful answers about crypto prices, trends, or indicators. Use a conversational tone and avoid jargon unless explaining it.
   
-        1. **Understand Intent**: Interpret the user’s request, even if vague (e.g., "How’s Bitcoin doing?" → BTC/USD price/trend, "What’s ETH worth?" → ETH/USD price).
+        1. **Understand Intent**: Interpret the user's request, even if vague (e.g., "How's Bitcoin doing?" → BTC/USD price/trend, "What's ETH worth?" → ETH/USD price).
            - Recognize common crypto names: "Bitcoin" or "BTC" → BTC/USD, "Ethereum" or "ETH" → ETH/USD.
            - If no symbol is specified in the current input, use the last symbol mentioned in the chat history (tracked as "lastSymbol" in the session or "symbol" in messages).
            - If no symbol is clear, default to BTC/USD for general crypto queries.
         2. **Handle Requests**:
-           - Price/value questions (e.g., "What’s Bitcoin at?"): Fetch "quote" data.
-           - Trend/performance (e.g., "How’s BTC doing?"): Fetch "quote" and "time_series" for recent trend.
+           - Price/value questions (e.g., "What's Bitcoin at?"): Fetch "quote" data.
+           - Trend/performance (e.g., "How's BTC doing?"): Fetch "quote" and "time_series" for recent trend.
            - Technical indicators (e.g., "RSI for BTC", "STOCH for ETH"): Fetch the specific indicator (only if explicitly mentioned).
            - General analysis (e.g., "Analyze Bitcoin"): Fetch quote, time series, and common indicators (EMA, RSI, MACD).
            - Casual queries (e.g., "Is Bitcoin up?"): Fetch "quote" or "time_series" and summarize.
         3. **Use API Data**: Use the JSON under "API Data". If a field (e.g., "time_series") has an "error" key, report the specific error.
         4. **Respond**:
-           - Keep it simple: "Bitcoin’s at $50,000, up 2% today!" or "ETH’s been steady around 0.05 BTC lately."
-           - For indicators: Explain briefly (e.g., "RSI is 65, meaning it’s close to being overbought—might slow down soon").
-           - If data fails: "I couldn’t get [data] for [symbol] because [error]. Want to try something else?"
+           - Keep it simple: "Bitcoin's at $50,000, up 2% today!" or "ETH's been steady around 0.05 BTC lately."
+           - For indicators: Explain briefly (e.g., "RSI is 65, meaning it's close to being overbought—might slow down soon").
+           - If data fails: "I couldn't get [data] for [symbol] because [error]. Want to try something else?"
         5. **Supported Indicators**: Predefined: EMA (20-day), RSI (14-day), MACD (12,26,9), BBANDS, ATR, OBV, Supertrend, STOCH, ADX. Others are attempted if requested.
         6. **Context**: Use chat history to maintain context—stick to the last symbol unless a new one is mentioned.
-        7. **Tone**: Friendly and approachable, e.g., "Hey, looks like Bitcoin’s on a roll!"
+        7. **Tone**: Friendly and approachable, e.g., "Hey, looks like Bitcoin's on a roll!"
   
         Example:
-        User: "How’s Bitcoin doing?"
-        Response: "Hey! Bitcoin (BTC/USD) is at $50,000, up 2% today based on the latest quote. Over the last 10 days, it’s climbed about 5%. Want more details?"
-        User: "What’s STOCH?"
-        Response: "For Bitcoin (BTC/USD), the Stochastic indicator shows SlowK at 75 and SlowD at 70. That’s a hint it might be overbought—could be peaking soon!"
+        User: "How's Bitcoin doing?"
+        Response: "Hey! Bitcoin (BTC/USD) is at $50,000, up 2% today based on the latest quote. Over the last 10 days, it's climbed about 5%. Want more details?"
+        User: "What's STOCH?"
+        Response: "For Bitcoin (BTC/USD), the Stochastic indicator shows SlowK at 75 and SlowD at 70. That's a hint it might be overbought—could be peaking soon!"
         User: "time series data of BTC"
-        Response (if failed): "Oops, I couldn’t get the time series for BTC/USD because [error]. How about the current price instead?"
+        Response (if failed): "Oops, I couldn't get the time series for BTC/USD because [error]. How about the current price instead?"
       `;
   
       const prompt = ChatPromptTemplate.fromMessages([
@@ -391,7 +391,7 @@ export default function CryptoAdvisor() {
         } else {
           for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].symbol !== undefined) {
-              symbol = messages[i].symbol as string; // Type assertion since we know it’s string if not undefined
+              symbol = messages[i].symbol as string; // Type assertion since we know it's string if not undefined
               break;
             }
             const match = messages[i].content.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/);
@@ -414,7 +414,7 @@ export default function CryptoAdvisor() {
       if (!symbol) {
         const errorMessage: Message = {
           role: "assistant",
-          content: "I’m not sure which crypto you mean! Could you mention something like 'Bitcoin' or 'ETH' so I can help you?",
+          content: "I'm not sure which crypto you mean! Could you mention something like 'Bitcoin' or 'ETH' so I can help you?",
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -434,7 +434,7 @@ export default function CryptoAdvisor() {
       if (!isValidSymbol && cryptoPairs.length > 0) {
         const errorMessage: Message = {
           role: "assistant",
-          content: `Hmm, I couldn’t find '${symbol}'. Did you mean something like 'BTC/USD' for Bitcoin or 'ETH/BTC' for Ethereum? Let me know!`,
+          content: `Hmm, I couldn't find '${symbol}'. Did you mean something like 'BTC/USD' for Bitcoin or 'ETH/BTC' for Ethereum? Let me know!`,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -568,7 +568,7 @@ export default function CryptoAdvisor() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: whiteBg }}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b" style={{ background: `linear-gradient(to right, ${orange500}, ${yellow600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -701,7 +701,7 @@ export default function CryptoAdvisor() {
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask me anything—like 'How’s Bitcoin?' or 'What’s ETH worth?'"
+                placeholder="Ask me anything—like 'How's Bitcoin?' or 'What's ETH worth?'"
                 className="flex-1 resize-none shadow-md"
                 rows={2}
                 style={{ borderColor: orange500, backgroundColor: "white", color: yellow600 }}

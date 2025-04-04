@@ -57,6 +57,8 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - Real-time data updates
 - Mobile-friendly interface
 - Animated transitions with Framer Motion
+- Dark/Light theme toggle with system preference detection
+- Theme persistence across page refreshes
 
 ## 🛠️ Tech Stack
 

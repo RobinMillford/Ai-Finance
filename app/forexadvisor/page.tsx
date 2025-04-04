@@ -253,7 +253,7 @@ export default function ForexAdvisor() {
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: `Hey there! I’m your Forex Buddy, here to help you navigate the currency markets. Ask me anything—like "Analyze EUR/USD" or "What’s the RSI for GBP/JPY?"—and I’ll break it down for you with the latest data. What’s on your mind?`,
+      content: `Hey there! I'm your Forex Buddy, here to help you navigate the currency markets. Ask me anything—like "Analyze EUR/USD" or "What's the RSI for GBP/JPY?"—and I'll break it down for you with the latest data. What's on your mind?`,
       timestamp: new Date().toLocaleTimeString(),
     };
 
@@ -435,17 +435,17 @@ export default function ForexAdvisor() {
         1. **Identify the Symbol**:
            - The user may provide a symbol (e.g., "EUR/USD") or pair name (e.g., "Euro to US Dollar").
            - If no symbol is provided in the current message, use the most recent symbol from the chat history.
-           - The code has already validated the symbol, so assume it’s valid when provided.
+           - The code has already validated the symbol, so assume it's valid when provided.
 
         2. **Identify Requested Data**:
            - For "analyze [symbol]", provide a concise analysis with current price, daily change, 30-day trend, and a few key indicators (EMA, RSI, MACD).
-           - For specific indicators (e.g., "What’s the RSI for [symbol]?"), only provide the requested indicator.
+           - For specific indicators (e.g., "What's the RSI for [symbol]?"), only provide the requested indicator.
            - For forex stats (e.g., "current price of [symbol]"), only provide the requested data.
            - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20, 2 SD), ADX (14), ATR (14), Ichimoku, STOCH, CCI, MOM, Pivot Points.
 
         3. **Use Provided Data**:
            - Use only the API data provided in the input under "API Data". Do not fetch data yourself.
-           - If data is missing, inform the user (e.g., "I couldn’t fetch the RSI for [symbol].").
+           - If data is missing, inform the user (e.g., "I couldn't fetch the RSI for [symbol].").
 
         4. **Deep Analysis**:
            - For general analysis: Include price, change, trend, and key indicators (EMA, RSI, MACD).
@@ -453,14 +453,14 @@ export default function ForexAdvisor() {
            - Use data-driven insights (e.g., "RSI at 70 suggests overbought conditions").
 
         5. **Handle Unsupported Indicators**:
-           - If an indicator isn’t supported, say: "Indicator 'XYZ' isn’t available. Try EMA, RSI, MACD, etc."
+           - If an indicator isn't supported, say: "Indicator 'XYZ' isn't available. Try EMA, RSI, MACD, etc."
 
         6. **Maintain Context**:
-           - Use chat history for context (e.g., if "What’s the RSI?" follows EUR/USD discussion, answer for EUR/USD).
+           - Use chat history for context (e.g., if "What's the RSI?" follows EUR/USD discussion, answer for EUR/USD).
 
         7. **Response Format**:
            - Use clear, concise language with bullet points or short paragraphs.
-           - Do not invent data. Use only what’s provided.
+           - Do not invent data. Use only what's provided.
       `;
 
       const prompt = ChatPromptTemplate.fromMessages([
@@ -558,7 +558,7 @@ export default function ForexAdvisor() {
           const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
           const errorMessage: Message = {
             role: "assistant",
-            content: `I couldn’t find '${symbol}' in the forex pairs list.${suggestion} Try 'EUR/USD' or 'GBP/JPY'.`,
+            content: `I couldn't find '${symbol}' in the forex pairs list.${suggestion} Try 'EUR/USD' or 'GBP/JPY'.`,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
@@ -591,7 +591,7 @@ export default function ForexAdvisor() {
       let indicatorsData: { [key: string]: { data: any; timestamp: number } } | undefined = undefined;
       const apiCallCount = { count: 0 };
 
-      // Fetch only what’s needed
+      // Fetch only what's needed
       if (needsForexData || isGeneralAnalysis) {
         const fields = [];
         if (input.toLowerCase().includes("price") || input.toLowerCase().includes("change") || isGeneralAnalysis) {
@@ -717,7 +717,7 @@ export default function ForexAdvisor() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: whiteBg }}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b" style={{ background: `linear-gradient(to right, ${green500}, ${emerald600})` }}>
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -852,7 +852,7 @@ export default function ForexAdvisor() {
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about a forex pair (e.g., 'Analyze EUR/USD', 'What’s the RSI for GBP/JPY?')"
+                placeholder="Ask about a forex pair (e.g., 'Analyze EUR/USD', 'What's the RSI for GBP/JPY?')"
                 className="flex-1 resize-none shadow-md"
                 rows={2}
                 style={{ borderColor: green500, backgroundColor: "white", color: emerald600 }}

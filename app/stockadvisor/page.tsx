@@ -15,7 +15,7 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 // Theme colors
 const blue500 = "#3B82F6";
 const indigo600 = "#4F46E5";
-const whiteBg = "#F9FAFB";
+const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for stock data and indicators
 const stockDataCache = new Map<string, { data: any; timestamp: number }>();
@@ -240,7 +240,7 @@ export default function StockAdvisor() {
   useEffect(() => {
     const initialMessage: Message = {
       role: "assistant",
-      content: "Hey there! I’m your Stock Buddy, here to help with US stocks (NASDAQ/NYSE only). Ask me anything—like 'Analyze AAPL' or 'What’s the RSI for TSLA?'—and I’ll fetch the latest data. What’s on your mind?",
+      content: "Hey there! I'm your Stock Buddy, here to help with US stocks (NASDAQ/NYSE only). Ask me anything—like 'Analyze AAPL' or 'What's the RSI for TSLA?'—and I'll fetch the latest data. What's on your mind?",
       timestamp: new Date().toLocaleTimeString(),
     };
     if (!chatHistories.has(currentChatId)) {
@@ -321,20 +321,20 @@ export default function StockAdvisor() {
      - Persist with the last discussed symbol for follow-up questions unless a new symbol is explicitly introduced.
   
   2. **Validate the Symbol**:
-     - Check against US stock listings (NASDAQ/NYSE). If invalid, suggest a valid symbol (e.g., "I couldn’t find 'XYZ'. Try 'AAPL' for Apple.").
+     - Check against US stock listings (NASDAQ/NYSE). If invalid, suggest a valid symbol (e.g., "I couldn't find 'XYZ'. Try 'AAPL' for Apple.").
   
   3. **Identify Requested Data**:
      - General analysis (e.g., "Analyze AAPL"): Provide current price, daily change, 30-day trend, EMA, and RSI.
-     - Specific indicators (e.g., "What’s the RSI for TSLA?"): Analyze only requested indicators.
+     - Specific indicators (e.g., "What's the RSI for TSLA?"): Analyze only requested indicators.
      - Stock stats (e.g., "Price of AAPL?"): Provide only requested data.
      - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20-day, 2sd), ADX (14-day), ATR (14-day), AROON (14-day).
      - Stock data: price, change, volume, 30-day trend.
   
   4. **Use Provided Data**:
-     - Use only "API Data" from the input. If data is missing, say so (e.g., "I couldn’t fetch RSI for AAPL.").
+     - Use only "API Data" from the input. If data is missing, say so (e.g., "I couldn't fetch RSI for AAPL.").
   
   5. **Deep Analysis**:
-     - Provide concise answers by default, but when the user requests elaboration (e.g., "in detail," "elaborate," "tell me more"), give a thorough explanation:
+     - Provide concise answers by default, but when the user requests elaboration ("in detail," "elaborate," "tell me more"), give a thorough explanation:
        - Include current values, historical context (if available from API data), trends, and actionable insights.
        - For RSI, explain its value, range (0-100), overbought (>70), oversold (<30), and momentum implications. Build on prior responses if applicable.
      - Examples:
@@ -439,7 +439,7 @@ export default function StockAdvisor() {
       if (!stockListings.some((s) => s.symbol === symbol)) {
         const errorMessage: Message = {
           role: "assistant",
-          content: `I couldn’t find '${symbol}' in US stock listings (NASDAQ/NYSE). Try 'AAPL' for Apple or 'TSLA' for Tesla.`,
+          content: `I couldn't find '${symbol}' in US stock listings (NASDAQ/NYSE). Try 'AAPL' for Apple or 'TSLA' for Tesla.`,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {

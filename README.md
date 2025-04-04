@@ -153,7 +153,7 @@ The project is deployed on render and can be accessed at:
 
 #### Front Page
 
-![Finance AI Front Page](public/Finance-Markets-Analysis%20front%20page.png)
+![Finance AI Front Page](public/Finance-Markets-Analysis.png)
 
 #### Market Analysis Page 2
 

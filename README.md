@@ -1,4 +1,4 @@
-# AI Finance
+# FinanceAI
 
 A comprehensive financial analysis platform built with Next.js that provides AI-powered insights for stocks, cryptocurrencies, and forex markets. The platform offers real-time market data, technical analysis, and personalized financial advice.
 
@@ -269,4 +269,3 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - NewsAPI for financial news data
 - Twelve Data API for market data
 - Groq API and LLaMA 3 for AI insights
-- All other open-source contributors

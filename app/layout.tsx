@@ -4,13 +4,40 @@ import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Head from "next/head";
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Finance Markets Analysis',
   description: 'Real-time stock, forex and crypto markets analysis with news and AI-powered insights',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+    other: [
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '192x192',
+        url: '/favicon.png',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '512x512',
+        url: '/favicon.png',
+      },
+    ],
+  },
+  manifest: '/manifest.json',
+  themeColor: '#ffffff',
+  msapplicationTileImage: '/favicon.png',
+  msapplicationTileColor: '#ffffff',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 };
 
 export default function RootLayout({
@@ -20,16 +47,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <Head>
-        <link rel="icon" href="/favicon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="msapplication-TileImage" content="/favicon.png" />
-        <meta name="msapplication-TileColor" content="#ffffff" />
-        <meta name="theme-color" content="#ffffff" />
-      </Head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"

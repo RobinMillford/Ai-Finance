@@ -84,8 +84,13 @@ export default function News() {
   useEffect(() => {
     const fetchNews = async () => {
       setLoading(true);
-      const queries = ["finance", "stocks", "economy", "banking", "markets"].map(q => category !== "All" ? category.toLowerCase() : q);
-      if (searchQuery) queries.push(searchQuery);
+      let effectiveQueries: string[] = [];
+      if (searchQuery) {
+        effectiveQueries = [searchQuery]; // User's search query takes precedence
+      } else {
+        // Fallback to category-based search if no specific search query
+        effectiveQueries = ["finance", "stocks", "economy", "banking", "markets"].map(q => category !== "All" ? category.toLowerCase() : q);
+      }
       const allArticles: NewsArticle[] = [];
       const cacheKey = `news_${searchQuery}_${category}`;
 
@@ -106,7 +111,7 @@ export default function News() {
       }
 
       try {
-        for (const query of queries) {
+        for (const query of effectiveQueries) {
           const url = `/api/news?q=${encodeURIComponent(query + " -crypto -cryptocurrency -bitcoin -ethereum")}&pageSize=100`; // Max fetch
           const response = await fetch(url);
           if (!response.ok) continue;
@@ -126,7 +131,33 @@ export default function News() {
         setCurrentPage(1); // Reset to first page on new fetch
 
         const cacheData: CachedNews = { articles: uniqueArticles, timestamp: Date.now(), query: searchQuery, category };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        const dataToStore = JSON.stringify(cacheData);
+
+        try {
+          localStorage.setItem(cacheKey, dataToStore);
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+            console.warn("QuotaExceededError: Clearing news cache and retrying...");
+            // Clear all news-related cache entries
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith("news_")) {
+                localStorage.removeItem(key);
+              }
+            }
+            // Retry saving the current item
+            try {
+              localStorage.setItem(cacheKey, dataToStore);
+              console.log("Successfully saved after clearing cache.");
+            } catch (retryError) {
+              console.error("QuotaExceededError: Failed to save even after clearing cache:", retryError);
+              toast({ title: "Error", description: "Failed to save news cache due to storage limit.", variant: "destructive" });
+            }
+          } else {
+            // If it's not a QuotaExceededError, re-throw it to be caught by the outer catch block
+            throw e;
+          }
+        }
       } catch (error: unknown) {
         console.error("Error fetching news:", error);
         toast({ title: "Error", description: "Failed to fetch news articles", variant: "destructive" });

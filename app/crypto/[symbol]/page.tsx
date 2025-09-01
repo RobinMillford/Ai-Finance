@@ -197,6 +197,12 @@ export default function CryptoDetails() {
   }
 
   useEffect(() => {
+
+    if (!symbol) {
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       try {

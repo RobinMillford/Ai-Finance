@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, ChevronRight, Coins } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, ChevronRight, Bitcoin, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -37,81 +37,65 @@ export default function CryptoList() {
   const router = useRouter();
   const perPage = 50;
 
-  useEffect(() => {
-    fetchCryptoPairs();
-  }, [page, quoteCurrencyFilter, searchQuery]);
-
-  const fetchCryptoPairs = async () => {
+  // Line 41-43
+  // First define fetchCryptoPairs with useCallback
+  const fetchCryptoPairs = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/cryptos");
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', page.toString());
+      queryParams.append('perPage', perPage.toString());
+      
+      if (searchQuery) {
+        queryParams.append('searchQuery', searchQuery);
+      }
+      
+      if (quoteCurrencyFilter !== 'All') {
+        queryParams.append('quoteCurrency', quoteCurrencyFilter);
+      }
+      
+      const response = await fetch(`/api/cryptos?${queryParams.toString()}`);
+      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch cryptocurrency pairs");
+        throw new Error(errorData?.error || `HTTP error! Status: ${response.status}`);
       }
+      
       const data = await response.json();
-      console.log("API response from /api/cryptos:", JSON.stringify(data, null, 2));
-      if (!Array.isArray(data)) {
-        throw new Error(
-          "Expected an array of cryptocurrency pairs, but received: " + JSON.stringify(data)
-        );
-      }
-
-      // Set quote currency options if not already set
+      
+      // Handle the data
+      const pairs = Array.isArray(data) ? data : [];
+      setAllCryptoPairs(pairs);
+      setFilteredCryptoPairs(pairs);
+      
+      // Extract unique quote currencies for the filter
       if (quoteCurrencyOptions.length === 0) {
-        const currencies = Array.from(
-          new Set(data.map((pair: CryptoPair) => pair.currency_quote))
+        const uniqueQuoteCurrencies = Array.from(
+          new Set(pairs.map((pair) => pair.currency_quote))
         ).sort();
-        setQuoteCurrencyOptions(["All", ...currencies]);
+        setQuoteCurrencyOptions(['All', ...uniqueQuoteCurrencies]);
       }
-
-      // Apply client-side filtering for search and quote currency
-      let filtered = data;
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        filtered = filtered.filter(
-          (pair: CryptoPair) =>
-            pair.symbol.toLowerCase().includes(query) ||
-            pair.currency_base.toLowerCase().includes(query) ||
-            pair.currency_quote.toLowerCase().includes(query)
-        );
-      }
-      if (quoteCurrencyFilter !== "All") {
-        filtered = filtered.filter(
-          (pair: CryptoPair) => pair.currency_quote === quoteCurrencyFilter
-        );
-      }
-
-      // Apply pagination
-      const startIndex = (page - 1) * perPage;
-      const paginatedPairs = filtered.slice(startIndex, startIndex + perPage);
-
-      setAllCryptoPairs(filtered);
-      setFilteredCryptoPairs(paginatedPairs);
-      setTotalCount(filtered.length);
-      setTotalPages(Math.ceil(filtered.length / perPage));
-
-      if (paginatedPairs.length === 0 && filtered.length > 0) {
-        // If the current page is empty due to filtering, reset to page 1
-        setPage(1);
-      }
+      
+      setTotalCount(pairs.length);
+      setTotalPages(Math.ceil(pairs.length / perPage));
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Error fetching cryptocurrency pairs:", errorMessage);
+      console.error('Error fetching cryptocurrency pairs:', errorMessage);
       toast({
-        title: "Error",
-        description: errorMessage || "Failed to fetch cryptocurrency pairs",
-        variant: "destructive",
+        title: 'Error',
+        description: errorMessage || 'Failed to fetch cryptocurrency pairs',
+        variant: 'destructive',
       });
-      setAllCryptoPairs([]);
-      setFilteredCryptoPairs([]);
-      setTotalCount(0);
-      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  };
-
+  }, [page, searchQuery, quoteCurrencyFilter, perPage, toast, quoteCurrencyOptions.length]);
+  
+  // Then use it in useEffect
+  useEffect(() => {
+    fetchCryptoPairs();
+  }, [page, quoteCurrencyFilter, searchQuery, fetchCryptoPairs]);
+  
   const debouncedSearch = debounce(() => {
     setPage(1); // Reset to page 1 when search query changes
     fetchCryptoPairs();
@@ -186,7 +170,7 @@ export default function CryptoList() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
-                  <Coins className="h-6 w-6 text-white" />
+                  <Bitcoin className="h-6 w-6 text-white" />
                 </div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-yellow-600 bg-clip-text text-transparent">
                   Crypto Market
@@ -302,7 +286,7 @@ export default function CryptoList() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
-                  <BarChart3 className="h-6 w-6 text-white" />
+                  <Bitcoin className="h-6 w-6 text-white" />
                 </div>
                 <h2 className="text-2xl font-semibold bg-gradient-to-r from-orange-500 to-yellow-600 bg-clip-text text-transparent">
                   {searchQuery ? `Search Results (Page ${page})` : `Top Crypto Listings (Page ${page})`}
@@ -321,7 +305,7 @@ export default function CryptoList() {
                     </>
                   ) : (
                     <>
-                      <BarChart3 className="h-5 w-5" />
+                      <RefreshCw className="h-5 w-5" />
                       Refresh
                     </>
                   )}

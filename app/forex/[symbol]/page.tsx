@@ -155,6 +155,12 @@ export default function ForexDetails() {
   }
 
   useEffect(() => {
+
+    if (!symbol) {
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       try {

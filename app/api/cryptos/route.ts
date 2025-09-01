@@ -38,6 +38,7 @@ async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs:
 }
 
 export async function GET(request: Request) {
+  // Line 38
   const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
   if (!TWELVE_DATA_API_KEY) {
     console.error("TWELVE_DATA_API_KEY is not set in environment variables");

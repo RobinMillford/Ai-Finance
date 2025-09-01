@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, TrendingUp, ChevronRight } from "lucide-react";
+import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, TrendingUp, ChevronRight, RefreshCw, LineChart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
@@ -261,7 +261,7 @@ export default function Stocks() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
-                  <BarChart3 className="h-6 w-6 text-white" />
+                  <LineChart className="h-6 w-6 text-white" />
                 </div>
                 <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
                   {searchQuery ? `Search Results (Page ${page})` : `Top Stock Listings (Page ${page})`}
@@ -280,7 +280,7 @@ export default function Stocks() {
                     </>
                   ) : (
                     <>
-                      <BarChart3 className="h-5 w-5" />
+                      <RefreshCw className="h-5 w-5" />
                       Refresh
                     </>
                   )}

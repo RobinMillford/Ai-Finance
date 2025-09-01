@@ -30,8 +30,6 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   themeColor: '#ffffff',
-  msapplicationTileImage: '/favicon.png',
-  msapplicationTileColor: '#ffffff',
   viewport: {
     width: 'device-width',
     initialScale: 1,

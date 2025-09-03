@@ -230,6 +230,9 @@ export default function News() {
               <Link href="/choose-market">
                 <Button variant="ghost" className="hover:bg-primary/10">Markets</Button>
               </Link>
+              <Link href="/reddit">
+                <Button variant="ghost" className="hover:bg-primary/10">Reddit Sentiment</Button>
+              </Link>
               <Link href="/choose-advisor">
                 <Button variant="ghost" className="hover:bg-primary/10">Advisors</Button>
               </Link>

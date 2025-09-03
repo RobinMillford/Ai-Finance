@@ -311,47 +311,102 @@ export default function StockAdvisor() {
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const systemPrompt = `
-  You are an AI stock advisor for FinanceAI, focused on US stocks (NASDAQ/NYSE only) due to free plan limitations. Your task is to assist users by interpreting stock data and technical indicators for a given US stock symbol or company name. Follow these steps:
+  You are an advanced AI Stock Advisor for FinanceAI, a comprehensive financial analysis platform. You are designed to handle ANY financial query, analysis request, or report generation for US stocks (NASDAQ/NYSE). Your capabilities extend far beyond basic data retrieval to provide sophisticated financial insights.
+
+  ## CORE CAPABILITIES
+  You can handle:
+  - **Financial Analysis**: Complete fundamental and technical analysis
+  - **Investment Research**: Sector analysis, company comparisons, risk assessment
+  - **Market Reports**: Daily summaries, earnings analysis, trend reports
+  - **Portfolio Advice**: Diversification, allocation, risk management
+  - **Trading Insights**: Entry/exit points, momentum analysis, volatility assessment
+  - **Economic Context**: How macro factors affect individual stocks
+  - **Scenario Analysis**: What-if scenarios, stress testing, future projections
+  - **Educational Content**: Explain complex financial concepts
+
+  ## COMPREHENSIVE ANALYSIS FRAMEWORK
   
-  1. **Identify the Symbol**:
-     - The user provides a stock symbol (e.g., "AAPL" for Apple) or company name (e.g., "Tesla").
-     - Correct typos: If "APPL" is entered, suggest "AAPL". For "Tesl", match to "Tesla" (TSLA).
-     - Map company names to symbols using stock listings (e.g., "Apple" -> "AAPL").
-     - Use the most recent symbol from chat history if not provided in the current message. Do not interpret common English words like "can," "will," or "is" as stock symbols unless explicitly intended (e.g., "CAN" is a symbol only if standalone or clearly a stock reference).
-     - Persist with the last discussed symbol for follow-up questions unless a new symbol is explicitly introduced.
+  ### 1. SYMBOL IDENTIFICATION & VALIDATION
+  - **Smart Recognition**: Detect symbols from partial names, common nicknames, or company references
+  - **Auto-correction**: Fix common typos (APPL→AAPL, TESL→TSLA, GOOGL→GOOGL)
+  - **Context Memory**: Remember symbols from conversation history
+  - **Flexible Input**: Handle "Apple stock", "Tesla analysis", "MSFT report" formats
+  - **Validation**: Confirm against US stock listings with helpful suggestions
+
+  ### 2. DATA INTERPRETATION & ANALYSIS
+  **Financial Metrics Analysis**:
+  - Price action: Current price, daily/weekly/monthly changes, volume analysis
+  - Trend analysis: Short, medium, long-term trends with momentum indicators
+  - Volatility assessment: Price stability, risk metrics, beta analysis
   
-  2. **Validate the Symbol**:
-     - Check against US stock listings (NASDAQ/NYSE). If invalid, suggest a valid symbol (e.g., "I couldn't find 'XYZ'. Try 'AAPL' for Apple.").
-  
-  3. **Identify Requested Data**:
-     - General analysis (e.g., "Analyze AAPL"): Provide current price, daily change, 30-day trend, EMA, and RSI.
-     - Specific indicators (e.g., "What's the RSI for TSLA?"): Analyze only requested indicators.
-     - Stock stats (e.g., "Price of AAPL?"): Provide only requested data.
-     - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20-day, 2sd), ADX (14-day), ATR (14-day), AROON (14-day).
-     - Stock data: price, change, volume, 30-day trend.
-  
-  4. **Use Provided Data**:
-     - Use only "API Data" from the input. If data is missing, say so (e.g., "I couldn't fetch RSI for AAPL.").
-  
-  5. **Deep Analysis**:
-     - Provide concise answers by default, but when the user requests elaboration ("in detail," "elaborate," "tell me more"), give a thorough explanation:
-       - Include current values, historical context (if available from API data), trends, and actionable insights.
-       - For RSI, explain its value, range (0-100), overbought (>70), oversold (<30), and momentum implications. Build on prior responses if applicable.
-     - Examples:
-       - General: "AAPL price: $174.55, up 1.2%, 30-day trend: +5%, RSI: 65 (neutral)."
-       - Specific: "TSLA RSI: 70 (overbought)."
-       - Stats: "AAPL price: $174.55."
-  
-  6. **Handle Errors**:
-     - If symbol is invalid or data fails, suggest a US stock (e.g., "No data for 'XYZ'. Try 'AAPL'.").
-  
-  7. **Context**:
-     - Use the full chat history to maintain context, especially for follow-up questions. Reference prior symbols and data when elaborating unless instructed otherwise.
-  
-  8. **Response Format**:
-     - Clear, concise, professional by default. Use bullet points or short sentences.
-     - When elaboration is requested, use detailed paragraphs or expanded bullet points.
-     - Only use provided data—do not invent historical trends beyond API data.
+  **Technical Indicators (Available: RSI, MACD, EMA, BBANDS, ADX, ATR, AROON)**:
+  - RSI: Momentum oscillator (0-100), overbought (>70), oversold (<30)
+  - MACD: Trend following, signal line crossovers, histogram analysis
+  - EMA: Moving averages (20-day, 50-day), trend confirmation, support/resistance
+  - Bollinger Bands: Volatility bands, squeeze patterns, breakout signals
+  - ADX: Trend strength indicator, directional movement
+  - ATR: Volatility measurement, position sizing implications
+  - AROON: Trend identification, new highs/lows timing
+
+  **Social Sentiment Integration**:
+  - Reddit community analysis: Bullish/bearish sentiment percentages
+  - Social momentum: How community sentiment aligns with technical indicators
+  - Contrarian signals: When sentiment diverges from price action
+  - Confidence levels: Based on post volume and sentiment consistency
+
+  ### 3. RESPONSE ADAPTABILITY
+  **Query Types & Responses**:
+  - **Quick Questions**: "What's AAPL at?" → Current price + key highlights
+  - **Analysis Requests**: "Analyze NVDA" → Complete technical + fundamental + sentiment analysis
+  - **Specific Indicators**: "RSI for TSLA?" → Detailed RSI analysis with interpretation
+  - **Comparison Requests**: "AAPL vs MSFT" → Comparative analysis across metrics
+  - **Sector Analysis**: "Tech stocks today" → Sector-wide analysis with key players
+  - **Investment Advice**: "Should I buy AMZN?" → Risk/reward analysis with recommendations
+  - **Portfolio Questions**: "Diversification advice" → Portfolio construction guidance
+  - **Market Context**: "How is the market affecting GOOGL?" → Macro to micro analysis
+  - **Educational**: "Explain P/E ratio" → Clear educational content with examples
+  - **Scenario Planning**: "What if rates rise?" → Impact analysis on stocks/sectors
+
+  ### 4. COMPREHENSIVE REPORTING
+  **Analysis Depth Levels**:
+  - **Quick Summary**: 2-3 key points for fast decisions
+  - **Standard Analysis**: Price, trends, key indicators, sentiment, recommendation
+  - **Deep Dive**: Comprehensive analysis with multiple timeframes, risk factors, scenarios
+  - **Custom Reports**: Tailored analysis based on specific user requirements
+
+  **Professional Formatting**:
+  - Use bullet points, headers, and sections for complex analysis
+  - Include confidence levels and data freshness indicators
+  - Provide actionable insights and clear recommendations
+  - Always cite data sources and timestamps
+
+  ### 5. INTELLIGENT ERROR HANDLING
+  - **Missing Data**: Explain what's missing and provide analysis with available data
+  - **Invalid Symbols**: Suggest closest matches or alternative analysis approaches
+  - **API Failures**: Provide general market context or educational content
+  - **Ambiguous Requests**: Ask clarifying questions to provide better analysis
+
+  ### 6. CONTEXTUAL INTELLIGENCE
+  - **Conversation Memory**: Build on previous discussions and analyses
+  - **Market Awareness**: Consider current market conditions in all analyses
+  - **User Learning**: Adapt explanation depth based on user's apparent knowledge level
+  - **Cross-References**: Connect related stocks, sectors, and market themes
+
+  ### 7. RISK & COMPLIANCE
+  - Always include risk disclaimers for investment advice
+  - Provide balanced analysis showing both opportunities and risks
+  - Encourage due diligence and professional consultation for major decisions
+  - Focus on education and analysis rather than direct buy/sell recommendations
+
+  ## OUTPUT GUIDELINES
+  - **Be Comprehensive**: Address all aspects of the user's query
+  - **Be Adaptive**: Match response depth to query complexity
+  - **Be Accurate**: Only use provided API data, clearly state limitations
+  - **Be Helpful**: Always try to provide value even with limited data
+  - **Be Professional**: Maintain expert-level financial communication
+  - **Be Educational**: Explain concepts when beneficial for user understanding
+
+  Remember: You are a sophisticated financial advisor capable of handling any stock-related query with professional-grade analysis.
   `;
 
   const handleSendMessage = async () => {
@@ -393,7 +448,7 @@ export default function StockAdvisor() {
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.5,
       });
   
@@ -403,14 +458,69 @@ export default function StockAdvisor() {
   
       const prompt = ChatPromptTemplate.fromMessages([["system", systemPrompt], ["human", "{input}"]]);
   
+      // Enhanced symbol detection with multiple patterns and fuzzy matching
       let symbol: string | null = null;
-      const symbolMatch = input.match(/\b[A-Z]{1,5}\b/)?.[0]; // Stricter regex for symbols
+              
+      // Pattern 1: Exact symbol match (AAPL, TSLA, etc.)
+      const symbolMatch = input.match(/\b[A-Z]{1,5}\b/)?.[0]; // Stricter: only uppercase, standalone
       if (symbolMatch && stockListings.some((s) => s.symbol === symbolMatch)) {
         symbol = symbolMatch;
-      } else {
-        const companyName = input.toLowerCase().replace(/stock/gi, "").trim();
-        const stock = stockListings.find((s) => s.name.toLowerCase().includes(companyName));
-        if (stock) symbol = stock.symbol;
+      }
+              
+      // Pattern 2: Company name matching with fuzzy search
+      if (!symbol) {
+        const companyName = input.toLowerCase().replace(/stock|inc|corp|ltd|company/gi, "").trim();
+        const exactMatch = stockListings.find((s) => s.name.toLowerCase().includes(companyName));
+        if (exactMatch) {
+          symbol = exactMatch.symbol;
+        } else {
+          // Fuzzy matching for company names
+          const fuzzyMatches = stockListings.filter((s) => {
+            const name = s.name.toLowerCase();
+            const words = companyName.split(" ").filter(w => w.length > 2);
+            return words.some(word => name.includes(word));
+          });
+          if (fuzzyMatches.length === 1) {
+            symbol = fuzzyMatches[0].symbol;
+          }
+        }
+      }
+              
+      // Pattern 3: Common name variations and aliases
+      if (!symbol) {
+        const aliases: { [key: string]: string } = {
+          "apple": "AAPL",
+          "tesla": "TSLA",
+          "microsoft": "MSFT",
+          "google": "GOOGL",
+          "alphabet": "GOOGL",
+          "amazon": "AMZN",
+          "facebook": "META",
+          "meta": "META",
+          "nvidia": "NVDA",
+          "amd": "AMD",
+          "intel": "INTC",
+          "netflix": "NFLX",
+          "disney": "DIS",
+          "walmart": "WMT",
+          "coca cola": "KO",
+          "pepsi": "PEP",
+          "johnson": "JNJ",
+          "visa": "V",
+          "mastercard": "MA",
+          "boeing": "BA",
+          "nike": "NKE",
+          "mcdonalds": "MCD",
+          "starbucks": "SBUX"
+        };
+                
+        const lowerInput = input.toLowerCase();
+        for (const [alias, ticker] of Object.entries(aliases)) {
+          if (lowerInput.includes(alias)) {
+            symbol = ticker;
+            break;
+          }
+        }
       }
   
       if (!symbol) {
@@ -423,10 +533,74 @@ export default function StockAdvisor() {
         }
       }
   
+      // Enhanced symbol detection and smart suggestions
       if (!symbol) {
+        // Try to provide intelligent assistance even without a symbol
+        const isGeneralQuery = 
+          input.toLowerCase().includes("market") ||
+          input.toLowerCase().includes("sector") ||
+          input.toLowerCase().includes("general") ||
+          input.toLowerCase().includes("overall") ||
+          input.toLowerCase().includes("economy") ||
+          input.toLowerCase().includes("tips") ||
+          input.toLowerCase().includes("advice") ||
+          input.toLowerCase().includes("help") ||
+          input.toLowerCase().includes("explain") ||
+          input.toLowerCase().includes("what is") ||
+          input.toLowerCase().includes("how to");
+
+        let content = "";
+        if (isGeneralQuery) {
+          content = `I'd be happy to help with your financial question! For general market insights, I can provide:
+
+📊 **Market Analysis Options:**
+• Sector overviews (tech, healthcare, finance, etc.)
+• Market trend explanations
+• Investment strategy guidance
+• Risk management advice
+• Technical analysis education
+
+🔍 **For Specific Stock Analysis:**
+Provide a US stock symbol (e.g., 'AAPL', 'TSLA', 'MSFT') or company name.
+
+📈 **Popular Symbols to Try:**
+• AAPL (Apple), TSLA (Tesla), MSFT (Microsoft)
+• GOOGL (Google), AMZN (Amazon), NVDA (NVIDIA)
+• SPY (S&P 500 ETF), QQQ (NASDAQ ETF)
+
+What specific aspect would you like me to focus on?`;
+        } else {
+          // Try to suggest similar symbols
+          const inputUpper = input.toUpperCase();
+          const similarSymbols = stockListings
+            .filter(stock => 
+              stock.symbol.includes(inputUpper.slice(0, 3)) ||
+              stock.name.toLowerCase().includes(input.toLowerCase().slice(0, 4))
+            )
+            .slice(0, 5)
+            .map(stock => `${stock.symbol} (${stock.name})`)
+            .join(", ");
+
+          content = `I couldn't identify a specific stock symbol from your message. 
+
+🔍 **Did you mean:**
+${similarSymbols ? `• ${similarSymbols}` : "• Please provide a valid US stock symbol"}
+
+💡 **Popular Options:**
+• AAPL (Apple) • TSLA (Tesla) • MSFT (Microsoft)
+• GOOGL (Google) • AMZN (Amazon) • NVDA (NVIDIA)
+
+📝 **Try formats like:**
+• "Analyze AAPL"
+• "What's Tesla's RSI?"
+• "MSFT price target"
+
+What stock would you like me to analyze?`;
+        }
+
         const errorMessage: Message = {
           role: "assistant",
-          content: "Please provide a US stock symbol (e.g., 'AAPL') or company name (e.g., 'Tesla').",
+          content,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -442,10 +616,35 @@ export default function StockAdvisor() {
         return;
       }
   
+      // Enhanced symbol validation with suggestions
       if (!stockListings.some((s) => s.symbol === symbol)) {
+        // Find similar symbols for suggestions
+        const similarSymbols = stockListings
+          .filter(stock => 
+            stock.symbol.includes(symbol.slice(0, 2)) ||
+            stock.symbol.startsWith(symbol.charAt(0)) ||
+            stock.name.toLowerCase().includes(symbol.toLowerCase())
+          )
+          .slice(0, 5)
+          .map(stock => `${stock.symbol} (${stock.name})`)
+          .join(", ");
+
+        const content = `❌ **Symbol '${symbol}' not found** in US stock listings (NASDAQ/NYSE).
+
+🔍 **Did you mean:**
+${similarSymbols ? `• ${similarSymbols}` : "No similar symbols found"}
+
+💡 **Popular Alternatives:**
+• AAPL (Apple) • TSLA (Tesla) • MSFT (Microsoft)
+• GOOGL (Alphabet) • AMZN (Amazon) • NVDA (NVIDIA)
+
+📝 **Note:** I only analyze US-listed stocks. For other markets, try our Forex or Crypto advisors.
+
+Please provide a valid US stock symbol for analysis.`;
+
         const errorMessage: Message = {
           role: "assistant",
-          content: `I couldn't find '${symbol}' in US stock listings (NASDAQ/NYSE). Try 'AAPL' for Apple or 'TSLA' for Tesla.`,
+          content,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -463,29 +662,90 @@ export default function StockAdvisor() {
   
       const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
       const requestedIndicators = indicators.filter((ind) => input.toLowerCase().includes(ind));
+      
+      // Enhanced data fetching logic for comprehensive analysis
       const needsStockData =
         input.toLowerCase().includes("price") ||
         input.toLowerCase().includes("change") ||
         input.toLowerCase().includes("volume") ||
         input.toLowerCase().includes("trend") ||
-        input.toLowerCase().includes("analyz");
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("invest") ||
+        input.toLowerCase().includes("buy") ||
+        input.toLowerCase().includes("sell") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("summary") ||
+        input.toLowerCase().includes("how") ||
+        input.toLowerCase().includes("what") ||
+        input.toLowerCase().includes("performance") ||
+        input.toLowerCase().includes("outlook") ||
+        requestedIndicators.length > 0; // Always fetch stock data if indicators are requested
+
+      // Always fetch comprehensive indicators for analysis, research, or investment queries
+      const needsComprehensiveAnalysis = 
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("invest") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("comprehensive") ||
+        input.toLowerCase().includes("detailed") ||
+        input.toLowerCase().includes("full") ||
+        input.toLowerCase().includes("complete");
   
       let stockData: any = undefined;
       let indicatorsData: { [key: string]: IndicatorData } | undefined = undefined;
+      let redditData: any = undefined;
       const apiCallCount = { count: 0 };
   
+      // Enhanced stock data fetching with fallback analysis
       if (needsStockData) {
         try {
           stockData = await fetchStockData(symbol, apiCallCount);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          const errorMsg: Message = {
+          console.warn(`Failed to fetch stock data for ${symbol}:`, errorMessage);
+          
+          // Provide fallback analysis without current price data
+          const fallbackContent = `⚠️ **Data Fetch Warning for ${symbol}**
+
+I encountered an issue fetching real-time data: ${errorMessage}
+
+📈 **Alternative Analysis Available:**
+• I can still provide general market insights for ${symbol}
+• Technical analysis concepts and strategies
+• Sector overview and competitive landscape
+• Historical performance context
+• Investment thesis and risk factors
+
+🔄 **Troubleshooting:**
+• Please try again in a few moments
+• Check if symbol ${symbol} is correctly spelled
+• Ensure ${symbol} is a US-listed stock
+
+💡 **What I can help with right now:**
+• Explain technical indicators for ${symbol}
+• Discuss ${symbol}'s business model
+• Compare ${symbol} with sector peers
+• Provide investment strategy guidance
+
+Would you like me to proceed with general analysis, or would you prefer to try a different symbol?`;
+
+          const fallbackMessage: Message = {
             role: "assistant",
-            content: `Failed to fetch data for ${symbol}: ${errorMessage}. Try again later.`,
+            content: fallbackContent,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
-            const updatedMessages = [...prev, errorMsg];
+            const updatedMessages = [...prev, fallbackMessage];
             setChatSessions((prevSessions) =>
               prevSessions.map((session) =>
                 session.id === currentChatId ? { ...session, messages: updatedMessages } : session
@@ -498,29 +758,59 @@ export default function StockAdvisor() {
         }
       }
   
-      if (requestedIndicators.length > 0 || input.toLowerCase().includes("analyz")) {
-        const indicatorsToFetch = requestedIndicators.length > 0 ? requestedIndicators : ["ema", "rsi"];
+      // Enhanced indicators fetching with fallback analysis
+      if (requestedIndicators.length > 0 || input.toLowerCase().includes("analyz") || needsComprehensiveAnalysis) {
+        const indicatorsToFetch = requestedIndicators.length > 0 
+          ? requestedIndicators 
+          : needsComprehensiveAnalysis 
+          ? ["ema", "rsi", "macd", "bbands", "adx"] // Comprehensive set for detailed analysis
+          : ["ema", "rsi"]; // Default minimal set
         try {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          const errorMsg: Message = {
-            role: "assistant",
-            content: `Failed to fetch indicators for ${symbol}: ${errorMessage}. Try again later.`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          setMessages((prev) => {
-            const updatedMessages = [...prev, errorMsg];
-            setChatSessions((prevSessions) =>
-              prevSessions.map((session) =>
-                session.id === currentChatId ? { ...session, messages: updatedMessages } : session
-              )
-            );
-            return updatedMessages;
-          });
-          setLoading(false);
-          return;
+          console.warn(`Failed to fetch indicators for ${symbol}:`, errorMessage);
+          
+          // Continue with analysis but note the limitation
+          const indicatorNames = indicatorsToFetch.join(", ").toUpperCase();
+          const partialContent = `⚠️ **Technical Indicators Unavailable for ${symbol}**
+
+I couldn't fetch ${indicatorNames} data: ${errorMessage}
+
+📈 **Alternative Technical Analysis:**
+• Price action analysis using available data
+• Support and resistance level identification
+• Volume trend analysis
+• Chart pattern recognition concepts
+• Moving average theory and application
+
+📚 **Educational Content Available:**
+• How ${indicatorNames} indicators work
+• Interpretation guidelines for technical signals
+• Risk management strategies
+• Portfolio diversification concepts
+
+🔄 **Proceeding with available data...**
+
+Let me provide analysis with the stock data I was able to fetch.`;
+
+          // Continue execution but note the limitation in the response
+          indicatorsData = undefined; // Ensure we proceed without indicators
         }
+      }
+  
+      // Fetch Reddit sentiment data
+      try {
+        const redditResponse = await fetch(`/api/reddit?symbol=${symbol}`);
+        if (redditResponse.ok) {
+          redditData = await redditResponse.json();
+          console.log(`Successfully fetched Reddit data for symbol: ${symbol}`);
+        } else {
+          console.warn(`Failed to fetch Reddit data for ${symbol}`);
+        }
+      } catch (error) {
+        console.warn(`Error fetching Reddit data for ${symbol}:`, error);
+        // Continue without Reddit data
       }
   
       const combinedData = {
@@ -530,6 +820,7 @@ export default function StockAdvisor() {
               Object.entries(indicatorsData).map(([key, value]: [string, IndicatorData]) => [key, value.data])
             )
           : null,
+        redditSentiment: redditData || null,
       };
   
       const recentChatHistory = messages.slice(-10);
@@ -559,10 +850,79 @@ export default function StockAdvisor() {
       await chatHistory.addMessage(new SystemMessage(response.content as string));
     } catch (error) {
       console.error("Chatbot error:", error);
-      toast({ title: "Error", description: "Failed to process your request.", variant: "destructive" });
+      
+      // Enhanced error handling with intelligent fallback
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      let fallbackContent = "";
+      
+      // Determine error type and provide appropriate fallback
+      if (errorMessage.includes("network") || errorMessage.includes("fetch") || errorMessage.includes("timeout")) {
+        fallbackContent = `🌐 **Network Issue Detected**
+
+I'm experiencing connectivity issues: ${errorMessage}
+
+💡 **What I can still help with:**
+• Explain financial concepts and terminology
+• Discuss investment strategies and risk management
+• Provide market analysis framework guidance
+• Share trading psychology insights
+• Explain technical indicators theory
+
+🔄 **Troubleshooting:**
+• Please check your internet connection
+• Try again in a few moments
+• Consider asking general financial questions
+
+I'm here to help with financial education even without real-time data!`;
+      } else if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("quota")) {
+        fallbackContent = `⚙️ **API Service Issue**
+
+There's a temporary service limitation: ${errorMessage}
+
+📚 **Educational Content Available:**
+• Stock analysis fundamentals
+• Technical analysis principles
+• Portfolio management strategies
+• Risk assessment techniques
+• Investment planning guidance
+
+💬 **Ask me about:**
+• "How does RSI indicator work?"
+• "What is fundamental analysis?"
+• "Explain diversification strategies"
+• "How to read financial statements?"
+
+Let's continue with financial education while the service recovers!`;
+      } else {
+        fallbackContent = `🔧 **Technical Issue Encountered**
+
+I encountered an unexpected error: ${errorMessage}
+
+🎯 **Alternative Assistance:**
+• General market analysis concepts
+• Investment strategy discussions
+• Financial planning guidance
+• Technical analysis education
+• Risk management principles
+
+💭 **Try asking:**
+• "Explain P/E ratios"
+• "What are growth vs value stocks?"
+• "How to analyze a company?"
+• "Sector rotation strategies"
+
+I'm still here to help with your financial learning journey!`;
+      }
+      
+      toast({ 
+        title: "Service Issue", 
+        description: "Providing alternative assistance while resolving the issue.", 
+        variant: "destructive" 
+      });
+      
       const errorMsg: Message = {
         role: "assistant",
-        content: "Sorry, I hit an error. Please try again.",
+        content: fallbackContent,
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {

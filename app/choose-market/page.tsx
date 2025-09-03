@@ -161,6 +161,9 @@ export default function ChooseMarket() {
               <Link href="/news">
                 <Button variant="ghost" className="hover:bg-primary/10">News</Button>
               </Link>
+              <Link href="/reddit">
+                <Button variant="ghost" className="hover:bg-primary/10">Reddit Sentiment</Button>
+              </Link>
               <Link href="/choose-advisor">
                 <Button variant="ghost" className="hover:bg-primary/10">AI Advisors</Button>
               </Link>

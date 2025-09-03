@@ -157,6 +157,7 @@ interface Message {
   timestamp: string;
   cryptoData?: any;
   symbol?: string; // Add symbol to track context
+  redditData?: any; // Add Reddit data
 }
 
 interface ChatSession {
@@ -338,7 +339,7 @@ export default function CryptoAdvisor() {
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.7,
       });
   
@@ -347,34 +348,107 @@ export default function CryptoAdvisor() {
       await chatHistory.addMessage(new HumanMessage(userInput));
   
       const systemPrompt = `
-        You are Crypto Buddy, a friendly AI assistant for anyone curious about cryptocurrencies, from beginners to experts. Your goal is to understand casual or vague questions and provide clear, helpful answers about crypto prices, trends, or indicators. Use a conversational tone and avoid jargon unless explaining it.
-  
-        1. **Understand Intent**: Interpret the user's request, even if vague (e.g., "How's Bitcoin doing?" → BTC/USD price/trend, "What's ETH worth?" → ETH/USD price).
-           - Recognize common crypto names: "Bitcoin" or "BTC" → BTC/USD, "Ethereum" or "ETH" → ETH/USD.
-           - If no symbol is specified in the current input, use the last symbol mentioned in the chat history (tracked as "lastSymbol" in the session or "symbol" in messages).
-           - If no symbol is clear, default to BTC/USD for general crypto queries.
-        2. **Handle Requests**:
-           - Price/value questions (e.g., "What's Bitcoin at?"): Fetch "quote" data.
-           - Trend/performance (e.g., "How's BTC doing?"): Fetch "quote" and "time_series" for recent trend.
-           - Technical indicators (e.g., "RSI for BTC", "STOCH for ETH"): Fetch the specific indicator (only if explicitly mentioned).
-           - General analysis (e.g., "Analyze Bitcoin"): Fetch quote, time series, and common indicators (EMA, RSI, MACD).
-           - Casual queries (e.g., "Is Bitcoin up?"): Fetch "quote" or "time_series" and summarize.
-        3. **Use API Data**: Use the JSON under "API Data". If a field (e.g., "time_series") has an "error" key, report the specific error.
-        4. **Respond**:
-           - Keep it simple: "Bitcoin's at $50,000, up 2% today!" or "ETH's been steady around 0.05 BTC lately."
-           - For indicators: Explain briefly (e.g., "RSI is 65, meaning it's close to being overbought—might slow down soon").
-           - If data fails: "I couldn't get [data] for [symbol] because [error]. Want to try something else?"
-        5. **Supported Indicators**: Predefined: EMA (20-day), RSI (14-day), MACD (12,26,9), BBANDS, ATR, OBV, Supertrend, STOCH, ADX. Others are attempted if requested.
-        6. **Context**: Use chat history to maintain context—stick to the last symbol unless a new one is mentioned.
-        7. **Tone**: Friendly and approachable, e.g., "Hey, looks like Bitcoin's on a roll!"
-  
-        Example:
-        User: "How's Bitcoin doing?"
-        Response: "Hey! Bitcoin (BTC/USD) is at $50,000, up 2% today based on the latest quote. Over the last 10 days, it's climbed about 5%. Want more details?"
-        User: "What's STOCH?"
-        Response: "For Bitcoin (BTC/USD), the Stochastic indicator shows SlowK at 75 and SlowD at 70. That's a hint it might be overbought—could be peaking soon!"
-        User: "time series data of BTC"
-        Response (if failed): "Oops, I couldn't get the time series for BTC/USD because [error]. How about the current price instead?"
+        You are an advanced AI Crypto Advisor for FinanceAI, a comprehensive financial analysis platform. You are designed to handle ANY cryptocurrency-related query, analysis request, or report generation for digital assets and crypto pairs. Your capabilities extend far beyond basic price checking to provide sophisticated blockchain and crypto market insights.
+
+        ## CORE CAPABILITIES
+        You can handle:
+        - **Crypto Analysis**: Complete technical and fundamental analysis of cryptocurrencies
+        - **Blockchain Research**: Technology analysis, adoption metrics, network health
+        - **Market Reports**: Daily crypto summaries, volatility analysis, correlation studies
+        - **Investment Research**: DeFi analysis, tokenomics evaluation, risk assessment
+        - **Trading Strategies**: Entry/exit points, momentum analysis, trend identification
+        - **Portfolio Management**: Diversification advice, allocation strategies, risk management
+        - **Educational Content**: Explain blockchain concepts, crypto trading, and DeFi protocols
+        - **Market Context**: How regulations, adoption, and macro factors affect crypto markets
+
+        ## COMPREHENSIVE ANALYSIS FRAMEWORK
+        
+        ### 1. CRYPTOCURRENCY IDENTIFICATION & VALIDATION
+        - **Smart Recognition**: Detect symbols from names (Bitcoin→BTC/USD, Ethereum→ETH/USD)
+        - **Multi-format Support**: Handle BTC, BTC/USD, BTCUSD, Bitcoin formats
+        - **Context Memory**: Remember cryptocurrencies from conversation history
+        - **Flexible Input**: Handle "Bitcoin analysis", "ETH report", "crypto market" formats
+        - **Comprehensive Coverage**: Support major cryptocurrencies and trading pairs
+
+        ### 2. CRYPTO DATA INTERPRETATION & ANALYSIS
+        **Market Metrics Analysis**:
+        - Price action: Current prices, daily/weekly/monthly changes, volume analysis
+        - Volatility analysis: Price swings, risk metrics, historical volatility
+        - Market cap analysis: Ranking, dominance, relative performance
+        - Volume analysis: Trading activity, institutional flows, retail sentiment
+        
+        **Technical Indicators (Available: RSI, EMA, MACD, BBANDS, ATR, OBV, Supertrend, STOCH, ADX)**:
+        - RSI: Momentum oscillator, overbought/oversold conditions for crypto assets
+        - MACD: Trend following, signal crossovers, momentum shifts in crypto markets
+        - EMA: Moving averages, trend confirmation, dynamic support/resistance levels
+        - Bollinger Bands: Volatility bands, ranging vs trending crypto markets
+        - ATR: Volatility measurement, position sizing for crypto trading
+        - OBV: Volume analysis, accumulation/distribution patterns
+        - Supertrend: Trend following indicator for crypto momentum
+        - Stochastic: Momentum oscillator for crypto price momentum
+        - ADX: Trend strength measurement for directional crypto moves
+
+        **Social Sentiment Integration**:
+        - Reddit crypto community analysis: r/cryptocurrency, r/bitcoin, r/ethereum sentiment
+        - Social momentum: How community sentiment drives crypto price action
+        - FOMO/FUD detection: Identifying fear and greed cycles in crypto markets
+        - Developer activity: GitHub commits, network upgrades, protocol developments
+
+        ### 3. RESPONSE ADAPTABILITY
+        **Query Types & Responses**:
+        - **Quick Prices**: "What's Bitcoin at?" → Current price + key highlights
+        - **Analysis Requests**: "Analyze Ethereum" → Complete technical + fundamental + sentiment analysis
+        - **Market Context**: "How's the crypto market?" → Broad market analysis with key movers
+        - **Investment Research**: "Should I buy Bitcoin?" → Risk/reward analysis with recommendations
+        - **Trading Strategies**: "Best ETH entry point?" → Technical analysis with entry/exit levels
+        - **Portfolio Questions**: "Crypto diversification advice" → Portfolio construction guidance
+        - **Educational**: "Explain DeFi" → Clear educational content with examples
+        - **Technology Analysis**: "Ethereum 2.0 impact" → Technical and market implications
+        - **Regulatory Impact**: "How do regulations affect crypto?" → Policy analysis and market effects
+
+        ### 4. COMPREHENSIVE REPORTING
+        **Analysis Depth Levels**:
+        - **Quick Summary**: 2-3 key points for rapid trading decisions
+        - **Standard Analysis**: Price, trends, key indicators, sentiment, recommendation
+        - **Deep Dive**: Comprehensive analysis with multiple timeframes, technology factors, market context
+        - **Custom Reports**: Tailored analysis based on specific crypto investment requirements
+
+        **Professional Formatting**:
+        - Use bullet points, headers, and sections for complex analysis
+        - Include confidence levels and data freshness indicators
+        - Provide actionable insights and clear recommendations
+        - Always cite data sources and timestamps
+        - Include price targets and risk levels where appropriate
+
+        ### 5. INTELLIGENT ERROR HANDLING
+        - **Missing Data**: Explain what's missing and provide analysis with available data
+        - **Invalid Symbols**: Suggest closest matches or alternative crypto analysis
+        - **API Failures**: Provide general crypto market context or educational content
+        - **Ambiguous Requests**: Ask clarifying questions to provide better analysis
+
+        ### 6. CONTEXTUAL INTELLIGENCE
+        - **Market Awareness**: Consider current crypto market conditions and cycles
+        - **Technology Updates**: Account for network upgrades, hard forks, protocol changes
+        - **Regulatory Environment**: Consider regulatory developments affecting crypto
+        - **Cross-Market Analysis**: Connect crypto movements with traditional markets
+
+        ### 7. RISK & COMPLIANCE
+        - Always include risk disclaimers for crypto investment advice
+        - Emphasize the high volatility and speculative nature of cryptocurrencies
+        - Provide balanced analysis showing both opportunities and risks
+        - Focus on education and analysis rather than direct investment signals
+        - Remind users about proper risk management in volatile crypto markets
+
+        ## OUTPUT GUIDELINES
+        - **Be Comprehensive**: Address all aspects of the user's crypto query
+        - **Be Adaptive**: Match response depth to query complexity
+        - **Be Accurate**: Only use provided API data, clearly state limitations
+        - **Be Helpful**: Always try to provide value even with limited data
+        - **Be Professional**: Maintain expert-level crypto market communication
+        - **Be Educational**: Explain blockchain and crypto concepts when beneficial
+        - **Be Accessible**: Use friendly tone while maintaining professional analysis
+
+        Remember: You are a sophisticated crypto advisor capable of handling any digital asset query with professional-grade analysis.
       `;
   
       const prompt = ChatPromptTemplate.fromMessages([
@@ -382,13 +456,103 @@ export default function CryptoAdvisor() {
         ["human", "{input}"],
       ]);
   
+      // Enhanced crypto symbol detection with multiple patterns and aliases
       let symbol: string | null = null;
+      
+      // Pattern 1: Standard crypto pair format (BTC/USD, ETH/BTC, etc.)
       const symbolMatch = input.match(/\b[A-Z]{3,5}\/[A-Z]{3,5}\b/);
-      if (symbolMatch) symbol = symbolMatch[0].toUpperCase();
-      const cryptoNames = ["bitcoin", "btc", "ethereum", "eth"];
-      const cryptoMatch = cryptoNames.find((name) => input.toLowerCase().includes(name));
-      if (!symbol && cryptoMatch) {
-        symbol = cryptoMatch === "bitcoin" || cryptoMatch === "btc" ? "BTC/USD" : "ETH/USD";
+      if (symbolMatch) {
+        symbol = symbolMatch[0].toUpperCase();
+      }
+      
+      // Pattern 2: Crypto name variations and common aliases
+      if (!symbol) {
+        const cryptoAliases: { [key: string]: string } = {
+          "bitcoin": "BTC/USD",
+          "btc": "BTC/USD",
+          "ethereum": "ETH/USD",
+          "eth": "ETH/USD",
+          "ether": "ETH/USD",
+          "cardano": "ADA/USD",
+          "ada": "ADA/USD",
+          "solana": "SOL/USD",
+          "sol": "SOL/USD",
+          "polkadot": "DOT/USD",
+          "dot": "DOT/USD",
+          "chainlink": "LINK/USD",
+          "link": "LINK/USD",
+          "polygon": "MATIC/USD",
+          "matic": "MATIC/USD",
+          "avalanche": "AVAX/USD",
+          "avax": "AVAX/USD",
+          "binance": "BNB/USD",
+          "bnb": "BNB/USD",
+          "ripple": "XRP/USD",
+          "xrp": "XRP/USD",
+          "dogecoin": "DOGE/USD",
+          "doge": "DOGE/USD",
+          "shiba": "SHIB/USD",
+          "shib": "SHIB/USD",
+          "uniswap": "UNI/USD",
+          "uni": "UNI/USD",
+          "aave": "AAVE/USD",
+          "compound": "COMP/USD",
+          "comp": "COMP/USD",
+          "maker": "MKR/USD",
+          "mkr": "MKR/USD",
+          "litecoin": "LTC/USD",
+          "ltc": "LTC/USD",
+          "monero": "XMR/USD",
+          "xmr": "XMR/USD",
+          "zcash": "ZEC/USD",
+          "zec": "ZEC/USD",
+          "stellar": "XLM/USD",
+          "xlm": "XLM/USD",
+          "tron": "TRX/USD",
+          "trx": "TRX/USD",
+          "eos": "EOS/USD",
+          "iota": "MIOTA/USD",
+          "neo": "NEO/USD",
+          "dash": "DASH/USD"
+        };
+        
+        const lowerInput = input.toLowerCase();
+        for (const [alias, pair] of Object.entries(cryptoAliases)) {
+          if (lowerInput.includes(alias)) {
+            symbol = pair;
+            break;
+          }
+        }
+      }
+      
+      // Pattern 3: Generic crypto mentions with default pairing
+      if (!symbol) {
+        const cryptoPatterns = [
+          /\b(BTC|BITCOIN)\b/i,
+          /\b(ETH|ETHEREUM|ETHER)\b/i,
+          /\b(ADA|CARDANO)\b/i,
+          /\b(SOL|SOLANA)\b/i,
+          /\b(DOT|POLKADOT)\b/i,
+          /\b(LINK|CHAINLINK)\b/i,
+          /\b(MATIC|POLYGON)\b/i,
+          /\b(AVAX|AVALANCHE)\b/i
+        ];
+        
+        for (const pattern of cryptoPatterns) {
+          const match = input.match(pattern);
+          if (match) {
+            const crypto = match[1].toUpperCase();
+            if (["BTC", "BITCOIN"].includes(crypto)) symbol = "BTC/USD";
+            else if (["ETH", "ETHEREUM", "ETHER"].includes(crypto)) symbol = "ETH/USD";
+            else if (["ADA", "CARDANO"].includes(crypto)) symbol = "ADA/USD";
+            else if (["SOL", "SOLANA"].includes(crypto)) symbol = "SOL/USD";
+            else if (["DOT", "POLKADOT"].includes(crypto)) symbol = "DOT/USD";
+            else if (["LINK", "CHAINLINK"].includes(crypto)) symbol = "LINK/USD";
+            else if (["MATIC", "POLYGON"].includes(crypto)) symbol = "MATIC/USD";
+            else if (["AVAX", "AVALANCHE"].includes(crypto)) symbol = "AVAX/USD";
+            break;
+          }
+        }
       }
       if (!symbol) {
         const currentSession = chatSessions.find((session) => session.id === currentChatId);
@@ -405,7 +569,8 @@ export default function CryptoAdvisor() {
               symbol = match[0].toUpperCase();
               break;
             }
-            const prevCryptoMatch = cryptoNames.find((name) => messages[i].content.toLowerCase().includes(name));
+            const cryptoNames = ["bitcoin", "btc", "ethereum", "eth", "cardano", "ada", "solana", "sol"];
+            const prevCryptoMatch = cryptoNames.find((name: string) => messages[i].content.toLowerCase().includes(name));
             if (prevCryptoMatch) {
               symbol = prevCryptoMatch === "bitcoin" || prevCryptoMatch === "btc" ? "BTC/USD" : "ETH/USD";
               break;
@@ -417,10 +582,81 @@ export default function CryptoAdvisor() {
         symbol = "BTC/USD"; // Default to BTC/USD for vague crypto queries
       }
   
+      // Enhanced crypto symbol detection and smart suggestions
       if (!symbol) {
+        // Try to provide intelligent assistance even without a symbol
+        const isGeneralQuery = 
+          input.toLowerCase().includes("market") ||
+          input.toLowerCase().includes("crypto") ||
+          input.toLowerCase().includes("cryptocurrency") ||
+          input.toLowerCase().includes("digital") ||
+          input.toLowerCase().includes("blockchain") ||
+          input.toLowerCase().includes("general") ||
+          input.toLowerCase().includes("overall") ||
+          input.toLowerCase().includes("defi") ||
+          input.toLowerCase().includes("tips") ||
+          input.toLowerCase().includes("advice") ||
+          input.toLowerCase().includes("help") ||
+          input.toLowerCase().includes("explain") ||
+          input.toLowerCase().includes("what is") ||
+          input.toLowerCase().includes("how to") ||
+          input.toLowerCase().includes("trading");
+
+        let content = "";
+        if (isGeneralQuery) {
+          content = `I'd be happy to help with your crypto question! For general market insights, I can provide:
+
+🚀 **Crypto Market Analysis Options:**
+• Cryptocurrency overviews (Bitcoin, Ethereum, Altcoins)
+• Market sentiment analysis and trend identification
+• Trading strategy guidance and risk management
+• Technical analysis education and chart patterns
+• DeFi and blockchain technology explanations
+
+🔍 **For Specific Crypto Analysis:**
+Provide a crypto symbol (e.g., 'BTC/USD', 'ETH/BTC', 'ADA/USD') or name.
+
+📈 **Popular Cryptos to Try:**
+• BTC/USD (Bitcoin), ETH/USD (Ethereum), ADA/USD (Cardano)
+• SOL/USD (Solana), DOT/USD (Polkadot), LINK/USD (Chainlink)
+• MATIC/USD (Polygon), AVAX/USD (Avalanche)
+
+What specific aspect of crypto would you like me to focus on?`;
+        } else {
+          // Try to suggest similar symbols from input
+          const inputUpper = input.toUpperCase().replace(/[^A-Z]/g, "");
+          const similarCryptos = cryptoPairs
+            .filter((pair: any) => 
+              pair.symbol.replace("/", "").includes(inputUpper.slice(0, 3)) ||
+              (pair.currency_base && pair.currency_base.toLowerCase().includes(input.toLowerCase().slice(0, 4))) ||
+              (pair.currency_quote && pair.currency_quote.toLowerCase().includes(input.toLowerCase().slice(0, 4)))
+            )
+            .slice(0, 5)
+            .map((pair: any) => `${pair.symbol} (${pair.currency_base || 'Crypto'})`);
+
+          const suggestions = similarCryptos.length > 0 ? similarCryptos.join(", ") : "";
+
+          content = `I couldn't identify a specific crypto from your message. 
+
+🔍 **Did you mean:**
+${suggestions ? `• ${suggestions}` : "• Please provide a valid crypto symbol"}
+
+💡 **Popular Options:**
+• BTC/USD (Bitcoin) • ETH/USD (Ethereum) • ADA/USD (Cardano)
+• SOL/USD (Solana) • DOT/USD (Polkadot) • LINK/USD (Chainlink)
+• MATIC/USD (Polygon) • AVAX/USD (Avalanche)
+
+📝 **Try formats like:**
+• "How's Bitcoin?" or "BTC analysis"
+• "What's ETH worth?"
+• "Analyze Solana" or "SOL/USD report"
+
+What crypto would you like me to analyze?`;
+        }
+
         const errorMessage: Message = {
           role: "assistant",
-          content: "I'm not sure which crypto you mean! Could you mention something like 'Bitcoin' or 'ETH' so I can help you?",
+          content,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -436,11 +672,39 @@ export default function CryptoAdvisor() {
         return;
       }
   
+      // Enhanced crypto symbol validation with suggestions
       const isValidSymbol = cryptoPairs.some((pair: any) => pair.symbol === symbol);
       if (!isValidSymbol && cryptoPairs.length > 0) {
+        // Find similar crypto symbols for suggestions
+        const similarCryptos = cryptoPairs
+          .filter((pair: any) => 
+            pair.symbol.includes(symbol!.slice(0, 3)) ||
+            pair.symbol.startsWith(symbol!.charAt(0)) ||
+            (pair.currency_base && pair.currency_base.toLowerCase().includes(symbol!.toLowerCase())) ||
+            (pair.currency_quote && pair.currency_quote.toLowerCase().includes(symbol!.toLowerCase()))
+          )
+          .slice(0, 5)
+          .map((pair: any) => `${pair.symbol} (${pair.currency_base || 'Crypto'})`);
+
+        const suggestions = similarCryptos.length > 0 ? similarCryptos.join(", ") : "";
+        const content = `❌ **Crypto Symbol '${symbol}' not found** in available cryptocurrency pairs.
+
+🔍 **Did you mean:**
+${suggestions ? `• ${suggestions}` : "No similar symbols found"}
+
+💡 **Popular Crypto Pairs:**
+• **Major**: BTC/USD, ETH/USD, BNB/USD, XRP/USD
+• **DeFi**: UNI/USD, AAVE/USD, SUSHI/USD, CRV/USD
+• **Layer 1**: SOL/USD, ADA/USD, DOT/USD, AVAX/USD
+• **Layer 2**: MATIC/USD, METIS/USD, ARB/USD
+
+📝 **Note:** I analyze all major cryptocurrencies and trading pairs. Ensure the format is correct (e.g., BTC/USD).
+
+Please provide a valid crypto symbol for analysis.`;
+
         const errorMessage: Message = {
           role: "assistant",
-          content: `Hmm, I couldn't find '${symbol}'. Did you mean something like 'BTC/USD' for Bitcoin or 'ETH/BTC' for Ethereum? Let me know!`,
+          content,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -459,20 +723,68 @@ export default function CryptoAdvisor() {
       const predefinedIndicators = ["rsi", "ema", "macd", "bbands", "atr", "obv", "supertrend", "stoch", "adx"];
       const indicatorMatch = input.match(new RegExp(`\\b(${predefinedIndicators.join("|")})\\b`, "i"))?.[0]?.toLowerCase();
       const requestedIndicators = indicatorMatch ? [indicatorMatch] : [];
+      
+      // Enhanced data fetching logic for comprehensive crypto analysis
       const needsQuote =
         input.toLowerCase().includes("price") ||
         input.toLowerCase().includes("worth") ||
         input.toLowerCase().includes("value") ||
         input.toLowerCase().includes("at") ||
         input.toLowerCase().includes("up") ||
-        input.toLowerCase().includes("down");
+        input.toLowerCase().includes("down") ||
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("invest") ||
+        input.toLowerCase().includes("buy") ||
+        input.toLowerCase().includes("sell") ||
+        input.toLowerCase().includes("trade") ||
+        input.toLowerCase().includes("trading") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("summary") ||
+        input.toLowerCase().includes("how") ||
+        input.toLowerCase().includes("what") ||
+        input.toLowerCase().includes("performance") ||
+        input.toLowerCase().includes("outlook") ||
+        requestedIndicators.length > 0; // Always fetch quote if indicators are requested
+        
       const needsTrend =
         input.toLowerCase().includes("trend") ||
         input.toLowerCase().includes("time series") ||
         input.toLowerCase().includes("doing") ||
         input.toLowerCase().includes("performance") ||
-        input.toLowerCase().includes("analyz");
-      const isGeneralAnalysis = input.toLowerCase().includes("analyz") && requestedIndicators.length === 0;
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("chart") ||
+        input.toLowerCase().includes("history") ||
+        input.toLowerCase().includes("historical") ||
+        input.toLowerCase().includes("movement") ||
+        input.toLowerCase().includes("direction"); // Always fetch trend for analysis
+        
+      // Always fetch comprehensive indicators for analysis, research, or investment queries
+      const needsComprehensiveAnalysis = 
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("invest") ||
+        input.toLowerCase().includes("trade") ||
+        input.toLowerCase().includes("trading") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("comprehensive") ||
+        input.toLowerCase().includes("detailed") ||
+        input.toLowerCase().includes("full") ||
+        input.toLowerCase().includes("complete") ||
+        input.toLowerCase().includes("strategy") ||
+        input.toLowerCase().includes("portfolio");
+        
+      const isGeneralAnalysis = needsComprehensiveAnalysis;
   
       const apiCallCount = { count: 0 };
       let cryptoData: any = {};
@@ -495,8 +807,13 @@ export default function CryptoAdvisor() {
         }
       }
   
-      if (requestedIndicators.length > 0) {
-        for (const indicator of requestedIndicators) {
+      if (requestedIndicators.length > 0 || isGeneralAnalysis) {
+        const indicatorsToFetch = requestedIndicators.length > 0 
+          ? requestedIndicators 
+          : isGeneralAnalysis 
+          ? ["rsi", "ema", "macd", "bbands", "atr", "obv"] // Comprehensive set for detailed crypto analysis
+          : [];
+        for (const indicator of indicatorsToFetch) {
           try {
             cryptoData[indicator] = await fetchCryptoData(symbol, indicator, apiCallCount);
           } catch (error: unknown) {
@@ -504,6 +821,28 @@ export default function CryptoAdvisor() {
             cryptoData[indicator] = { error: errorMessage };
           }
         }
+      }
+
+      // Fetch Reddit sentiment data for general analysis
+      let redditData: any = null;
+      if (isGeneralAnalysis || needsTrend || needsQuote) {
+        try {
+          const redditResponse = await fetch(`/api/reddit?symbol=${symbol}`);
+          if (redditResponse.ok) {
+            redditData = await redditResponse.json();
+            console.log(`Successfully fetched Reddit data for crypto symbol: ${symbol}`);
+          } else {
+            console.warn(`Failed to fetch Reddit data for ${symbol}`);
+          }
+        } catch (error) {
+          console.warn(`Error fetching Reddit data for ${symbol}:`, error);
+          // Continue without Reddit data
+        }
+      }
+
+      // Add Reddit data to crypto data if available
+      if (redditData) {
+        cryptoData.redditSentiment = redditData;
       }
   
       const recentHistory = messages.slice(-5);
@@ -534,6 +873,7 @@ export default function CryptoAdvisor() {
         timestamp: new Date().toLocaleTimeString(),
         cryptoData,
         symbol,
+        redditData,
       };
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
@@ -549,14 +889,81 @@ export default function CryptoAdvisor() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       console.error("Error in chatbot:", errorMessage);
+      
+      // Enhanced error handling with intelligent fallback for crypto
+      let fallbackContent = "";
+      
+      // Determine error type and provide appropriate fallback
+      if (errorMessage.includes("network") || errorMessage.includes("fetch") || errorMessage.includes("timeout")) {
+        fallbackContent = `🌐 **Network Issue Detected**
+
+I'm experiencing connectivity issues: ${errorMessage}
+
+💡 **What I can still help with:**
+• Explain crypto concepts and blockchain technology
+• Discuss cryptocurrency trading strategies and risk management
+• Provide crypto market analysis framework guidance
+• Share DeFi and yield farming insights
+• Explain technical indicators for crypto trading
+• NFT and Web3 technology explanations
+
+🔄 **Troubleshooting:**
+• Please check your internet connection
+• Try again in a few moments
+• Consider asking general crypto questions
+
+I'm here to help with crypto education even without real-time data!`;
+      } else if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("quota")) {
+        fallbackContent = `⚙️ **API Service Issue**
+
+There's a temporary service limitation: ${errorMessage}
+
+📚 **Educational Content Available:**
+• Cryptocurrency fundamentals and blockchain basics
+• Technical analysis for crypto trading
+• DeFi protocols and yield strategies
+• NFT market analysis and trends
+• Crypto portfolio management strategies
+• Security best practices for crypto investors
+
+💬 **Ask me about:**
+• "How does Bitcoin mining work?"
+• "What is DeFi and yield farming?"
+• "Explain crypto market cycles"
+• "How to read crypto charts?"
+
+Let's continue with crypto education while the service recovers!`;
+      } else {
+        fallbackContent = `🔧 **Technical Issue Encountered**
+
+I encountered an unexpected error: ${errorMessage}
+
+🎯 **Alternative Assistance:**
+• General crypto market analysis concepts
+• Cryptocurrency trading strategy discussions
+• Blockchain technology explanations
+• DeFi and NFT educational content
+• Crypto security and wallet guidance
+• Market psychology and HODL strategies
+
+💭 **Try asking:**
+• "Explain Bitcoin vs Ethereum"
+• "What are altcoins and memecoins?"
+• "How to analyze crypto projects?"
+• "Crypto staking vs trading strategies"
+
+I'm still here to help with your crypto learning journey!`;
+      }
+      
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again!",
+        title: "Service Issue",
+        description: "Providing alternative crypto assistance while resolving the issue.",
         variant: "destructive",
       });
+      
       const errorMsg: Message = {
         role: "assistant",
-        content: "Oops, something broke on my end. Try asking again?",
+        content: fallbackContent,
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {

@@ -207,6 +207,7 @@ interface Message {
   timestamp: string;
   forexData?: any;
   indicatorsData?: any;
+  redditData?: any;
 }
 
 interface ChatSession {
@@ -419,7 +420,7 @@ export default function ForexAdvisor() {
       }
       const llm = new ChatGroq({
         apiKey,
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.5,
       });
 
@@ -430,37 +431,108 @@ export default function ForexAdvisor() {
       await chatHistory.addMessage(new HumanMessage(input));
 
       const systemPrompt = `
-        You are an AI forex advisor for FinanceAI, a platform that provides financial data analysis for forex trading. Your task is to assist users by interpreting forex data and technical indicators for a given forex pair symbol (e.g., "EUR/USD", "GBP/JPY"). Follow these steps:
+        You are an advanced AI Forex Advisor for FinanceAI, a comprehensive financial analysis platform. You are designed to handle ANY forex-related query, analysis request, or report generation for global currency pairs. Your capabilities extend far beyond basic data retrieval to provide sophisticated forex market insights.
 
-        1. **Identify the Symbol**:
-           - The user may provide a symbol (e.g., "EUR/USD") or pair name (e.g., "Euro to US Dollar").
-           - If no symbol is provided in the current message, use the most recent symbol from the chat history.
-           - The code has already validated the symbol, so assume it's valid when provided.
+        ## CORE CAPABILITIES
+        You can handle:
+        - **Currency Analysis**: Complete fundamental and technical analysis of forex pairs
+        - **Market Research**: Economic impact analysis, central bank policy effects, geopolitical influences
+        - **Trading Reports**: Daily forex summaries, volatility analysis, correlation studies
+        - **Risk Management**: Position sizing, volatility assessment, correlation analysis
+        - **Trading Strategies**: Entry/exit points, trend analysis, momentum strategies
+        - **Economic Context**: How global events, interest rates, and economic indicators affect currencies
+        - **Comparative Analysis**: Currency strength analysis, cross-pair correlations
+        - **Educational Content**: Explain complex forex concepts and trading strategies
 
-        2. **Identify Requested Data**:
-           - For "analyze [symbol]", provide a concise analysis with current price, daily change, 30-day trend, and a few key indicators (EMA, RSI, MACD).
-           - For specific indicators (e.g., "What's the RSI for [symbol]?"), only provide the requested indicator.
-           - For forex stats (e.g., "current price of [symbol]"), only provide the requested data.
-           - Available indicators: EMA (20-day, 50-day), RSI (14-day), MACD (12, 26, 9), BBANDS (20, 2 SD), ADX (14), ATR (14), Ichimoku, STOCH, CCI, MOM, Pivot Points.
+        ## COMPREHENSIVE ANALYSIS FRAMEWORK
+        
+        ### 1. CURRENCY PAIR IDENTIFICATION & VALIDATION
+        - **Smart Recognition**: Detect pairs from various formats (EUR/USD, EURUSD, Euro Dollar)
+        - **Auto-correction**: Handle common variations and formatting differences
+        - **Context Memory**: Remember pairs from conversation history
+        - **Flexible Input**: Handle "Euro analysis", "USD strength", "GBP report" formats
+        - **Global Coverage**: Support all major, minor, and exotic currency pairs
 
-        3. **Use Provided Data**:
-           - Use only the API data provided in the input under "API Data". Do not fetch data yourself.
-           - If data is missing, inform the user (e.g., "I couldn't fetch the RSI for [symbol].").
+        ### 2. FOREX DATA INTERPRETATION & ANALYSIS
+        **Market Metrics Analysis**:
+        - Exchange rates: Current rates, daily/weekly/monthly changes, pip movements
+        - Volatility analysis: Average True Range, daily ranges, volatility percentiles
+        - Volume analysis: Market participation, institutional flows
+        - Correlation analysis: How pairs move relative to each other
+        
+        **Technical Indicators (Available: RSI, MACD, EMA, BBANDS, ADX, ATR, Ichimoku, STOCH, CCI, MOM, Pivot Points)**:
+        - RSI: Momentum oscillator, overbought/oversold conditions for currencies
+        - MACD: Trend following, signal line crossovers, momentum shifts
+        - EMA: Moving averages, trend confirmation, dynamic support/resistance
+        - Bollinger Bands: Volatility bands, currency pair ranging vs trending
+        - ADX: Trend strength measurement, directional movement analysis
+        - ATR: Volatility measurement, position sizing calculations
+        - Ichimoku: Complete trend analysis, cloud support/resistance
+        - Stochastic: Momentum oscillator, currency pair momentum
+        - CCI: Commodity Channel Index, cyclical analysis
+        - Momentum: Rate of change analysis
+        - Pivot Points: Key support and resistance levels
 
-        4. **Deep Analysis**:
-           - For general analysis: Include price, change, trend, and key indicators (EMA, RSI, MACD).
-           - For specific indicators: Provide current value, trend, and insights.
-           - Use data-driven insights (e.g., "RSI at 70 suggests overbought conditions").
+        **Social Sentiment Integration**:
+        - Reddit forex community analysis: Trader sentiment, market buzz
+        - Social momentum: How community sentiment aligns with technical analysis
+        - Contrarian signals: When sentiment diverges from price action
+        - Geographic sentiment: Regional trading perspectives
 
-        5. **Handle Unsupported Indicators**:
-           - If an indicator isn't supported, say: "Indicator 'XYZ' isn't available. Try EMA, RSI, MACD, etc."
+        ### 3. RESPONSE ADAPTABILITY
+        **Query Types & Responses**:
+        - **Quick Rates**: "What's EUR/USD at?" → Current rate + key highlights
+        - **Analysis Requests**: "Analyze GBP/JPY" → Complete technical + fundamental + sentiment analysis
+        - **Economic Impact**: "How do rate hikes affect USD?" → Economic analysis with currency implications
+        - **Trading Strategies**: "Best EUR/USD entry point?" → Technical analysis with entry/exit recommendations
+        - **Risk Assessment**: "EUR/USD volatility analysis" → Risk metrics and position sizing guidance
+        - **Cross-Analysis**: "USD strength today" → Multi-pair USD analysis
+        - **Educational**: "Explain carry trades" → Clear educational content with examples
+        - **Market Updates**: "Forex market summary" → Comprehensive market overview
+        - **Correlation Analysis**: "How does EUR/USD affect GBP/USD?" → Inter-pair relationship analysis
 
-        6. **Maintain Context**:
-           - Use chat history for context (e.g., if "What's the RSI?" follows EUR/USD discussion, answer for EUR/USD).
+        ### 4. COMPREHENSIVE REPORTING
+        **Analysis Depth Levels**:
+        - **Quick Summary**: 2-3 key points for rapid trading decisions
+        - **Standard Analysis**: Rate, trends, key indicators, sentiment, trading recommendation
+        - **Deep Dive**: Comprehensive analysis with multiple timeframes, economic context, risk factors
+        - **Custom Reports**: Tailored analysis based on specific trading requirements
 
-        7. **Response Format**:
-           - Use clear, concise language with bullet points or short paragraphs.
-           - Do not invent data. Use only what's provided.
+        **Professional Formatting**:
+        - Use bullet points, headers, and sections for complex analysis
+        - Include confidence levels and data freshness indicators
+        - Provide actionable trading insights and clear recommendations
+        - Always cite data sources and timestamps
+        - Include pip targets and risk levels where appropriate
+
+        ### 5. INTELLIGENT ERROR HANDLING
+        - **Missing Data**: Explain what's missing and provide analysis with available data
+        - **Invalid Pairs**: Suggest closest matches or alternative analysis approaches
+        - **API Failures**: Provide general market context or educational content
+        - **Ambiguous Requests**: Ask clarifying questions to provide better analysis
+
+        ### 6. CONTEXTUAL INTELLIGENCE
+        - **Market Awareness**: Consider current global economic conditions
+        - **Session Analysis**: Account for Asian, European, US trading sessions
+        - **Economic Calendar**: Reference upcoming economic events when relevant
+        - **Cross-Market Analysis**: Connect forex movements with stocks, commodities, bonds
+
+        ### 7. RISK & COMPLIANCE
+        - Always include risk disclaimers for trading advice
+        - Provide balanced analysis showing both opportunities and risks
+        - Emphasize proper risk management and position sizing
+        - Focus on education and analysis rather than direct trading signals
+        - Remind users about leverage risks in forex trading
+
+        ## OUTPUT GUIDELINES
+        - **Be Comprehensive**: Address all aspects of the user's query
+        - **Be Adaptive**: Match response depth to query complexity
+        - **Be Accurate**: Only use provided API data, clearly state limitations
+        - **Be Helpful**: Always try to provide value even with limited data
+        - **Be Professional**: Maintain expert-level forex communication
+        - **Be Educational**: Explain concepts when beneficial for user understanding
+
+        Remember: You are a sophisticated forex advisor capable of handling any currency-related query with professional-grade analysis.
       `;
 
       const prompt = ChatPromptTemplate.fromMessages([
@@ -468,8 +540,10 @@ export default function ForexAdvisor() {
         ["human", "{input}"],
       ]);
 
+      // Enhanced forex pair detection with multiple patterns and aliases
       let symbol: string | null = null;
 
+      // Pattern 1: Standard forex pair format (EUR/USD, GBP/JPY, etc.)
       const symbolMatch = input.match(/\b[A-Z]{3}\/[A-Z]{3}\b/)?.[0];
       if (symbolMatch) {
         const potentialSymbol = symbolMatch.toUpperCase();
@@ -477,6 +551,7 @@ export default function ForexAdvisor() {
         if (pair) {
           symbol = potentialSymbol;
         } else {
+          // Try fuzzy matching for similar pairs
           const closestSymbol = forexPairs.reduce(
             (closest: { symbol: string; distance: number }, p) => {
               const distance = levenshteinDistance(potentialSymbol.replace("/", ""), p.symbol.replace("/", ""));
@@ -486,6 +561,78 @@ export default function ForexAdvisor() {
           );
           if (closestSymbol.distance <= 2) {
             symbol = closestSymbol.symbol;
+          }
+        }
+      }
+
+      // Pattern 2: Currency name variations and common aliases
+      if (!symbol) {
+        const currencyAliases: { [key: string]: string } = {
+          "eurusd": "EUR/USD",
+          "euro dollar": "EUR/USD",
+          "eur usd": "EUR/USD",
+          "gbpusd": "GBP/USD",
+          "pound dollar": "GBP/USD",
+          "gbp usd": "GBP/USD",
+          "cable": "GBP/USD",
+          "usdjpy": "USD/JPY",
+          "dollar yen": "USD/JPY",
+          "usd jpy": "USD/JPY",
+          "usdchf": "USD/CHF",
+          "dollar franc": "USD/CHF",
+          "usd chf": "USD/CHF",
+          "audusd": "AUD/USD",
+          "aussie dollar": "AUD/USD",
+          "aud usd": "AUD/USD",
+          "usdcad": "USD/CAD",
+          "dollar loonie": "USD/CAD",
+          "usd cad": "USD/CAD",
+          "nzdusd": "NZD/USD",
+          "kiwi dollar": "NZD/USD",
+          "nzd usd": "NZD/USD",
+          "eurgbp": "EUR/GBP",
+          "euro pound": "EUR/GBP",
+          "eur gbp": "EUR/GBP",
+          "gbpjpy": "GBP/JPY",
+          "pound yen": "GBP/JPY",
+          "gbp jpy": "GBP/JPY",
+          "eurjpy": "EUR/JPY",
+          "euro yen": "EUR/JPY",
+          "eur jpy": "EUR/JPY"
+        };
+        
+        const lowerInput = input.toLowerCase().replace(/[^a-z\s]/g, "");
+        for (const [alias, pair] of Object.entries(currencyAliases)) {
+          if (lowerInput.includes(alias)) {
+            symbol = pair;
+            break;
+          }
+        }
+      }
+
+      // Pattern 3: Individual currency mentions with context
+      if (!symbol) {
+        const currencyMentions = [];
+        const currencies = ["EUR", "USD", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD"];
+        const upperInput = input.toUpperCase();
+        
+        for (const curr of currencies) {
+          if (upperInput.includes(curr)) {
+            currencyMentions.push(curr);
+          }
+        }
+        
+        // If exactly 2 currencies mentioned, create pair
+        if (currencyMentions.length === 2) {
+          const potentialPair = `${currencyMentions[0]}/${currencyMentions[1]}`;
+          if (forexPairs.some(p => p.symbol === potentialPair)) {
+            symbol = potentialPair;
+          } else {
+            // Try reverse order
+            const reversePair = `${currencyMentions[1]}/${currencyMentions[0]}`;
+            if (forexPairs.some(p => p.symbol === reversePair)) {
+              symbol = reversePair;
+            }
           }
         }
       }
@@ -524,10 +671,77 @@ export default function ForexAdvisor() {
         }
       }
 
+      // Enhanced forex pair detection and smart suggestions
       if (!symbol) {
+        // Try to provide intelligent assistance even without a symbol
+        const isGeneralQuery = 
+          input.toLowerCase().includes("market") ||
+          input.toLowerCase().includes("forex") ||
+          input.toLowerCase().includes("currency") ||
+          input.toLowerCase().includes("general") ||
+          input.toLowerCase().includes("overall") ||
+          input.toLowerCase().includes("economy") ||
+          input.toLowerCase().includes("tips") ||
+          input.toLowerCase().includes("advice") ||
+          input.toLowerCase().includes("help") ||
+          input.toLowerCase().includes("explain") ||
+          input.toLowerCase().includes("what is") ||
+          input.toLowerCase().includes("how to") ||
+          input.toLowerCase().includes("trading");
+
+        let content = "";
+        if (isGeneralQuery) {
+          content = `I'd be happy to help with your forex question! For general market insights, I can provide:
+
+🌍 **Forex Market Analysis Options:**
+• Currency pair overviews (majors, minors, exotics)
+• Economic impact analysis and central bank policies
+• Trading strategy guidance and risk management
+• Technical analysis education and chart patterns
+• Market session analysis (Asian, European, US)
+
+🔍 **For Specific Pair Analysis:**
+Provide a forex pair (e.g., 'EUR/USD', 'GBP/JPY', 'USD/CHF') or currency name.
+
+📈 **Popular Pairs to Try:**
+• EUR/USD (Euro/Dollar), GBP/USD (Pound/Dollar), USD/JPY (Dollar/Yen)
+• GBP/JPY (Pound/Yen), EUR/GBP (Euro/Pound), AUD/USD (Aussie/Dollar)
+• USD/CAD (Dollar/Loonie), USD/CHF (Dollar/Franc)
+
+What specific aspect of forex would you like me to focus on?`;
+        } else {
+          // Try to suggest similar symbols from input
+          const inputUpper = input.toUpperCase().replace(/[^A-Z]/g, "");
+          const similarPairs = forexPairs
+            .filter(pair => 
+              pair.symbol.replace("/", "").includes(inputUpper.slice(0, 3)) ||
+              (pair.name && pair.name.toLowerCase().includes(input.toLowerCase().slice(0, 4)))
+            )
+            .slice(0, 5)
+            .map(pair => `${pair.symbol} (${pair.name || 'Currency Pair'})`)
+            .join(", ");
+
+          content = `I couldn't identify a specific forex pair from your message. 
+
+🔍 **Did you mean:**
+${similarPairs ? `• ${similarPairs}` : "• Please provide a valid forex pair"}
+
+💡 **Popular Options:**
+• EUR/USD (Euro/US Dollar) • GBP/USD (British Pound/US Dollar)
+• USD/JPY (US Dollar/Japanese Yen) • GBP/JPY (British Pound/Japanese Yen)
+• EUR/GBP (Euro/British Pound) • AUD/USD (Australian Dollar/US Dollar)
+
+📝 **Try formats like:**
+• "Analyze EUR/USD"
+• "What's GBP/JPY RSI?"
+• "USD/JPY trading strategy"
+
+What forex pair would you like me to analyze?`;
+        }
+
         const errorMessage: Message = {
           role: "assistant",
-          content: "Please provide a forex pair symbol or name (e.g., 'EUR/USD' or 'Euro to US Dollar').",
+          content,
           timestamp: new Date().toLocaleTimeString(),
         };
         setMessages((prev) => {
@@ -545,6 +759,7 @@ export default function ForexAdvisor() {
         return;
       }
 
+      // Enhanced forex pair validation with suggestions
       if (forexPairs.length > 0) {
         const isValidSymbol = forexPairs.some((pair) => pair.symbol === symbol);
         if (!isValidSymbol) {
@@ -555,10 +770,36 @@ export default function ForexAdvisor() {
             },
             { symbol: "", distance: Infinity }
           );
+          
+          // Find additional similar pairs
+          const similarPairs = forexPairs
+            .filter(pair => 
+              pair.symbol.includes(symbol!.slice(0, 3)) ||
+              pair.symbol.startsWith(symbol!.charAt(0)) ||
+              (pair.name && pair.name.toLowerCase().includes(symbol!.toLowerCase()))
+            )
+            .slice(0, 5)
+            .map(pair => `${pair.symbol} (${pair.name || 'Currency Pair'})`)
+            .join(", ");
+
           const suggestion = closestSymbol.distance <= 2 ? ` Did you mean '${closestSymbol.symbol}'?` : "";
+          const content = `❌ **Forex Pair '${symbol}' not found** in available currency pairs.
+
+🔍 **Did you mean:**
+${suggestion || (similarPairs ? `• ${similarPairs}` : "No similar pairs found")}
+
+💡 **Popular Forex Pairs:**
+• **Majors**: EUR/USD, GBP/USD, USD/JPY, USD/CHF
+• **Crosses**: EUR/GBP, GBP/JPY, EUR/JPY, AUD/CAD
+• **Commodities**: AUD/USD, USD/CAD, NZD/USD
+
+📝 **Note:** I analyze all major, minor, and exotic forex pairs. Ensure the format is correct (e.g., EUR/USD).
+
+Please provide a valid forex pair for analysis.`;
+
           const errorMessage: Message = {
             role: "assistant",
-            content: `I couldn't find '${symbol}' in the forex pairs list.${suggestion} Try 'EUR/USD' or 'GBP/JPY'.`,
+            content,
             timestamp: new Date().toLocaleTimeString(),
           };
           setMessages((prev) => {
@@ -581,11 +822,53 @@ export default function ForexAdvisor() {
       const requestedIndicators = indicators.filter((indicator) =>
         input.toLowerCase().includes(indicator)
       );
+      
+      // Enhanced data fetching logic for comprehensive forex analysis
       const needsForexData =
         input.toLowerCase().includes("price") ||
+        input.toLowerCase().includes("rate") ||
         input.toLowerCase().includes("change") ||
-        input.toLowerCase().includes("trend");
-      const isGeneralAnalysis = input.toLowerCase().includes("analyz") && requestedIndicators.length === 0;
+        input.toLowerCase().includes("trend") ||
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("trade") ||
+        input.toLowerCase().includes("trading") ||
+        input.toLowerCase().includes("buy") ||
+        input.toLowerCase().includes("sell") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("summary") ||
+        input.toLowerCase().includes("how") ||
+        input.toLowerCase().includes("what") ||
+        input.toLowerCase().includes("performance") ||
+        input.toLowerCase().includes("outlook") ||
+        input.toLowerCase().includes("volatility") ||
+        input.toLowerCase().includes("strength") ||
+        input.toLowerCase().includes("weakness") ||
+        requestedIndicators.length > 0; // Always fetch forex data if indicators are requested
+
+      // Always fetch comprehensive indicators for analysis, research, or trading queries
+      const needsComprehensiveAnalysis = 
+        input.toLowerCase().includes("analyz") ||
+        input.toLowerCase().includes("report") ||
+        input.toLowerCase().includes("research") ||
+        input.toLowerCase().includes("trade") ||
+        input.toLowerCase().includes("trading") ||
+        input.toLowerCase().includes("recommend") ||
+        input.toLowerCase().includes("assessment") ||
+        input.toLowerCase().includes("evaluation") ||
+        input.toLowerCase().includes("overview") ||
+        input.toLowerCase().includes("comprehensive") ||
+        input.toLowerCase().includes("detailed") ||
+        input.toLowerCase().includes("full") ||
+        input.toLowerCase().includes("complete") ||
+        input.toLowerCase().includes("strategy") ||
+        input.toLowerCase().includes("position");
+      
+      const isGeneralAnalysis = needsComprehensiveAnalysis;
 
       let forexData: any = undefined;
       let indicatorsData: { [key: string]: { data: any; timestamp: number } } | undefined = undefined;
@@ -607,11 +890,26 @@ export default function ForexAdvisor() {
         const indicatorsToFetch = requestedIndicators.length > 0
           ? requestedIndicators
           : isGeneralAnalysis
-          ? ["ema", "rsi", "macd"] // Limit to a few key indicators for general analysis
-          : [];
+          ? ["ema", "rsi", "macd", "bbands", "adx", "atr"] // Comprehensive set for detailed forex analysis
+          : []; // Default minimal set
         if (indicatorsToFetch.length > 0) {
           indicatorsData = await fetchIndicators(symbol, indicatorsToFetch, apiCallCount);
         }
+      }
+
+      // Fetch Reddit sentiment data
+      let redditData: any = null;
+      try {
+        const redditResponse = await fetch(`/api/reddit?symbol=${symbol}`);
+        if (redditResponse.ok) {
+          redditData = await redditResponse.json();
+          console.log(`Successfully fetched Reddit data for forex pair: ${symbol}`);
+        } else {
+          console.warn(`Failed to fetch Reddit data for ${symbol}`);
+        }
+      } catch (error) {
+        console.warn(`Error fetching Reddit data for ${symbol}:`, error);
+        // Continue without Reddit data
       }
 
       // Prepare minimal data for LLM
@@ -628,6 +926,9 @@ export default function ForexAdvisor() {
           }
         }
       }
+      if (redditData) {
+        apiData.redditSentiment = redditData;
+      }
 
       const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(apiData)}`;
 
@@ -643,6 +944,7 @@ export default function ForexAdvisor() {
         timestamp: new Date().toLocaleTimeString(),
         forexData,
         indicatorsData,
+        redditData,
       };
 
       setMessages((prev) => {
@@ -661,14 +963,81 @@ export default function ForexAdvisor() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       console.error("Error in chatbot:", errorMessage);
+      
+      // Enhanced error handling with intelligent fallback for forex
+      let fallbackContent = "";
+      
+      // Determine error type and provide appropriate fallback
+      if (errorMessage.includes("network") || errorMessage.includes("fetch") || errorMessage.includes("timeout")) {
+        fallbackContent = `🌐 **Network Issue Detected**
+
+I'm experiencing connectivity issues: ${errorMessage}
+
+💡 **What I can still help with:**
+• Explain forex concepts and terminology
+• Discuss currency trading strategies and risk management
+• Provide market analysis framework guidance
+• Share forex psychology and trading insights
+• Explain technical indicators for forex trading
+• Currency correlation analysis concepts
+
+🔄 **Troubleshooting:**
+• Please check your internet connection
+• Try again in a few moments
+• Consider asking general forex questions
+
+I'm here to help with forex education even without real-time data!`;
+      } else if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("quota")) {
+        fallbackContent = `⚙️ **API Service Issue**
+
+There's a temporary service limitation: ${errorMessage}
+
+📚 **Educational Content Available:**
+• Forex market fundamentals and structure
+• Currency pair analysis principles
+• Technical analysis for forex trading
+• Risk management in forex markets
+• Economic indicators impact on currencies
+• Central bank policies and forex effects
+
+💬 **Ask me about:**
+• "How do interest rates affect forex?"
+• "What is carry trading?"
+• "Explain forex market sessions"
+• "How to read forex charts?"
+
+Let's continue with forex education while the service recovers!`;
+      } else {
+        fallbackContent = `🔧 **Technical Issue Encountered**
+
+I encountered an unexpected error: ${errorMessage}
+
+🎯 **Alternative Assistance:**
+• General forex market analysis concepts
+• Currency trading strategy discussions
+• Forex risk management principles
+• Technical analysis education for forex
+• Economic calendar and news impact
+• Cross-currency analysis techniques
+
+💭 **Try asking:**
+• "Explain forex spreads and pips"
+• "What are major vs minor pairs?"
+• "How to analyze currency strength?"
+• "Forex position sizing strategies"
+
+I'm still here to help with your forex learning journey!`;
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to process your request. Please try again.",
+        title: "Service Issue",
+        description: "Providing alternative forex assistance while resolving the issue.",
         variant: "destructive",
       });
+      
       const errorMsg: Message = {
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content: fallbackContent,
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => {

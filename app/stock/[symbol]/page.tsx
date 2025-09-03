@@ -23,7 +23,8 @@ import {
 import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
-import { BarChart3, ArrowRight, MessageCircle } from "lucide-react";
+import { BarChart3, ArrowRight, MessageCircle, MessageSquare } from "lucide-react";
+import { RedditSocialSentiment } from "@/components/reddit-social-sentiment";
 
 // Theme colors
 const blue500 = "#3B82F6";
@@ -719,8 +720,27 @@ export default function StockDetails() {
             </motion.div>
           )}
 
+          {/* Reddit Social Sentiment Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="relative group"
+          >
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+            <Card className="relative p-6 bg-card border-border">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+                  <MessageSquare className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-semibold text-foreground">Reddit Community Sentiment</h2>
+              </div>
+              <RedditSocialSentiment symbol={symbol} compact={false} showSearch={false} />
+            </Card>
+          </motion.div>
+
           {technicalIndicators && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="relative group">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5 }} className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
               <Card className="relative p-6 bg-card border-border">
                 <div className="flex items-center gap-2 mb-4">
@@ -789,7 +809,7 @@ export default function StockDetails() {
           )}
 
           {stockData?.timeSeries && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.6 }} className="relative group">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.7 }} className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
               <Card className="relative p-6 bg-card border-border">
                 <div className="flex items-center gap-2 mb-4">
@@ -813,7 +833,7 @@ export default function StockDetails() {
           )}
 
           {technicalIndicators && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 }} className="relative group">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.9 }} className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
               <Card className="relative p-6 bg-card border-border">
                 <div className="flex items-center gap-2 mb-4">

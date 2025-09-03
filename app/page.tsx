@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Newspaper, Brain, BarChart3, DollarSign, Bitcoin, ArrowRight, ChevronRight, Sparkles, Zap, LineChart, Globe } from "lucide-react";
+import { TrendingUp, Newspaper, Brain, BarChart3, DollarSign, Bitcoin, ArrowRight, ChevronRight, Sparkles, Zap, LineChart, Globe, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import React from "react";
@@ -161,10 +161,10 @@ export default function Home() {
       link: "/choose-advisor",
     },
     {
-      icon: Newspaper,
-      title: "Financial News",
-      description: "Stay informed with the latest market news and expert analysis.",
-      link: "/news",
+      icon: MessageSquare,
+      title: "Reddit Social Sentiment",
+      description: "Analyze community discussions and sentiment from financial subreddits for informed decision making.",
+      link: "/reddit",
     },
   ];
 
@@ -197,6 +197,9 @@ export default function Home() {
               </Link>
               <Link href="/news">
                 <Button variant="ghost" className="hover:bg-primary/10">News</Button>
+              </Link>
+              <Link href="/reddit">
+                <Button variant="ghost" className="hover:bg-primary/10">Reddit Sentiment</Button>
               </Link>
               <Link href="/choose-advisor">
                 <Button variant="ghost" className="hover:bg-primary/10">AI Advisors</Button>

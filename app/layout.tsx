@@ -4,6 +4,9 @@ import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import Link from 'next/link';
+import { Button } from "@/components/ui/button";
+import { MessageSquare } from "lucide-react";
 
 const inter = Inter({ subsets: ['latin'] });
 

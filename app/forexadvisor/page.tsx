@@ -11,11 +11,11 @@ import { ChatGroq } from "@langchain/groq";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from "@/lib/market-intelligence";
 
 // Theme colors inspired by from-green-500 to-emerald-600
 const green500 = "#10B981"; // Tailwind from-green-500
 const emerald600 = "#059669"; // Tailwind to-emerald-600
-const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for forex data and indicators
 const forexDataCache = new Map<string, { data: any; timestamp: number }>();
@@ -420,7 +420,7 @@ export default function ForexAdvisor() {
       }
       const llm = new ChatGroq({
         apiKey,
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         temperature: 0.5,
       });
 
@@ -479,6 +479,14 @@ export default function ForexAdvisor() {
         - Contrarian signals: When sentiment diverges from price action
         - Geographic sentiment: Regional trading perspectives
 
+        **Market Intelligence Integration**:
+        - Real-time news analysis and market alerts
+        - Geopolitical event impact assessment on currency pairs
+        - Central bank policy and economic indicator analysis
+        - Macroeconomic factor influence evaluation
+        - Comprehensive market sentiment understanding
+        - Cross-market correlation analysis
+
         ### 3. RESPONSE ADAPTABILITY
         **Query Types & Responses**:
         - **Quick Rates**: "What's EUR/USD at?" → Current rate + key highlights
@@ -516,6 +524,9 @@ export default function ForexAdvisor() {
         - **Session Analysis**: Account for Asian, European, US trading sessions
         - **Economic Calendar**: Reference upcoming economic events when relevant
         - **Cross-Market Analysis**: Connect forex movements with stocks, commodities, bonds
+        - **Market Intelligence**: Access real-time news, geopolitical events, and comprehensive market analysis
+        - **Global Context**: Understand how worldwide events affect currency pairs
+        - **Risk Awareness**: Highlight potential risks and market alerts
 
         ### 7. RISK & COMPLIANCE
         - Always include risk disclaimers for trading advice
@@ -531,8 +542,12 @@ export default function ForexAdvisor() {
         - **Be Helpful**: Always try to provide value even with limited data
         - **Be Professional**: Maintain expert-level forex communication
         - **Be Educational**: Explain concepts when beneficial for user understanding
+        - **Include Market Intelligence**: When available, incorporate real-time news, geopolitical events, and comprehensive market analysis
+        - **Contextual Awareness**: Consider global events and their impact on currency pairs
+        - **Risk Alerts**: Highlight any urgent market alerts or warnings
+        - **Data Integration**: Reference specific data points from all available sources (forex data, indicators, sentiment, market intelligence)
 
-        Remember: You are a sophisticated forex advisor capable of handling any currency-related query with professional-grade analysis.
+        Remember: You are a sophisticated forex advisor capable of handling any currency-related query with professional-grade analysis. Always reference the specific data provided and explain how different data sources inform your analysis.
       `;
 
       const prompt = ChatPromptTemplate.fromMessages([
@@ -730,11 +745,7 @@ ${similarPairs ? `• ${similarPairs}` : "• Please provide a valid forex pair"
 • EUR/USD (Euro/US Dollar) • GBP/USD (British Pound/US Dollar)
 • USD/JPY (US Dollar/Japanese Yen) • GBP/JPY (British Pound/Japanese Yen)
 • EUR/GBP (Euro/British Pound) • AUD/USD (Australian Dollar/US Dollar)
-
-📝 **Try formats like:**
-• "Analyze EUR/USD"
-• "What's GBP/JPY RSI?"
-• "USD/JPY trading strategy"
+• USD/CAD (Dollar/Loonie), USD/CHF (Dollar/Franc)
 
 What forex pair would you like me to analyze?`;
         }
@@ -867,11 +878,12 @@ Please provide a valid forex pair for analysis.`;
         input.toLowerCase().includes("complete") ||
         input.toLowerCase().includes("strategy") ||
         input.toLowerCase().includes("position");
-      
+
       const isGeneralAnalysis = needsComprehensiveAnalysis;
 
       let forexData: any = undefined;
       let indicatorsData: { [key: string]: { data: any; timestamp: number } } | undefined = undefined;
+      let redditData: any = undefined;
       const apiCallCount = { count: 0 };
 
       // Fetch only what's needed
@@ -898,7 +910,6 @@ Please provide a valid forex pair for analysis.`;
       }
 
       // Fetch Reddit sentiment data
-      let redditData: any = null;
       try {
         const redditResponse = await fetch(`/api/reddit?symbol=${symbol}`);
         if (redditResponse.ok) {
@@ -912,30 +923,152 @@ Please provide a valid forex pair for analysis.`;
         // Continue without Reddit data
       }
 
-      // Prepare minimal data for LLM
-      const apiData: any = {};
-      if (forexData) {
-        if (forexData.quote) apiData.quote = forexData.quote;
-        if (forexData.timeSeries) apiData.timeSeries = forexData.timeSeries;
-      }
-      if (indicatorsData) {
-        apiData.indicators = {};
-        for (const indicator of requestedIndicators.length > 0 ? requestedIndicators : ["ema", "rsi", "macd"]) {
-          if (indicatorsData[indicator]) {
-            apiData.indicators[indicator] = indicatorsData[indicator].data;
+      // Fetch comprehensive market intelligence for analysis requests with timeout
+      let marketIntelligence: any = null;
+      let marketAlerts: any = null;
+      if (needsComprehensiveAnalysis || input.toLowerCase().includes("analyz") || input.toLowerCase().includes("report") || input.toLowerCase().includes("research")) {
+        try {
+          console.log(`Fetching market intelligence for forex pair: ${symbol}`);
+          
+          // Add timeout to prevent hanging
+          const marketIntelPromise = fetch(`/api/market-intelligence?symbol=${symbol}&type=comprehensive`);
+          const marketAlertsPromise = fetch(`/api/market-intelligence?symbol=${symbol}&type=alerts`);
+          
+          // Race the promises with a timeout
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Market intelligence request timeout')), 30000) // 30 second timeout
+          );
+          
+          const marketIntelResponse = await Promise.race([marketIntelPromise, timeoutPromise]) as Response;
+          if (marketIntelResponse.ok) {
+            marketIntelligence = await marketIntelResponse.json();
+            console.log(`Successfully fetched market intelligence for forex pair: ${symbol}`);
+          } else if (marketIntelResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market intelligence for ${symbol}`);
+            marketIntelligence = {
+              error: "Rate limit exceeded for market intelligence. Please try again later."
+            };
+          }
+          
+          // Fetch market alerts for risk awareness with timeout
+          const marketAlertsResponse = await Promise.race([marketAlertsPromise, timeoutPromise]) as Response;
+          if (marketAlertsResponse.ok) {
+            marketAlerts = await marketAlertsResponse.json();
+            console.log(`Successfully fetched market alerts for forex pair: ${symbol}`);
+          } else if (marketAlertsResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market alerts for ${symbol}`);
+            marketAlerts = {
+              error: "Rate limit exceeded for market alerts. Please try again later."
+            };
+          }
+        } catch (error) {
+          console.warn(`Error fetching market intelligence for ${symbol}:`, error);
+          // Continue without market intelligence
+          // Make sure to reset loading state even if there's an error
+          if (error instanceof Error && error.message.includes('timeout')) {
+            marketIntelligence = {
+              error: "Market intelligence request timed out. Proceeding with available data."
+            };
+            marketAlerts = {
+              error: "Market alerts request timed out. Proceeding with available data."
+            };
           }
         }
       }
+
+      // Optimize data size for LLM to prevent rate limit errors
+      const optimizedForexData: any = {};
+      
+      // Optimize quote data
+      if (forexData?.quote) {
+        optimizedForexData.quote = {
+          symbol: forexData.quote.symbol,
+          name: forexData.quote.name,
+          price: forexData.quote.price,
+          change: forexData.quote.change,
+          change_percent: forexData.quote.change_percent,
+          volume: forexData.quote.volume,
+        };
+      }
+      
+      // Optimize time series data
+      if (forexData?.timeSeries) {
+        optimizedForexData.timeSeries = {
+          values: forexData.timeSeries.values?.slice(0, 5) // Limit to last 5 data points
+        };
+      }
+      
+      // Optimize indicators data
+      if (indicatorsData) {
+        optimizedForexData.indicators = {};
+        const indicatorsToSend = (requestedIndicators.length > 0 ? requestedIndicators : ["ema", "rsi", "macd"]).slice(0, 3);
+        for (const indicator of indicatorsToSend) {
+          if (indicatorsData[indicator]) {
+            optimizedForexData.indicators[indicator] = {
+              symbol: indicatorsData[indicator].data?.symbol,
+              name: indicatorsData[indicator].data?.name,
+              values: indicatorsData[indicator].data?.values ? [indicatorsData[indicator].data.values[0]] : null // Only send latest value
+            };
+          }
+        }
+      }
+      
+      // Optimize Reddit sentiment data
       if (redditData) {
-        apiData.redditSentiment = redditData;
+        optimizedForexData.redditSentiment = {
+          symbol: redditData.symbol,
+          bullish_percentage: redditData.bullish_percentage,
+          bearish_percentage: redditData.bearish_percentage,
+          total_posts: redditData.total_posts,
+          overall_sentiment: redditData.overall_sentiment,
+          confidence: redditData.confidence
+        };
+      }
+      
+      // Optimize market intelligence data
+      if (marketIntelligence) {
+        optimizedForexData.marketIntelligence = {
+          symbol: marketIntelligence.symbol,
+          error: marketIntelligence.error,
+          // Only send the analysis, not the raw results which can be large
+          synthesizedAnalysis: marketIntelligence.synthesizedAnalysis || marketIntelligence.analysis
+        };
+        // Limit the size of the market intelligence analysis
+        if (optimizedForexData.marketIntelligence.synthesizedAnalysis && optimizedForexData.marketIntelligence.synthesizedAnalysis.length > 1000) {
+          optimizedForexData.marketIntelligence.synthesizedAnalysis = optimizedForexData.marketIntelligence.synthesizedAnalysis.substring(0, 1000) + '... (analysis truncated)';
+        }
+      }
+      
+      // Optimize market alerts data
+      if (marketAlerts) {
+        optimizedForexData.marketAlerts = {
+          symbol: marketAlerts.symbol,
+          error: marketAlerts.error,
+          alerts: marketAlerts.alerts
+        };
       }
 
-      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(apiData)}`;
+      // Limit the size of the data being sent to prevent rate limit errors
+      const serializedData = JSON.stringify(optimizedForexData);
+      const limitedData = serializedData.length > 2000 
+        ? serializedData.substring(0, 2000) + '... (data truncated to prevent rate limit)'
+        : serializedData;
+
+      // Only include chat history for complex analysis requests
+      const shouldIncludeChatHistory = input.toLowerCase().includes("analyz") || input.toLowerCase().includes("report") || input.toLowerCase().includes("research");
+      const recentChatHistory = shouldIncludeChatHistory ? messages.slice(-1) : [];
+      const chatHistoryString = shouldIncludeChatHistory 
+        ? `\n\nRecent Chat History: ${JSON.stringify(recentChatHistory)}`
+        : '';
+      
+      const enhancedInput = `${input}\n\nAPI Data: ${limitedData}${chatHistoryString}`;
 
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
         input: enhancedInput,
-        chat_history: await chatHistory.getMessages(),
+        chat_history: (await chatHistory.getMessages()).slice(-3),
       });
 
       const assistantMessage: Message = {
@@ -946,6 +1079,14 @@ Please provide a valid forex pair for analysis.`;
         indicatorsData,
         redditData,
       };
+
+      // Add market intelligence data if available
+      if (marketIntelligence) {
+        (assistantMessage as any).marketIntelligence = marketIntelligence;
+      }
+      if (marketAlerts) {
+        (assistantMessage as any).marketAlerts = marketAlerts;
+      }
 
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
@@ -1180,7 +1321,7 @@ I'm still here to help with your forex learning journey!`;
                 className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-lg shadow-md ${
+                  className={`max-w-[85%] p-4 rounded-lg shadow-md ${
                     message.role === "user"
                       ? "text-white"
                       : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
@@ -1189,8 +1330,116 @@ I'm still here to help with your forex learning journey!`;
                     background: message.role === "user" ? `linear-gradient(to right, ${green500}, ${emerald600})` : undefined,
                   }}
                 >
-                  <p>{message.content}</p>
-                  <span className="text-xs mt-1 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {message.content.split('\n').map((line, i) => {
+                      // Skip empty lines
+                      if (!line.trim()) return null;
+                      
+                      // Check for markdown headings
+                      if (line.startsWith('#### ')) {
+                        return <h4 key={i} className="text-base font-bold mt-3 mb-1">{line.slice(5)}</h4>;
+                      } else if (line.startsWith('### ')) {
+                        return <h3 key={i} className="text-lg font-bold mt-4 mb-2">{line.slice(4)}</h3>;
+                      } else if (line.startsWith('## ')) {
+                        return <h2 key={i} className="text-xl font-bold mt-4 mb-2">{line.slice(3)}</h2>;
+                      } else if (line.startsWith('# ')) {
+                        return <h1 key={i} className="text-2xl font-bold mt-4 mb-2">{line.slice(2)}</h1>;
+                      } else if (line.startsWith('- ')) {
+                        return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
+                      } else if (line.match(/^\d+\./)) {
+                        return <li key={i} className="ml-4 list-decimal">{line.slice(line.indexOf('.') + 2)}</li>;
+                      } else if (line.startsWith('**') && line.endsWith('**')) {
+                        return <p key={i} className="mb-2"><strong>{line.slice(2, -2)}</strong></p>;
+                      } else if (line.startsWith('*') && line.endsWith('*')) {
+                        return <p key={i} className="mb-2"><em>{line.slice(1, -1)}</em></p>;
+                      } else {
+                        // Regular paragraph
+                        return <p key={i} className="mb-2">{line}</p>;
+                      }
+                    })}
+                  </div>
+                  
+                  {/* Display additional data if available */}
+                  {message.role === "assistant" && (message.forexData || message.indicatorsData || message.redditData || (message as any).marketIntelligence || (message as any).marketAlerts) && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-medium text-green-600 dark:text-green-400">
+                          View Additional Data Sources
+                        </summary>
+                        <div className="mt-2 space-y-3">
+                          {message.forexData && (
+                            <div>
+                              <h4 className="font-semibold">Forex Data</h4>
+                              <pre className="text-xs overflow-x-auto bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {JSON.stringify(message.forexData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {message.indicatorsData && (
+                            <div>
+                              <h4 className="font-semibold">Technical Indicators</h4>
+                              <pre className="text-xs overflow-x-auto bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {JSON.stringify(message.indicatorsData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {message.redditData && (
+                            <div>
+                              <h4 className="font-semibold">Reddit Sentiment</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                <p><strong>Symbol:</strong> {message.redditData.symbol}</p>
+                                <p><strong>Bullish:</strong> {message.redditData.bullish_percentage}%</p>
+                                <p><strong>Bearish:</strong> {message.redditData.bearish_percentage}%</p>
+                                <p><strong>Total Posts:</strong> {message.redditData.total_posts}</p>
+                                <p><strong>Sentiment:</strong> {message.redditData.overall_sentiment}</p>
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketIntelligence && (
+                            <div>
+                              <h4 className="font-semibold">Market Intelligence</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketIntelligence as any).synthesizedAnalysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Synthesized Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).synthesizedAnalysis}</p>
+                                  </div>
+                                ) : ((message as any).marketIntelligence as any).analysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).analysis}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketIntelligence, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketAlerts && (
+                            <div>
+                              <h4 className="font-semibold">Market Alerts</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketAlerts as any).alerts ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Alerts:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketAlerts as any).alerts}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketAlerts, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                  
+                  <span className="text-xs mt-2 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
                     <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>

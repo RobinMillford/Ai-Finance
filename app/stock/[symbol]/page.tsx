@@ -29,7 +29,6 @@ import { RedditSocialSentiment } from "@/components/reddit-social-sentiment";
 // Theme colors
 const blue500 = "#3B82F6";
 const indigo600 = "#4F46E5";
-const whiteBg = "#F9FAFB";
 const gradientStart = "#3B82F6";
 const gradientEnd = "#4F46E5";
 

@@ -400,18 +400,16 @@ export async function GET(request: Request) {
     const result = {
       symbol: symbol.toUpperCase(),
       posts: analyzedPosts,
-      summary: {
-        total_posts: totalPosts,
-        bullish_count: bullishCount,
-        bearish_count: bearishCount,
-        neutral_count: neutralCount,
-        bullish_percentage: totalPosts > 0 ? Math.round((bullishCount / totalPosts) * 100) : 0,
-        bearish_percentage: totalPosts > 0 ? Math.round((bearishCount / totalPosts) * 100) : 0,
-        neutral_percentage: totalPosts > 0 ? Math.round((neutralCount / totalPosts) * 100) : 0,
-        average_sentiment_score: Math.round(averageScore * 100) / 100,
-        overall_sentiment: overallSentiment,
-        confidence: totalPosts >= 10 ? 'High' : totalPosts >= 5 ? 'Medium' : 'Low'
-      }
+      total_posts: totalPosts,
+      bullish_count: bullishCount,
+      bearish_count: bearishCount,
+      neutral_count: neutralCount,
+      bullish_percentage: totalPosts > 0 ? Math.round((bullishCount / totalPosts) * 100) : 0,
+      bearish_percentage: totalPosts > 0 ? Math.round((bearishCount / totalPosts) * 100) : 0,
+      neutral_percentage: totalPosts > 0 ? Math.round((neutralCount / totalPosts) * 100) : 0,
+      average_sentiment_score: Math.round(averageScore * 100) / 100,
+      overall_sentiment: overallSentiment,
+      confidence: totalPosts >= 10 ? 'High' : totalPosts >= 5 ? 'Medium' : 'Low'
     };
     
     // Cache the result

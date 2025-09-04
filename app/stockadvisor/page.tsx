@@ -11,11 +11,11 @@ import { ChatGroq } from "@langchain/groq";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from "@/lib/market-intelligence";
 
 // Theme colors
 const blue500 = "#3B82F6";
 const indigo600 = "#4F46E5";
-const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for stock data and indicators
 const stockDataCache = new Map<string, { data: any; timestamp: number }>();
@@ -197,6 +197,7 @@ interface Message {
   timestamp: string;
   stockData?: any;
   indicatorsData?: { [key: string]: IndicatorData };
+  redditData?: any;
 }
 
 interface ChatSession {
@@ -354,6 +355,14 @@ export default function StockAdvisor() {
   - Contrarian signals: When sentiment diverges from price action
   - Confidence levels: Based on post volume and sentiment consistency
 
+  **Market Intelligence Integration**:
+  - Real-time news analysis and market alerts
+  - Geopolitical event impact assessment
+  - Fundamental and technical analysis synthesis
+  - Macroeconomic factor influence evaluation
+  - Regulatory change impact analysis
+  - Comprehensive market sentiment understanding
+
   ### 3. RESPONSE ADAPTABILITY
   **Query Types & Responses**:
   - **Quick Questions**: "What's AAPL at?" → Current price + key highlights
@@ -387,12 +396,21 @@ export default function StockAdvisor() {
   - **Ambiguous Requests**: Ask clarifying questions to provide better analysis
 
   ### 6. CONTEXTUAL INTELLIGENCE
-  - **Conversation Memory**: Build on previous discussions and analyses
-  - **Market Awareness**: Consider current market conditions in all analyses
-  - **User Learning**: Adapt explanation depth based on user's apparent knowledge level
-  - **Cross-References**: Connect related stocks, sectors, and market themes
+  - **Stock Data**: Real-time price, volume, and basic metrics
+  - **Technical Indicators**: RSI, EMA, MACD, Bollinger Bands, ADX, ATR
+  - **Reddit Sentiment**: Community mood analysis from financial subreddits
+  - **Market Intelligence**: Real-time news, geopolitical events, and comprehensive market analysis
+  - **Market Alerts**: Urgent warnings and risk notifications
+  - **Global Context**: Understanding how worldwide events affect specific stocks
 
-  ### 7. RISK & COMPLIANCE
+  ### 7. USER ENGAGEMENT
+  - **Adaptive Responses**: Match explanation depth to user's knowledge level
+  - **Cross-References**: Connect related stocks, sectors, and market themes
+  - **Market Intelligence Integration**: Seamlessly incorporate real-time news, geopolitical events, and comprehensive market analysis
+  - **Global Context Awareness**: Understand how worldwide events affect specific stocks
+  - **Risk Awareness**: Highlight potential risks and market alerts
+
+  ### 8. RISK & COMPLIANCE
   - Always include risk disclaimers for investment advice
   - Provide balanced analysis showing both opportunities and risks
   - Encourage due diligence and professional consultation for major decisions
@@ -405,9 +423,13 @@ export default function StockAdvisor() {
   - **Be Helpful**: Always try to provide value even with limited data
   - **Be Professional**: Maintain expert-level financial communication
   - **Be Educational**: Explain concepts when beneficial for user understanding
+  - **Include Market Intelligence**: When available, incorporate real-time news, geopolitical events, and comprehensive market analysis
+  - **Contextual Awareness**: Consider global events and their impact on specific stocks
+  - **Risk Alerts**: Highlight any urgent market alerts or warnings
+  - **Data Integration**: Reference specific data points from all available sources (stock data, indicators, sentiment, market intelligence)
 
-  Remember: You are a sophisticated financial advisor capable of handling any stock-related query with professional-grade analysis.
-  `;
+  Remember: You are a sophisticated financial advisor capable of handling any stock-related query with professional-grade analysis. Always reference the specific data provided and explain how different data sources inform your analysis.
+`;
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -448,7 +470,7 @@ export default function StockAdvisor() {
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         temperature: 0.5,
       });
   
@@ -615,15 +637,15 @@ What stock would you like me to analyze?`;
         setLoading(false);
         return;
       }
-  
+
       // Enhanced symbol validation with suggestions
       if (!stockListings.some((s) => s.symbol === symbol)) {
         // Find similar symbols for suggestions
         const similarSymbols = stockListings
           .filter(stock => 
-            stock.symbol.includes(symbol.slice(0, 2)) ||
-            stock.symbol.startsWith(symbol.charAt(0)) ||
-            stock.name.toLowerCase().includes(symbol.toLowerCase())
+            stock.symbol.includes(symbol!.slice(0, 2)) ||
+            stock.symbol.startsWith(symbol!.charAt(0)) ||
+            stock.name.toLowerCase().includes(symbol!.toLowerCase())
           )
           .slice(0, 5)
           .map(stock => `${stock.symbol} (${stock.name})`)
@@ -659,7 +681,7 @@ Please provide a valid US stock symbol for analysis.`;
         setLoading(false);
         return;
       }
-  
+
       const indicators = ["rsi", "macd", "ema", "bbands", "adx", "atr", "aroon"];
       const requestedIndicators = indicators.filter((ind) => input.toLowerCase().includes(ind));
       
@@ -812,22 +834,124 @@ Let me provide analysis with the stock data I was able to fetch.`;
         console.warn(`Error fetching Reddit data for ${symbol}:`, error);
         // Continue without Reddit data
       }
-  
+
+      // Fetch comprehensive market intelligence for analysis requests
+      let marketIntelligence: any = null;
+      let marketAlerts: any = null;
+      if (needsComprehensiveAnalysis || input.toLowerCase().includes("analyz") || input.toLowerCase().includes("report") || input.toLowerCase().includes("research")) {
+        try {
+          console.log(`Fetching market intelligence for symbol: ${symbol}`);
+          const marketIntelResponse = await fetch(`/api/market-intelligence?symbol=${symbol}&type=comprehensive`);
+          if (marketIntelResponse.ok) {
+            marketIntelligence = await marketIntelResponse.json();
+            console.log(`Successfully fetched market intelligence for symbol: ${symbol}`);
+          } else if (marketIntelResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market intelligence for ${symbol}`);
+            marketIntelligence = {
+              error: "Rate limit exceeded for market intelligence. Please try again later."
+            };
+          }
+          
+          // Fetch market alerts for risk awareness
+          const marketAlertsResponse = await fetch(`/api/market-intelligence?symbol=${symbol}&type=alerts`);
+          if (marketAlertsResponse.ok) {
+            marketAlerts = await marketAlertsResponse.json();
+            console.log(`Successfully fetched market alerts for symbol: ${symbol}`);
+          } else if (marketAlertsResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market alerts for ${symbol}`);
+            marketAlerts = {
+              error: "Rate limit exceeded for market alerts. Please try again later."
+            };
+          }
+        } catch (error) {
+          console.warn(`Error fetching market intelligence for ${symbol}:`, error);
+          // Continue without market intelligence
+        }
+      }
+
+      // Optimize data size for LLM to prevent rate limit errors
+      const optimizedStockData = stockData ? {
+        quote: {
+          symbol: stockData.quote?.symbol,
+          name: stockData.quote?.name,
+          price: stockData.quote?.price,
+          change: stockData.quote?.change,
+          change_percent: stockData.quote?.change_percent,
+          volume: stockData.quote?.volume,
+        },
+        timeSeries: stockData.timeSeries ? {
+          values: stockData.timeSeries.values?.slice(0, 5) // Limit to last 5 data points
+        } : null
+      } : null;
+
+      const optimizedIndicators = indicatorsData
+        ? Object.fromEntries(
+            Object.entries(indicatorsData).slice(0, 3).map(([key, value]: [string, IndicatorData]) => [
+              key, 
+              {
+                symbol: value.data?.symbol,
+                name: value.data?.name,
+                values: value.data?.values ? [value.data.values[0]] : null // Only send latest value
+              }
+            ])
+          )
+        : null;
+
+      const optimizedRedditData = redditData ? {
+        symbol: redditData.symbol,
+        bullish_percentage: redditData.bullish_percentage,
+        bearish_percentage: redditData.bearish_percentage,
+        total_posts: redditData.total_posts,
+        overall_sentiment: redditData.overall_sentiment,
+        confidence: redditData.confidence
+      } : null;
+
+      const optimizedMarketIntelligence = marketIntelligence ? {
+        symbol: marketIntelligence.symbol,
+        error: marketIntelligence.error,
+        // Only send the analysis, not the raw results which can be large
+        synthesizedAnalysis: marketIntelligence.synthesizedAnalysis || marketIntelligence.analysis
+      } : null;
+
+      // Limit the size of the market intelligence analysis
+      if (optimizedMarketIntelligence?.synthesizedAnalysis && optimizedMarketIntelligence.synthesizedAnalysis.length > 1000) {
+        optimizedMarketIntelligence.synthesizedAnalysis = optimizedMarketIntelligence.synthesizedAnalysis.substring(0, 1000) + '... (analysis truncated)';;
+      }
+
+      const optimizedMarketAlerts = marketAlerts ? {
+        symbol: marketAlerts.symbol,
+        error: marketAlerts.error,
+        // Only send the alerts, not the raw results
+        alerts: marketAlerts.alerts
+      } : null;
+
       const combinedData = {
-        stockData: stockData || null,
-        indicators: indicatorsData
-          ? Object.fromEntries(
-              Object.entries(indicatorsData).map(([key, value]: [string, IndicatorData]) => [key, value.data])
-            )
-          : null,
-        redditSentiment: redditData || null,
+        stockData: optimizedStockData,
+        indicators: optimizedIndicators,
+        redditSentiment: optimizedRedditData,
+        marketIntelligence: optimizedMarketIntelligence,
+        marketAlerts: optimizedMarketAlerts,
       };
-  
-      const recentChatHistory = messages.slice(-10);
-      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(combinedData)}\n\nChat History: ${JSON.stringify(recentChatHistory)}`;
+
+      // Limit the size of the data being sent to prevent rate limit errors
+      const serializedData = JSON.stringify(combinedData);
+      const limitedData = serializedData.length > 2000 
+        ? serializedData.substring(0, 2000) + '... (data truncated to prevent rate limit)'
+        : serializedData;
+
+      // Only include chat history for complex analysis requests
+      const shouldIncludeChatHistory = input.toLowerCase().includes("analyz") || input.toLowerCase().includes("report") || input.toLowerCase().includes("research");
+      const recentChatHistory = shouldIncludeChatHistory ? messages.slice(-1) : [];
+      const chatHistoryString = shouldIncludeChatHistory 
+        ? `\n\nRecent Chat History: ${JSON.stringify(recentChatHistory)}`
+        : '';
+      
+      const enhancedInput = `${input}\n\nAPI Data: ${limitedData}${chatHistoryString}`;
   
       const chain = prompt.pipe(llm);
-      const response = await chain.invoke({ input: enhancedInput, chat_history: await chatHistory.getMessages() });
+      const response = await chain.invoke({ input: enhancedInput, chat_history: (await chatHistory.getMessages()).slice(-3) });
   
       const assistantMessage: Message = {
         role: "assistant",
@@ -835,7 +959,16 @@ Let me provide analysis with the stock data I was able to fetch.`;
         timestamp: new Date().toLocaleTimeString(),
         stockData,
         indicatorsData,
+        redditData,
       };
+  
+      // Add market intelligence data if available
+      if (marketIntelligence) {
+        (assistantMessage as any).marketIntelligence = marketIntelligence;
+      }
+      if (marketAlerts) {
+        (assistantMessage as any).marketAlerts = marketAlerts;
+      }
   
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
@@ -1045,15 +1178,123 @@ I'm still here to help with your financial learning journey!`;
                 className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-lg shadow-md ${
+                  className={`max-w-[85%] p-4 rounded-lg shadow-md ${
                     message.role === "user" ? "text-white" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${blue500}, ${indigo600})` : undefined,
                   }}
                 >
-                  <p>{message.content}</p>
-                  <span className="text-xs mt-1 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {message.content.split('\n').map((line, i) => {
+                      // Skip empty lines
+                      if (!line.trim()) return null;
+                      
+                      // Check for markdown headings
+                      if (line.startsWith('#### ')) {
+                        return <h4 key={i} className="text-base font-bold mt-3 mb-1">{line.slice(5)}</h4>;
+                      } else if (line.startsWith('### ')) {
+                        return <h3 key={i} className="text-lg font-bold mt-4 mb-2">{line.slice(4)}</h3>;
+                      } else if (line.startsWith('## ')) {
+                        return <h2 key={i} className="text-xl font-bold mt-4 mb-2">{line.slice(3)}</h2>;
+                      } else if (line.startsWith('# ')) {
+                        return <h1 key={i} className="text-2xl font-bold mt-4 mb-2">{line.slice(2)}</h1>;
+                      } else if (line.startsWith('- ')) {
+                        return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
+                      } else if (line.match(/^\d+\./)) {
+                        return <li key={i} className="ml-4 list-decimal">{line.slice(line.indexOf('.') + 2)}</li>;
+                      } else if (line.startsWith('**') && line.endsWith('**')) {
+                        return <p key={i} className="mb-2"><strong>{line.slice(2, -2)}</strong></p>;
+                      } else if (line.startsWith('*') && line.endsWith('*')) {
+                        return <p key={i} className="mb-2"><em>{line.slice(1, -1)}</em></p>;
+                      } else {
+                        // Regular paragraph
+                        return <p key={i} className="mb-2">{line}</p>;
+                      }
+                    })}
+                  </div>
+                  
+                  {/* Display additional data if available */}
+                  {message.role === "assistant" && (message.stockData || message.indicatorsData || message.redditData || (message as any).marketIntelligence || (message as any).marketAlerts) && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-medium text-blue-600 dark:text-blue-400">
+                          View Additional Data Sources
+                        </summary>
+                        <div className="mt-2 space-y-3">
+                          {message.stockData && (
+                            <div>
+                              <h4 className="font-semibold">Stock Data</h4>
+                              <pre className="text-xs overflow-x-auto bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {JSON.stringify(message.stockData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {message.indicatorsData && (
+                            <div>
+                              <h4 className="font-semibold">Technical Indicators</h4>
+                              <pre className="text-xs overflow-x-auto bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {JSON.stringify(message.indicatorsData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {message.redditData && (
+                            <div>
+                              <h4 className="font-semibold">Reddit Sentiment</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                <p><strong>Symbol:</strong> {message.redditData.symbol}</p>
+                                <p><strong>Bullish:</strong> {message.redditData.bullish_percentage}%</p>
+                                <p><strong>Bearish:</strong> {message.redditData.bearish_percentage}%</p>
+                                <p><strong>Total Posts:</strong> {message.redditData.total_posts}</p>
+                                <p><strong>Sentiment:</strong> {message.redditData.overall_sentiment}</p>
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketIntelligence && (
+                            <div>
+                              <h4 className="font-semibold">Market Intelligence</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketIntelligence as any).synthesizedAnalysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Synthesized Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).synthesizedAnalysis}</p>
+                                  </div>
+                                ) : ((message as any).marketIntelligence as any).analysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).analysis}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketIntelligence, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketAlerts && (
+                            <div>
+                              <h4 className="font-semibold">Market Alerts</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketAlerts as any).alerts ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Alerts:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketAlerts as any).alerts}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketAlerts, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                  
+                  <span className="text-xs mt-2 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
                     <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>

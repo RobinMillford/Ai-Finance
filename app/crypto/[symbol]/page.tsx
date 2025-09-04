@@ -43,7 +43,6 @@ ChartJS.register(
 // Theme colors
 const orange500 = "#F97316"; // Tailwind from-orange-500
 const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
-const whiteBg = "#F9FAFB"; // Light background
 
 interface OverviewData {
   logo_base: string | null;

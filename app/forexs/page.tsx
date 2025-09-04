@@ -27,7 +27,6 @@ interface ForexResponse {
 // Theme colors - Forex themed
 const green500 = "#10B981"; // Tailwind from-green-500
 const emerald600 = "#059669"; // Tailwind to-emerald-600
-const whiteBg = "#F9FAFB"; // Light background
 
 export default function Forex() {
   const [allForexPairs, setAllForexPairs] = useState<ForexPair[]>([]);

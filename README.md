@@ -13,6 +13,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - AI-powered market sentiment analysis
   - Historical performance tracking
   - Stock list with curated selection of stocks
+  - **Reddit Community Sentiment Analysis**: Real-time sentiment analysis from 20+ financial subreddits with relevance scoring
 
 - **Cryptocurrency Analysis**
 
@@ -21,13 +22,15 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - Market sentiment indicators
   - Portfolio tracking
   - Real-time price updates
+  - **Reddit Community Sentiment Analysis**: Cryptocurrency sentiment from crypto-focused subreddits
 
 - **Forex Analysis**
   - Real-time forex rates from Twelve Data API
-  - Currency pair analysis
-  - Technical indicators
+  - Currency pair analysis with 15+ technical indicators
   - Market trend analysis
   - Live forex pair prices (USD/JPY, EUR/USD)
+  - **Reddit Community Sentiment Analysis**: Forex sentiment from currency trading subreddits with forex-specific pattern matching
+  - **Advanced Forex Pattern Recognition**: Smart symbol detection for various forex pair formats (EUR/USD, EURUSD, Euro Dollar)
 
 ### AI-Powered Insights
 
@@ -36,10 +39,18 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - Trend prediction
 - Risk assessment
 - AI-driven recommendations for investments
+- **Advanced Market Intelligence**:
+  - Real-time news analysis and market alerts using Tavily Search
+  - Geopolitical event impact assessment
+  - Fundamental and technical analysis synthesis
+  - Macroeconomic factor influence evaluation
+  - Regulatory change impact analysis
+  - Comprehensive market sentiment understanding
+  - Cross-market correlation analysis
 
-#### Stock Advisor Chatbot Architecture
+#### Advisors Architecture
 
-![Stock Advisor Chatbot Architecture](public/Diagram%20of%20the%20chatbot.png)
+![Stock Advisor Chatbot Architecture](public/Diagram_of_the_chatbot.png)
 
 ### Financial News
 
@@ -81,9 +92,11 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - **AI Integration:**
   - Groq API with LLaMA 3 model for financial insights
   - LangChain for AI processing
+  - Tavily Search for real-time market intelligence
 - **Data Processing:**
   - NewsAPI for financial news
   - Twelve Data API for market data
+  - Reddit API for community sentiment analysis
 - **Authentication:** Next.js Middleware
 
 ### Development Tools
@@ -103,7 +116,8 @@ ai-finance/
 │   │   ├── forex/         # Forex market data
 │   │   ├── news/          # Financial news
 │   │   ├── overview/      # Market overview data
-│   │   ├── stocks/        # Stock market data
+│   │   ├── reddit/        # Reddit sentiment analysis
+│   │   ├── market-intelligence/ # Advanced market intelligence
 │   │   └── technical-indicators/ # Technical analysis
 │   ├── choose-advisor/    # AI advisor selection
 │   ├── choose-market/     # Market selection
@@ -128,20 +142,21 @@ ai-finance/
 ├── hooks/                # Custom React hooks
 │   └── use-toast.ts      # Toast notification hook
 ├── lib/                  # Utility functions
-│   └── utils.ts         # Utility functions
-├── public/              # Static assets
-│   ├── manifest.json    # Web app manifest
-│   └── favicon.png      # Site favicon
-├── .env.local          # Environment variables
-├── .eslintrc.json      # ESLint configuration
-├── .gitignore         # Git ignore rules
-├── components.json    # shadcn/ui configuration
-├── next.config.js     # Next.js configuration
-├── next-env.d.ts      # Next.js TypeScript declarations
-├── package.json       # Project dependencies
-├── postcss.config.js  # PostCSS configuration
-├── tailwind.config.ts # Tailwind CSS configuration
-└── tsconfig.json      # TypeScript configuration
+│   ├── market-intelligence.ts # Market intelligence utilities
+│   └── utils.ts          # Utility functions
+├── public/               # Static assets
+│   ├── manifest.json     # Web app manifest
+│   └── favicon.png       # Site favicon
+├── .env.local           # Environment variables
+├── .eslintrc.json       # ESLint configuration
+├── .gitignore          # Git ignore rules
+├── components.json     # shadcn/ui configuration
+├── next.config.js      # Next.js configuration
+├── next-env.d.ts       # Next.js TypeScript declarations
+├── package.json        # Project dependencies
+├── postcss.config.js   # PostCSS configuration
+├── tailwind.config.ts  # Tailwind CSS configuration
+└── tsconfig.json       # TypeScript configuration
 ```
 
 ## 🌐 Live Demo
@@ -187,8 +202,8 @@ The project is deployed on render and can be accessed at:
 1. Clone the repository:
 
 ```bash
-git clone [your-repository-url]
-cd ai-finance
+git clone https://github.com/RobinMillford/Ai-Finance.git
+cd Ai-finance
 ```
 
 2. Install dependencies:
@@ -205,6 +220,7 @@ yarn install
 NEXT_PUBLIC_NEWSAPI_KEY=your_newsapi_key
 TWELVE_DATA_API_KEY=your_twelve_data_key
 NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key
+NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
 ```
 
 4. Start the development server:
@@ -243,6 +259,7 @@ Required environment variables:
 NEXT_PUBLIC_NEWSAPI_KEY=your_newsapi_key        # From newsapi.org
 TWELVE_DATA_API_KEY=your_key        # From twelvedata.com
 NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key      # From groq.com
+NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key  # From tavily.com
 ```
 
 ## 🤝 Contributing
@@ -269,3 +286,5 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - NewsAPI for financial news data
 - Twelve Data API for market data
 - Groq API and LLaMA 3 for AI insights
+- Tavily Search for real-time market intelligence
+- Reddit API for community sentiment analysis

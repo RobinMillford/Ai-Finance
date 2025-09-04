@@ -40,7 +40,6 @@ ChartJS.register(
 // Add theme colors at the top of the file after imports
 const green500 = "#10B981";
 const emerald600 = "#059669";
-const whiteBg = "#F9FAFB";
 
 interface OverviewData {
   logo_base: string | null;

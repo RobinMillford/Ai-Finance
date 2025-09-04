@@ -21,7 +21,6 @@ interface CryptoPair {
 // Theme colors - Crypto themed
 const orange500 = "#F97316"; // Tailwind from-orange-500
 const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
-const whiteBg = "#F9FAFB"; // Light background
 
 export default function CryptoList() {
   const [allCryptoPairs, setAllCryptoPairs] = useState<CryptoPair[]>([]);

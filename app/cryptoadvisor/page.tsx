@@ -12,11 +12,11 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MessageContentComplex } from "@langchain/core/messages"; // Import for type checking
+import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from "@/lib/market-intelligence";
 
 // Theme colors inspired by from-orange-500 to-yellow-600
 const orange500 = "#F97316"; // Tailwind from-orange-500
 const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
-const whiteBg = "#F9FAFB"; // Light background similar to bg-background
 
 // In-memory cache for crypto data and indicators
 const cryptoDataCache = new Map<string, { data: any; timestamp: number }>();
@@ -339,7 +339,7 @@ export default function CryptoAdvisor() {
     try {
       const llm = new ChatGroq({
         apiKey: process.env.NEXT_PUBLIC_GROK_API_KEY,
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         temperature: 0.7,
       });
   
@@ -394,6 +394,14 @@ export default function CryptoAdvisor() {
         - FOMO/FUD detection: Identifying fear and greed cycles in crypto markets
         - Developer activity: GitHub commits, network upgrades, protocol developments
 
+        **Market Intelligence Integration**:
+        - Real-time news analysis and market alerts
+        - Geopolitical event impact assessment on crypto markets
+        - Regulatory change impact analysis
+        - Macroeconomic factor influence evaluation
+        - Comprehensive market sentiment understanding
+        - Blockchain technology and adoption trends
+
         ### 3. RESPONSE ADAPTABILITY
         **Query Types & Responses**:
         - **Quick Prices**: "What's Bitcoin at?" → Current price + key highlights
@@ -431,6 +439,9 @@ export default function CryptoAdvisor() {
         - **Technology Updates**: Account for network upgrades, hard forks, protocol changes
         - **Regulatory Environment**: Consider regulatory developments affecting crypto
         - **Cross-Market Analysis**: Connect crypto movements with traditional markets
+        - **Market Intelligence**: Access real-time news, geopolitical events, and comprehensive market analysis
+        - **Global Context**: Understand how worldwide events affect cryptocurrency markets
+        - **Risk Awareness**: Highlight potential risks and market alerts
 
         ### 7. RISK & COMPLIANCE
         - Always include risk disclaimers for crypto investment advice
@@ -447,8 +458,12 @@ export default function CryptoAdvisor() {
         - **Be Professional**: Maintain expert-level crypto market communication
         - **Be Educational**: Explain blockchain and crypto concepts when beneficial
         - **Be Accessible**: Use friendly tone while maintaining professional analysis
+        - **Include Market Intelligence**: When available, incorporate real-time news, geopolitical events, and comprehensive market analysis
+        - **Contextual Awareness**: Consider global events and their impact on cryptocurrency markets
+        - **Risk Alerts**: Highlight any urgent market alerts or warnings
+        - **Data Integration**: Reference specific data points from all available sources (crypto data, indicators, sentiment, market intelligence)
 
-        Remember: You are a sophisticated crypto advisor capable of handling any digital asset query with professional-grade analysis.
+        Remember: You are a sophisticated crypto advisor capable of handling any digital asset query with professional-grade analysis. Always reference the specific data provided and explain how different data sources inform your analysis.
       `;
   
       const prompt = ChatPromptTemplate.fromMessages([
@@ -646,11 +661,6 @@ ${suggestions ? `• ${suggestions}` : "• Please provide a valid crypto symbol
 • SOL/USD (Solana) • DOT/USD (Polkadot) • LINK/USD (Chainlink)
 • MATIC/USD (Polygon) • AVAX/USD (Avalanche)
 
-📝 **Try formats like:**
-• "How's Bitcoin?" or "BTC analysis"
-• "What's ETH worth?"
-• "Analyze Solana" or "SOL/USD report"
-
 What crypto would you like me to analyze?`;
         }
 
@@ -785,10 +795,13 @@ Please provide a valid crypto symbol for analysis.`;
         input.toLowerCase().includes("portfolio");
         
       const isGeneralAnalysis = needsComprehensiveAnalysis;
-  
+
       const apiCallCount = { count: 0 };
       let cryptoData: any = {};
-  
+      let redditData: any = null;
+      let marketIntelligence: any = null;
+      let marketAlerts: any = null;
+
       if (needsQuote || isGeneralAnalysis) {
         try {
           cryptoData.quote = await fetchCryptoData(symbol, "quote", apiCallCount);
@@ -797,7 +810,7 @@ Please provide a valid crypto symbol for analysis.`;
           cryptoData.quote = { error: errorMessage };
         }
       }
-  
+
       if (needsTrend || isGeneralAnalysis) {
         try {
           cryptoData.time_series = await fetchCryptoData(symbol, "time_series", apiCallCount);
@@ -806,7 +819,7 @@ Please provide a valid crypto symbol for analysis.`;
           cryptoData.time_series = { error: errorMessage };
         }
       }
-  
+
       if (requestedIndicators.length > 0 || isGeneralAnalysis) {
         const indicatorsToFetch = requestedIndicators.length > 0 
           ? requestedIndicators 
@@ -824,7 +837,6 @@ Please provide a valid crypto symbol for analysis.`;
       }
 
       // Fetch Reddit sentiment data for general analysis
-      let redditData: any = null;
       if (isGeneralAnalysis || needsTrend || needsQuote) {
         try {
           const redditResponse = await fetch(`/api/reddit?symbol=${symbol}`);
@@ -840,13 +852,154 @@ Please provide a valid crypto symbol for analysis.`;
         }
       }
 
+      // Fetch comprehensive market intelligence for analysis requests with timeout
+      if (needsComprehensiveAnalysis || input.toLowerCase().includes("analyz") || input.toLowerCase().includes("report") || input.toLowerCase().includes("research")) {
+        try {
+          console.log(`Fetching market intelligence for crypto symbol: ${symbol}`);
+          
+          // Add timeout to prevent hanging
+          const marketIntelPromise = fetch(`/api/market-intelligence?symbol=${symbol}&type=comprehensive`);
+          const marketAlertsPromise = fetch(`/api/market-intelligence?symbol=${symbol}&type=alerts`);
+          
+          // Race the promises with a timeout
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Market intelligence request timeout')), 30000) // 30 second timeout
+          );
+          
+          const marketIntelResponse = await Promise.race([marketIntelPromise, timeoutPromise]) as Response;
+          if (marketIntelResponse.ok) {
+            marketIntelligence = await marketIntelResponse.json();
+            console.log(`Successfully fetched market intelligence for crypto symbol: ${symbol}`);
+          } else if (marketIntelResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market intelligence for ${symbol}`);
+            marketIntelligence = {
+              error: "Rate limit exceeded for market intelligence. Please try again later."
+            };
+          }
+          
+          // Fetch market alerts for risk awareness with timeout
+          const marketAlertsResponse = await Promise.race([marketAlertsPromise, timeoutPromise]) as Response;
+          if (marketAlertsResponse.ok) {
+            marketAlerts = await marketAlertsResponse.json();
+            console.log(`Successfully fetched market alerts for crypto symbol: ${symbol}`);
+          } else if (marketAlertsResponse.status === 429) {
+            // Handle rate limit error
+            console.warn(`Rate limit exceeded when fetching market alerts for ${symbol}`);
+            marketAlerts = {
+              error: "Rate limit exceeded for market alerts. Please try again later."
+            };
+          }
+        } catch (error) {
+          console.warn(`Error fetching market intelligence for ${symbol}:`, error);
+          // Continue without market intelligence
+          // Make sure to reset loading state even if there's an error
+          if (error instanceof Error && error.message.includes('timeout')) {
+            marketIntelligence = {
+              error: "Market intelligence request timed out. Proceeding with available data."
+            };
+            marketAlerts = {
+              error: "Market alerts request timed out. Proceeding with available data."
+            };
+          }
+        }
+      }
+
       // Add Reddit data to crypto data if available
       if (redditData) {
         cryptoData.redditSentiment = redditData;
       }
+
+      // Add market intelligence to crypto data if available
+      if (marketIntelligence) {
+        cryptoData.marketIntelligence = marketIntelligence;
+      }
+
+      // Add market alerts to crypto data if available
+      if (marketAlerts) {
+        cryptoData.marketAlerts = marketAlerts;
+      }
   
-      const recentHistory = messages.slice(-5);
-      const enhancedInput = `${input}\n\nAPI Data: ${JSON.stringify(cryptoData)}\n\nRecent Chat History: ${JSON.stringify(recentHistory)}`;
+      // Optimize data size for LLM to prevent rate limit errors
+      const optimizedCryptoData: any = {};
+      
+      // Optimize quote data
+      if (cryptoData.quote) {
+        optimizedCryptoData.quote = {
+          symbol: cryptoData.quote.symbol,
+          name: cryptoData.quote.name,
+          price: cryptoData.quote.price,
+          change: cryptoData.quote.change,
+          change_percent: cryptoData.quote.change_percent,
+          volume: cryptoData.quote.volume,
+        };
+      }
+      
+      // Optimize time series data
+      if (cryptoData.time_series) {
+        optimizedCryptoData.time_series = {
+          values: cryptoData.time_series.values?.slice(0, 5) // Limit to last 5 data points
+        };
+      }
+      
+      // Optimize indicators data
+      if (cryptoData.indicators) {
+        optimizedCryptoData.indicators = {};
+        const indicatorEntries = Object.entries(cryptoData.indicators).slice(0, 3);
+        for (const [key, value] of indicatorEntries) {
+          if (typeof value === 'object' && value !== null) {
+            optimizedCryptoData.indicators[key] = {
+              symbol: (value as any).symbol,
+              name: (value as any).name,
+              values: (value as any).values ? [(value as any).values[0]] : null // Only send latest value
+            };
+          }
+        }
+      }
+      
+      // Optimize Reddit sentiment data
+      if (cryptoData.redditSentiment) {
+        optimizedCryptoData.redditSentiment = {
+          symbol: cryptoData.redditSentiment.symbol,
+          bullish_percentage: cryptoData.redditSentiment.bullish_percentage,
+          bearish_percentage: cryptoData.redditSentiment.bearish_percentage,
+          total_posts: cryptoData.redditSentiment.total_posts,
+          overall_sentiment: cryptoData.redditSentiment.overall_sentiment,
+          confidence: cryptoData.redditSentiment.confidence
+        };
+      }
+      
+      // Optimize market intelligence data
+      if (cryptoData.marketIntelligence) {
+        optimizedCryptoData.marketIntelligence = {
+          symbol: cryptoData.marketIntelligence.symbol,
+          error: cryptoData.marketIntelligence.error,
+          // Only send the analysis, not the raw results which can be large
+          synthesizedAnalysis: cryptoData.marketIntelligence.synthesizedAnalysis || cryptoData.marketIntelligence.analysis
+        };
+        // Limit the size of the market intelligence analysis
+        if (optimizedCryptoData.marketIntelligence.synthesizedAnalysis && optimizedCryptoData.marketIntelligence.synthesizedAnalysis.length > 1000) {
+          optimizedCryptoData.marketIntelligence.synthesizedAnalysis = optimizedCryptoData.marketIntelligence.synthesizedAnalysis.substring(0, 1000) + '... (analysis truncated)';
+        }
+      }
+      
+      // Optimize market alerts data
+      if (cryptoData.marketAlerts) {
+        optimizedCryptoData.marketAlerts = {
+          symbol: cryptoData.marketAlerts.symbol,
+          error: cryptoData.marketAlerts.error,
+          alerts: cryptoData.marketAlerts.alerts
+        };
+      }
+
+      // Limit the size of the data being sent to prevent rate limit errors
+      const serializedData = JSON.stringify(optimizedCryptoData);
+      const limitedData = serializedData.length > 2000 
+        ? serializedData.substring(0, 2000) + '... (data truncated to prevent rate limit)'
+        : serializedData;
+
+      const recentHistory = messages.slice(-1); // Reduce chat history
+      const enhancedInput = `${input}\n\nAPI Data: ${limitedData}\n\nRecent Chat History: ${JSON.stringify(recentHistory)}`;
   
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
@@ -875,6 +1028,15 @@ Please provide a valid crypto symbol for analysis.`;
         symbol,
         redditData,
       };
+
+      // Add market intelligence data if available
+      if (marketIntelligence) {
+        (assistantMessage as any).marketIntelligence = marketIntelligence;
+      }
+      if (marketAlerts) {
+        (assistantMessage as any).marketAlerts = marketAlerts;
+      }
+
       setMessages((prev) => {
         const updatedMessages = [...prev, assistantMessage];
         setChatSessions((prevSessions) =>
@@ -1075,15 +1237,115 @@ I'm still here to help with your crypto learning journey!`;
                 className={`mb-4 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-lg shadow-md ${
+                  className={`max-w-[85%] p-4 rounded-lg shadow-md ${
                     message.role === "user" ? "text-white" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                   }`}
                   style={{
                     background: message.role === "user" ? `linear-gradient(to right, ${orange500}, ${yellow600})` : undefined,
                   }}
                 >
-                  <p>{message.content}</p>
-                  <span className="text-xs mt-1 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {message.content.split('\n').map((line, i) => {
+                      // Skip empty lines
+                      if (!line.trim()) return null;
+                      
+                      // Check for markdown headings
+                      if (line.startsWith('#### ')) {
+                        return <h4 key={i} className="text-base font-bold mt-3 mb-1">{line.slice(5)}</h4>;
+                      } else if (line.startsWith('### ')) {
+                        return <h3 key={i} className="text-lg font-bold mt-4 mb-2">{line.slice(4)}</h3>;
+                      } else if (line.startsWith('## ')) {
+                        return <h2 key={i} className="text-xl font-bold mt-4 mb-2">{line.slice(3)}</h2>;
+                      } else if (line.startsWith('# ')) {
+                        return <h1 key={i} className="text-2xl font-bold mt-4 mb-2">{line.slice(2)}</h1>;
+                      } else if (line.startsWith('- ')) {
+                        return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
+                      } else if (line.match(/^\d+\./)) {
+                        return <li key={i} className="ml-4 list-decimal">{line.slice(line.indexOf('.') + 2)}</li>;
+                      } else if (line.startsWith('**') && line.endsWith('**')) {
+                        return <p key={i} className="mb-2"><strong>{line.slice(2, -2)}</strong></p>;
+                      } else if (line.startsWith('*') && line.endsWith('*')) {
+                        return <p key={i} className="mb-2"><em>{line.slice(1, -1)}</em></p>;
+                      } else {
+                        // Regular paragraph
+                        return <p key={i} className="mb-2">{line}</p>;
+                      }
+                    })}
+                  </div>
+                  
+                  {/* Display additional data if available */}
+                  {message.role === "assistant" && (message.cryptoData || message.redditData || (message as any).marketIntelligence || (message as any).marketAlerts) && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-medium text-orange-600 dark:text-orange-400">
+                          View Additional Data Sources
+                        </summary>
+                        <div className="mt-2 space-y-3">
+                          {message.cryptoData && (
+                            <div>
+                              <h4 className="font-semibold">Crypto Data</h4>
+                              <pre className="text-xs overflow-x-auto bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {JSON.stringify(message.cryptoData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {message.redditData && (
+                            <div>
+                              <h4 className="font-semibold">Reddit Sentiment</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                <p><strong>Symbol:</strong> {message.redditData.symbol}</p>
+                                <p><strong>Bullish:</strong> {message.redditData.bullish_percentage}%</p>
+                                <p><strong>Bearish:</strong> {message.redditData.bearish_percentage}%</p>
+                                <p><strong>Total Posts:</strong> {message.redditData.total_posts}</p>
+                                <p><strong>Sentiment:</strong> {message.redditData.overall_sentiment}</p>
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketIntelligence && (
+                            <div>
+                              <h4 className="font-semibold">Market Intelligence</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketIntelligence as any).synthesizedAnalysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Synthesized Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).synthesizedAnalysis}</p>
+                                  </div>
+                                ) : ((message as any).marketIntelligence as any).analysis ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Analysis:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketIntelligence as any).analysis}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketIntelligence, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {(message as any).marketAlerts && (
+                            <div>
+                              <h4 className="font-semibold">Market Alerts</h4>
+                              <div className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                                {((message as any).marketAlerts as any).alerts ? (
+                                  <div>
+                                    <p className="font-medium mb-1">Alerts:</p>
+                                    <p className="whitespace-pre-wrap">{((message as any).marketAlerts as any).alerts}</p>
+                                  </div>
+                                ) : (
+                                  <pre className="overflow-x-auto">
+                                    {JSON.stringify((message as any).marketAlerts, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                  
+                  <span className="text-xs mt-2 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
                     <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>

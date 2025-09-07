@@ -1578,7 +1578,8 @@ export default function CryptoDetails() {
                     <Chart
                       type="bar"
                       options={macdChartOptions}
-                      data={macdChartData}
+                      data={macdChartData as ChartData<"bar", number[], string>}
+                      datasetIdKey="id"
                     />
                   </div>
                 </div>

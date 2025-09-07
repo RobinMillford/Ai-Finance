@@ -251,17 +251,6 @@ Vercel will automatically build and deploy your application with each push to th
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
-## 🔒 Environment Variables
-
-Required environment variables:
-
-```env
-NEXT_PUBLIC_NEWSAPI_KEY=your_newsapi_key        # From newsapi.org
-TWELVE_DATA_API_KEY=your_key        # From twelvedata.com
-NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key      # From groq.com
-NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key  # From tavily.com
-```
-
 ## 🤝 Contributing
 
 1. Fork the repository

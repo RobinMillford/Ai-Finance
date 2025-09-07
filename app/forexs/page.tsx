@@ -2,13 +2,27 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Loader2, Search, ArrowRight, MessageCircle, TrendingUp, ChevronRight, DollarSign, RefreshCw, Globe } from "lucide-react";
+import { 
+  BarChart3, 
+  Loader2, 
+  Search, 
+  MessageCircle, 
+  TrendingUp, 
+  ChevronRight, 
+  DollarSign, 
+  RefreshCw, 
+  Globe, 
+  Filter,
+  TrendingDown,
+  Minus
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
+import { marketThemes } from "@/lib/themes";
 
 interface ForexPair {
   symbol: string;
@@ -17,6 +31,9 @@ interface ForexPair {
   status: string; // Represents currency_group (e.g., "Major", "Exotic")
   base_currency?: string;
   quote_currency?: string;
+  price?: string;
+  change?: string;
+  percent_change?: string;
 }
 
 interface ForexResponse {
@@ -24,9 +41,19 @@ interface ForexResponse {
   totalCount: number;
 }
 
-// Theme colors - Forex themed
-const green500 = "#10B981"; // Tailwind from-green-500
-const emerald600 = "#059669"; // Tailwind to-emerald-600
+// Get trend indicator with color coding
+const getTrendInfo = (value: number | string | undefined) => {
+  if (value === undefined || value === null) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  const number = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(number)) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  
+  if (number > 0) {
+    return { icon: <TrendingUp className="w-4 h-4" />, color: "text-green-500" };
+  } else if (number < 0) {
+    return { icon: <TrendingDown className="w-4 h-4" />, color: "text-red-500" };
+  }
+  return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+};
 
 export default function Forex() {
   const [allForexPairs, setAllForexPairs] = useState<ForexPair[]>([]);
@@ -40,6 +67,7 @@ export default function Forex() {
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const { toast } = useToast();
   const perPage = 50;
+  const theme = marketThemes.forex;
 
   useEffect(() => {
     fetchForexPairs();
@@ -151,7 +179,7 @@ export default function Forex() {
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
-    <div className="min-h-screen p-6 bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-emerald-50/20 p-4 md:p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -165,46 +193,50 @@ export default function Forex() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="relative group"
         >
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
-          <Card className="relative p-6 bg-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
-                  <Globe className="h-6 w-6 text-white" />
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative bg-card border-0 shadow-xl rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-600/5"></div>
+            <CardContent className="relative p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+                    <Globe className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-700 bg-clip-text text-transparent">
+                      Forex Market
+                    </h1>
+                    <p className="text-muted-foreground mt-1">Explore and analyze foreign exchange pairs</p>
+                  </div>
                 </div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent">
-                  Forex Market
-                </h1>
+                <div className="flex flex-wrap gap-3">
+                  <Link href="/choose-market">
+                    <Button variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
+                      Other Markets
+                    </Button>
+                  </Link>
+                  <Link href="/choose-advisor">
+                    <Button variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
+                      AI Advisors
+                    </Button>
+                  </Link>
+                  <Link href="/forexadvisor">
+                    <Button className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-2 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                      <span className="relative z-10 flex items-center gap-2">
+                        <MessageCircle className="h-5 w-5" />
+                        <span className="hidden sm:inline">Forex Advisor</span>
+                      </span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-green-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+                    </Button>
+                  </Link>
+                  <Link href="/">
+                    <Button variant="outline" className="border-green-300 text-green-600 hover:bg-green-100">
+                      Back to Home
+                    </Button>
+                  </Link>
+                </div>
               </div>
-              <div className="flex space-x-4">
-                <Link href="/choose-market">
-                  <Button variant="ghost" className="text-foreground hover:text-green-500">
-                    Other Markets
-                  </Button>
-                </Link>
-                <Link href="/choose-advisor">
-                  <Button variant="ghost" className="text-foreground hover:text-green-500">
-                    AI Advisors
-                  </Button>
-                </Link>
-                <Link href="/forexadvisor">
-                  <Button
-                    className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white transition-all hover:scale-105"
-                  >
-                    <span className="relative z-10 flex items-center gap-2">
-                      <MessageCircle className="h-5 w-5" />
-                      Forex Advisor
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-green-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
-                  </Button>
-                </Link>
-                <Link href="/">
-                  <Button variant="outline" className="border-green-500 text-green-500 hover:bg-green-50">
-                    Back to Home
-                  </Button>
-                </Link>
-              </div>
-            </div>
+            </CardContent>
           </Card>
         </motion.div>
 
@@ -215,62 +247,66 @@ export default function Forex() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="relative group"
         >
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
-          <Card className="relative p-6 bg-card">
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Search Input */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search forex pairs by symbol or name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-white border-green-200 focus:border-green-500 focus:ring-green-500 text-gray-900 placeholder-gray-500"
-                />
-              </div>
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative bg-card border-0 shadow-xl rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-600/5"></div>
+            <CardContent className="relative p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Search Input */}
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-green-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search forex pairs by symbol or name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 h-12 bg-white border-green-200 focus:border-green-500 focus:ring-green-500 text-gray-900 placeholder-gray-500 rounded-xl shadow-sm"
+                  />
+                </div>
 
-              {/* Type Filter (Currency Group) */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="type-filter" className="text-sm font-medium text-gray-600">
-                  Currency Group:
-                </label>
-                <select
-                  id="type-filter"
-                  value={selectedType}
-                  onChange={(e) => handleTypeChange(e.target.value)}
-                  className="border border-green-200 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                {/* Type Filter (Currency Group) */}
+                <div className="flex items-center gap-2 bg-green-50 px-4 rounded-xl">
+                  <Filter className="h-5 w-5 text-green-500" />
+                  <label htmlFor="type-filter" className="text-sm font-medium text-green-700 whitespace-nowrap">
+                    Currency Group:
+                  </label>
+                  <select
+                    id="type-filter"
+                    value={selectedType}
+                    onChange={(e) => handleTypeChange(e.target.value)}
+                    className="border-0 bg-transparent py-2 text-green-900 focus:ring-0 focus:ring-green-500"
+                    disabled={loading}
+                  >
+                    {typeOptions.map((type) => (
+                      <option key={type} value={type} className="text-gray-900">
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button
+                  onClick={handleSearch}
                   disabled={loading}
+                  className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white shadow-lg hover:shadow-xl transition-all"
                 >
-                  {typeOptions.map((type) => (
-                    <option key={type} value={type} className="text-gray-900">
-                      {type}
-                    </option>
-                  ))}
-                </select>
+                  <span className="relative z-10 flex items-center gap-2">
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="hidden sm:inline">Searching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-5 w-5" />
+                        <span className="hidden sm:inline">Search</span>
+                      </>
+                    )}
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-green-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+                </Button>
               </div>
-
-              <Button
-                onClick={handleSearch}
-                disabled={loading}
-                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white transition-all hover:scale-105"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-5 w-5" />
-                      Search
-                    </>
-                  )}
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-green-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
-              </Button>
-            </div>
+            </CardContent>
           </Card>
         </motion.div>
 
@@ -281,134 +317,137 @@ export default function Forex() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="relative group"
         >
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
-          <Card className="relative p-6 bg-card">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
-                  <Globe className="h-6 w-6 text-white" />
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <Card className="relative bg-card border-0 shadow-xl rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-600/5"></div>
+            <CardContent className="relative p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600">
+                    <Globe className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-green-600 to-emerald-700 bg-clip-text text-transparent">
+                    {searchQuery ? `Search Results (Page ${page})` : `Top Forex Listings (Page ${page})`}
+                  </h2>
                 </div>
-                <h2 className="text-2xl font-semibold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent">
-                  {searchQuery ? `Search Results (Page ${page})` : `Top Forex Listings (Page ${page})`}
-                </h2>
+                <Button
+                  onClick={fetchForexPairs}
+                  disabled={loading}
+                  variant="outline"
+                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                  Refresh Data
+                </Button>
               </div>
-              <Button
-                onClick={fetchForexPairs}
-                disabled={loading}
-                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white transition-all hover:scale-105"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Refreshing...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-5 w-5" />
-                      Refresh
-                    </>
-                  )}
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-green-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
-              </Button>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Symbol</th>
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Name</th>
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Base Currency</th>
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Quote Currency</th>
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Group</th>
-                    <th className="text-left py-3 px-4 text-gray-600 font-medium">Analyze</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <AnimatePresence>
-                    {filteredForexPairs.length > 0 ? (
-                      filteredForexPairs.map((pair, index) => (
-                        <motion.tr
-                          key={pair.symbol}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
-                          className="border-b border-gray-100 hover:bg-green-50/50 transition-colors"
-                        >
-                          <td className="py-3 px-4 font-medium text-green-600">{pair.symbol}</td>
-                          <td className="py-3 px-4 text-foreground">{pair.name}</td>
-                          <td className="py-3 px-4 text-muted-foreground">{pair.base_currency || "N/A"}</td>
-                          <td className="py-3 px-4 text-muted-foreground">{pair.quote_currency || "N/A"}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                pair.status === "Major"
-                                  ? "bg-green-100 text-green-800"
-                                  : pair.status === "Minor"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {pair.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Link 
-                              href={`/forex/${encodeURIComponent(pair.symbol)}`}
-                              onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
-                            >
-                              <Button
-                                variant="ghost"
-                                className="group relative overflow-hidden rounded-lg hover:bg-green-50"
-                              >
-                                <span className="relative z-10 flex items-center gap-2 text-green-600">
-                                  Analyze
-                                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                                </span>
-                              </Button>
-                            </Link>
-                          </td>
-                        </motion.tr>
-                      ))
-                    ) : (
-                      <motion.tr
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="border-b border-gray-100"
+              {/* Responsive Grid for Forex Listings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence>
+                  {filteredForexPairs.length > 0 ? (
+                    filteredForexPairs.map((pair, index) => (
+                      <motion.div
+                        key={pair.symbol}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className="bg-white rounded-xl border border-green-100 shadow-sm hover:shadow-md transition-all duration-300 p-4"
                       >
-                        <td colSpan={6} className="py-8 text-center text-gray-500">
-                          No forex pairs found
-                        </td>
-                      </motion.tr>
-                    )}
-                  </AnimatePresence>
-                </tbody>
-              </table>
-            </div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-bold text-lg text-green-600">{pair.symbol}</h3>
+                            <p className="text-sm text-gray-600 truncate">{pair.name}</p>
+                          </div>
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              pair.status === "Major"
+                                ? "bg-green-100 text-green-800"
+                                : pair.status === "Minor"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {pair.status}
+                          </span>
+                        </div>
+                        
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-xs text-gray-500">Base</p>
+                            <p className="text-sm font-medium">{pair.base_currency || "N/A"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Quote</p>
+                            <p className="text-sm font-medium">{pair.quote_currency || "N/A"}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4">
+                          <Link 
+                            href={`/forex/${encodeURIComponent(pair.symbol)}`}
+                            onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
+                            className="block"
+                          >
+                            <Button
+                              variant="outline"
+                              className="w-full group relative overflow-hidden rounded-lg border-green-300 text-green-600 hover:bg-green-50 hover:border-green-400 transition-all"
+                            >
+                              <span className="relative z-10 flex items-center justify-center gap-2">
+                                Analyze
+                                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                              </span>
+                            </Button>
+                          </Link>
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="col-span-full py-12 text-center"
+                    >
+                      <div className="flex flex-col items-center justify-center">
+                        <Globe className="h-12 w-12 text-gray-300 mb-3" />
+                        <p className="text-lg font-medium">No forex pairs found</p>
+                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-            {/* Pagination */}
-            <div className="flex justify-between items-center mt-6">
-              <Button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || loading}
-                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
-              >
-                Previous
-              </Button>
-              <span className="text-gray-600">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || loading}
-                className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white transition-all hover:scale-105 disabled:opacity-50"
-              >
-                Next
-              </Button>
-            </div>
+              {/* Pagination */}
+              <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+                <Button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1 || loading}
+                  variant="outline"
+                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl px-6"
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-700 font-medium">Page</span>
+                  <div className="bg-green-100 text-green-800 rounded-lg px-3 py-1 font-semibold">
+                    {page}
+                  </div>
+                  <span className="text-green-700 font-medium">of</span>
+                  <div className="bg-green-100 text-green-800 rounded-lg px-3 py-1 font-semibold">
+                    {totalPages}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || loading}
+                  variant="outline"
+                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl px-6"
+                >
+                  Next
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </motion.div>
       </motion.div>

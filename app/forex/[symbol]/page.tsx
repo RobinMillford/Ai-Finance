@@ -19,10 +19,11 @@ import {
   Legend,
   ChartData,
 } from "chart.js";
-import { Chart, Line } from "react-chartjs-2"; // Updated import: Replace Bar with Chart
+import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
-import { BarChart3, MessageCircle } from "lucide-react";
+import { BarChart3, MessageCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { marketThemes } from "@/lib/themes";
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,6 +37,34 @@ ChartJS.register(
   Legend,
   annotationPlugin
 );
+
+// Format large numbers with commas
+const formatNumber = (num: number | string | undefined): string => {
+  if (num === undefined || num === null) return "N/A";
+  const number = typeof num === "string" ? parseFloat(num) : num;
+  if (isNaN(number)) return "N/A";
+  
+  if (number >= 1000000) {
+    return `$${(number / 1000000).toFixed(2)}M`;
+  } else if (number >= 1000) {
+    return `$${(number / 1000).toFixed(2)}K`;
+  }
+  return `$${number.toFixed(2)}`;
+};
+
+// Get trend indicator with color coding
+const getTrendInfo = (value: number | string | undefined) => {
+  if (value === undefined || value === null) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  const number = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(number)) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  
+  if (number > 0) {
+    return { icon: <TrendingUp className="w-4 h-4" />, color: "text-green-500" };
+  } else if (number < 0) {
+    return { icon: <TrendingDown className="w-4 h-4" />, color: "text-red-500" };
+  }
+  return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+};
 
 // Add theme colors at the top of the file after imports
 const green500 = "#10B981";
@@ -139,6 +168,7 @@ export default function ForexDetails() {
   const [technicalIndicators, setTechnicalIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const theme = marketThemes.forex;
 
   if (!symbol) {
     return (
@@ -254,69 +284,95 @@ export default function ForexDetails() {
       {
         label: "Closing Price",
         data: closingPrices,
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "20-Day SMA",
         data: sma20Data,
-        borderColor: "rgb(255, 165, 0)",
-        backgroundColor: "rgba(255, 165, 0, 0.5)",
+        borderColor: "#FFA500",
+        backgroundColor: "rgba(255, 165, 0, 0.2)",
         fill: false,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         label: "50-Day SMA",
         data: sma50Data,
-        borderColor: "rgb(255, 69, 0)",
-        backgroundColor: "rgba(255, 69, 0, 0.5)",
+        borderColor: "#FF4500",
+        backgroundColor: "rgba(255, 69, 0, 0.2)",
         fill: false,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         label: "Tenkan-sen (Ichimoku)",
         data: tenkanSenData,
-        borderColor: "rgb(255, 0, 255)",
-        backgroundColor: "rgba(255, 0, 255, 0.5)",
+        borderColor: "#FF00FF",
+        backgroundColor: "rgba(255, 0, 255, 0.2)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Kijun-sen (Ichimoku)",
         data: kijunSenData,
-        borderColor: "rgb(0, 255, 255)",
-        backgroundColor: "rgba(0, 255, 255, 0.5)",
+        borderColor: "#00FFFF",
+        backgroundColor: "rgba(0, 255, 255, 0.2)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Senkou Span A (Ichimoku)",
         data: senkouSpanAData,
-        borderColor: "rgb(0, 255, 0)",
-        backgroundColor: "rgba(0, 255, 0, 0.2)",
+        borderColor: "#00FF00",
+        backgroundColor: "rgba(0, 255, 0, 0.1)",
         fill: "+1",
+        pointRadius: 0,
       },
       {
         label: "Senkou Span B (Ichimoku)",
         data: senkouSpanBData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.2)",
+        borderColor: "#FF0000",
+        backgroundColor: "rgba(255, 0, 0, 0.1)",
         fill: "-1",
+        pointRadius: 0,
       },
     ],
   };
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
         labels: {
           color: "#6B7280",
+          font: {
+            size: 12,
+          },
         },
       },
       title: {
         display: true,
-        text: "Price History",
+        text: `${symbol} Price History`,
         color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
     },
     scales: {
       x: {
@@ -325,6 +381,9 @@ export default function ForexDetails() {
         },
         ticks: {
           color: "#6B7280",
+          font: {
+            size: 10,
+          }
         },
       },
       y: {
@@ -333,8 +392,19 @@ export default function ForexDetails() {
         },
         ticks: {
           color: "#6B7280",
+          font: {
+            size: 10,
+          },
+          callback: function(value: any) {
+            return value;
+          }
         },
       },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -348,22 +418,35 @@ export default function ForexDetails() {
       {
         label: "RSI",
         data: rsiData,
-        borderColor: "rgb(138, 43, 226)",
-        backgroundColor: "rgba(138, 43, 226, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   const rsiChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: "Relative Strength Index (RSI)",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
       annotation: {
         annotations: [
@@ -371,34 +454,75 @@ export default function ForexDetails() {
             type: "line" as const,
             yMin: 70,
             yMax: 70,
-            borderColor: "red",
+            borderColor: "rgba(239, 68, 68, 0.8)",
             borderWidth: 1,
+            borderDash: [6, 6],
             label: {
               content: "Overbought (70)",
               display: true,
               position: "end" as const,
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
             },
           },
           {
             type: "line" as const,
             yMin: 30,
             yMax: 30,
-            borderColor: "green",
+            borderColor: "rgba(34, 197, 94, 0.8)",
             borderWidth: 1,
+            borderDash: [6, 6],
             label: {
               content: "Oversold (30)",
               display: true,
               position: "end" as const,
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
             },
           },
         ],
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
     },
     scales: {
       y: {
         min: 0,
         max: 100,
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
       },
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -414,23 +538,30 @@ export default function ForexDetails() {
       {
         label: "MACD",
         data: macdData,
-        borderColor: "rgb(0, 191, 255)",
-        backgroundColor: "rgba(0, 191, 255, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
         type: "line" as const,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "Signal Line",
         data: macdSignalData,
-        borderColor: "rgb(255, 165, 0)",
-        backgroundColor: "rgba(255, 165, 0, 0.5)",
+        borderColor: theme.secondary,
+        backgroundColor: `${theme.secondary}20`,
         fill: false,
         type: "line" as const,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         label: "Histogram",
         data: macdHistData,
-        backgroundColor: "rgba(128, 128, 128, 0.5)",
+        backgroundColor: (context: any) => {
+          const value = context.dataset.data[context.dataIndex];
+          return value > 0 ? "rgba(34, 197, 94, 0.6)" : "rgba(239, 68, 68, 0.6)";
+        },
         type: "bar" as const,
       },
     ],
@@ -438,14 +569,64 @@ export default function ForexDetails() {
 
   const macdChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: "MACD",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -459,23 +640,75 @@ export default function ForexDetails() {
       {
         label: "ATR",
         data: atrData,
-        borderColor: "rgb(255, 99, 71)",
-        backgroundColor: "rgba(255, 99, 71, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   const atrChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: "Average True Range (ATR)",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -486,58 +719,115 @@ export default function ForexDetails() {
       {
         label: "Closing Price",
         data: closingPrices,
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "Tenkan-sen",
         data: tenkanSenData,
-        borderColor: "rgb(255, 0, 255)",
-        backgroundColor: "rgba(255, 0, 255, 0.5)",
+        borderColor: "#FF00FF",
+        backgroundColor: "rgba(255, 0, 255, 0.2)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Kijun-sen",
         data: kijunSenData,
-        borderColor: "rgb(0, 255, 255)",
-        backgroundColor: "rgba(0, 255, 255, 0.5)",
+        borderColor: "#00FFFF",
+        backgroundColor: "rgba(0, 255, 255, 0.2)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Senkou Span A",
         data: senkouSpanAData,
-        borderColor: "rgb(0, 255, 0)",
-        backgroundColor: "rgba(0, 255, 0, 0.2)",
+        borderColor: "#00FF00",
+        backgroundColor: "rgba(0, 255, 0, 0.1)",
         fill: "+1",
+        pointRadius: 0,
       },
       {
         label: "Senkou Span B",
         data: senkouSpanBData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.2)",
+        borderColor: "#FF0000",
+        backgroundColor: "rgba(255, 0, 0, 0.1)",
         fill: "-1",
+        pointRadius: 0,
       },
       {
         label: "Chikou Span",
         data: chikouSpanData,
-        borderColor: "rgb(128, 128, 128)",
-        backgroundColor: "rgba(128, 128, 128, 0.5)",
+        borderColor: "#808080",
+        backgroundColor: "rgba(128, 128, 128, 0.2)",
         fill: false,
+        pointRadius: 0,
       },
     ],
   };
 
   const ichimokuChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: "Ichimoku Cloud",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -552,29 +842,44 @@ export default function ForexDetails() {
       {
         label: "Aroon Up",
         data: aroonUpData,
-        borderColor: green500,
-        backgroundColor: `${green500}80`,
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "Aroon Down",
         data: aroonDownData,
-        borderColor: emerald600,
-        backgroundColor: `${emerald600}80`,
+        borderColor: theme.secondary,
+        backgroundColor: `${theme.secondary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   const aroonChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: "Aroon Indicator",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
       },
       annotation: {
         annotations: [
@@ -582,34 +887,75 @@ export default function ForexDetails() {
             type: "line" as const,
             yMin: 70,
             yMax: 70,
-            borderColor: "blue",
+            borderColor: "rgba(59, 130, 246, 0.8)",
             borderWidth: 1,
+            borderDash: [6, 6],
             label: {
               content: "Strong Trend (70)",
               display: true,
               position: "end" as const,
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
             },
           },
           {
             type: "line" as const,
             yMin: 30,
             yMax: 30,
-            borderColor: "blue",
+            borderColor: "rgba(59, 130, 246, 0.8)",
             borderWidth: 1,
+            borderDash: [6, 6],
             label: {
               content: "Weak Trend (30)",
               display: true,
               position: "end" as const,
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
             },
           },
         ],
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
     },
     scales: {
       y: {
         min: 0,
         max: 100,
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
       },
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -716,16 +1062,16 @@ export default function ForexDetails() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b">
+      <header className="border-b border-border">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">FinanceAI</span>
+              <BarChart3 className="h-8 w-8 text-green-500" />
+              <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600">FinanceAI</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">Other Markets</Button>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground hover:bg-accent">Other Markets</Button>
               </Link>
               <Link href="/forexs">
                 <Button
@@ -742,7 +1088,7 @@ export default function ForexDetails() {
 
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Hero Section */}
-        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
+        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20 rounded-xl mb-8">
           <div className="max-w-full mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -752,20 +1098,24 @@ export default function ForexDetails() {
               <div className="flex justify-center items-center gap-4 mb-4">
                 {overview.logo_base && overview.logo_quote ? (
                   <div className="flex gap-2">
-                    <Image
-                      src={overview.logo_base}
-                      alt={`${symbol} base logo`}
-                      width={25}
-                      height={25}
-                      className="rounded"
-                    />
-                    <Image
-                      src={overview.logo_quote}
-                      alt={`${symbol} quote logo`}
-                      width={25}
-                      height={25}
-                      className="rounded"
-                    />
+                    <div className="bg-white p-2 rounded-full shadow-lg">
+                      <Image
+                        src={overview.logo_base}
+                        alt={`${symbol} base logo`}
+                        width={30}
+                        height={30}
+                        className="rounded-full"
+                      />
+                    </div>
+                    <div className="bg-white p-2 rounded-full shadow-lg">
+                      <Image
+                        src={overview.logo_quote}
+                        alt={`${symbol} quote logo`}
+                        width={30}
+                        height={30}
+                        className="rounded-full"
+                      />
+                    </div>
                   </div>
                 ) : null}
                 <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600">
@@ -788,24 +1138,61 @@ export default function ForexDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Forex Pair Statistics</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Forex Pair Statistics</h2>
               </div>
-              {forexData.quote ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <p>
-                      <strong>Current Price:</strong>{" "}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Current Price</p>
+                  <div className="flex items-center mt-1">
+                    <p className="text-2xl font-bold text-foreground">
                       {forexData.price?.price
                         ? parseFloat(forexData.price.price).toFixed(4)
                         : "N/A"}
                     </p>
+                    {forexData.quote && (
+                      <span className={`ml-2 flex items-center text-sm ${getTrendInfo(forexData.quote.change).color}`}>
+                        {getTrendInfo(forexData.quote.change).icon}
+                        <span className="ml-1">
+                          {parseFloat(forexData.quote.change || "0").toFixed(4)} ({parseFloat(forexData.quote.percent_change || "0").toFixed(2)}%)
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Daily Range</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {parseFloat(forexData.quote.low || "0").toFixed(4)} - {parseFloat(forexData.quote.high || "0").toFixed(4)}
+                  </p>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Previous Close</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {parseFloat(forexData.quote.previous_close || "0").toFixed(4)}
+                  </p>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Currencies</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {forexData.quote.currency_base}/{forexData.quote.currency_quote}
+                  </p>
+                </div>
+              </div>
+              
+              {forexData.quote ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                  <div>
                     <p>
                       <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
                       {forexData.eod?.close
@@ -865,200 +1252,207 @@ export default function ForexDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Technical Indicators</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Technical Indicators Summary</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Moving Averages (SMA) */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Moving Averages</h3>
-                  <p>
-                    <strong>20-Day SMA:</strong>{" "}
-                    {technicalIndicators.sma.sma20?.[0]?.sma
-                      ? parseFloat(technicalIndicators.sma.sma20[0].sma).toFixed(4)
-                      : "N/A"}
-                  </p>
-                  <p>
-                    <strong>50-Day SMA:</strong>{" "}
-                    {technicalIndicators.sma.sma50?.[0]?.sma
-                      ? parseFloat(technicalIndicators.sma.sma50[0].sma).toFixed(4)
-                      : "N/A"}
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    Moving Averages
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">20-Day SMA</p>
+                      <p className="font-medium">
+                        {technicalIndicators.sma.sma20?.[0]?.sma
+                          ? parseFloat(technicalIndicators.sma.sma20[0].sma).toFixed(4)
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">50-Day SMA</p>
+                      <p className="font-medium">
+                        {technicalIndicators.sma.sma50?.[0]?.sma
+                          ? parseFloat(technicalIndicators.sma.sma50[0].sma).toFixed(4)
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* RSI */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
-                  <p>
-                    <strong>14-Day RSI:</strong>{" "}
-                    {latestRsi?.rsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        rsiInterpretation === "Overbought"
-                          ? "bg-red-100 text-red-800"
-                          : rsiInterpretation === "Oversold"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {rsiInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    Relative Strength Index (RSI)
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">14-Day RSI</p>
+                      <p className="font-medium">
+                        {latestRsi?.rsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          rsiInterpretation === "Overbought"
+                            ? "bg-red-100 text-red-800"
+                            : rsiInterpretation === "Oversold"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {rsiInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* MACD */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">MACD</h3>
-                  {latestMacd ? (
-                    <>
-                      <p>
-                        <strong>MACD Line:</strong>{" "}
-                        {parseFloat(latestMacd.macd).toFixed(4)}
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    MACD
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">MACD Line</p>
+                      <p className="font-medium">
+                        {latestMacd?.macd ? parseFloat(latestMacd.macd).toFixed(4) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Signal Line:</strong>{" "}
-                        {parseFloat(latestMacd.macd_signal).toFixed(4)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Signal Line</p>
+                      <p className="font-medium">
+                        {latestMacd?.macd_signal ? parseFloat(latestMacd.macd_signal).toFixed(4) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Histogram:</strong>{" "}
-                        {parseFloat(latestMacd.macd_hist).toFixed(4)}
-                      </p>
-                      <p>
-                        <strong>Interpretation:</strong>{" "}
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            macdInterpretation.includes("Bullish")
-                              ? "bg-green-100 text-green-800"
-                              : macdInterpretation.includes("Bearish")
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {macdInterpretation}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No MACD data available for {symbol}.
-                    </p>
-                  )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          macdInterpretation.includes("Bullish")
+                            ? "bg-green-100 text-green-800"
+                            : macdInterpretation.includes("Bearish")
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {macdInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* ATR */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
-                  <p>
-                    <strong>14-Day ATR:</strong>{" "}
-                    {latestAtr?.atr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        atrInterpretation.includes("High")
-                          ? "bg-red-100 text-red-800"
-                          : atrInterpretation.includes("Low")
-                          ? "bg-green-100 text-green-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {atrInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    Average True Range (ATR)
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">14-Day ATR</p>
+                      <p className="font-medium">
+                        {latestAtr?.atr ? parseFloat(latestAtr.atr).toFixed(4) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          atrInterpretation.includes("High")
+                            ? "bg-red-100 text-red-800"
+                            : atrInterpretation.includes("Low")
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {atrInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Ichimoku */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Ichimoku Cloud</h3>
-                  {latestIchimoku ? (
-                    <>
-                      <p>
-                        <strong>Tenkan-sen:</strong>{" "}
-                        {parseFloat(latestIchimoku.tenkan_sen).toFixed(4)}
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    Ichimoku Cloud
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tenkan-sen</p>
+                      <p className="font-medium">
+                        {latestIchimoku?.tenkan_sen ? parseFloat(latestIchimoku.tenkan_sen).toFixed(4) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Kijun-sen:</strong>{" "}
-                        {parseFloat(latestIchimoku.kijun_sen).toFixed(4)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Kijun-sen</p>
+                      <p className="font-medium">
+                        {latestIchimoku?.kijun_sen ? parseFloat(latestIchimoku.kijun_sen).toFixed(4) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Senkou Span A:</strong>{" "}
-                        {parseFloat(latestIchimoku.senkou_span_a).toFixed(4)}
-                      </p>
-                      <p>
-                        <strong>Senkou Span B:</strong>{" "}
-                        {parseFloat(latestIchimoku.senkou_span_b).toFixed(4)}
-                      </p>
-                      <p>
-                        <strong>Interpretation:</strong>{" "}
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            ichimokuInterpretation.includes("Bullish")
-                              ? "bg-green-100 text-green-800"
-                              : ichimokuInterpretation.includes("Bearish")
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {ichimokuInterpretation}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Ichimoku Cloud data available for {symbol}.
-                    </p>
-                  )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {ichimokuInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* AROON */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Aroon Indicator</h3>
-                  {latestAroon ? (
-                    <>
-                      <p>
-                        <strong>Aroon Up:</strong>{" "}
-                        {parseFloat(latestAroon.aroon_up).toFixed(2)}
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                    Aroon Indicator
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Aroon Up</p>
+                      <p className="font-medium">
+                        {latestAroon?.aroon_up ? parseFloat(latestAroon.aroon_up).toFixed(2) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Aroon Down:</strong>{" "}
-                        {parseFloat(latestAroon.aroon_down).toFixed(2)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Aroon Down</p>
+                      <p className="font-medium">
+                        {latestAroon?.aroon_down ? parseFloat(latestAroon.aroon_down).toFixed(2) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Interpretation:</strong>{" "}
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            aroonInterpretation.includes("Uptrend")
-                              ? "bg-green-100 text-green-800"
-                              : aroonInterpretation.includes("Downtrend")
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {aroonInterpretation}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Aroon data available for {symbol}.
-                    </p>
-                  )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          aroonInterpretation.includes("Uptrend")
+                            ? "bg-green-100 text-green-800"
+                            : aroonInterpretation.includes("Downtrend")
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {aroonInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
           </motion.div>
 
-          {/* Time Series Data (Charts) */}
+          {/* Charts Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1066,138 +1460,69 @@ export default function ForexDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Time Series Data</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Technical Indicator Charts</h2>
               </div>
-              <div className="grid grid-cols-1 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Daily Closing Prices with Indicators
-                  </h3>
-                  <Line options={chartOptions} data={closingPriceData} />
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Technical Indicator Charts */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="relative group"
-          >
-            <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
-            ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
-                  <BarChart3 className="h-6 w-6 text-white" />
-                </div>
-                <h2 className="text-2xl font-semibold">Technical Indicator Charts</h2>
-              </div>
+              
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* RSI Chart */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Relative Strength Index (RSI)
-                  </h3>
-                  {technicalIndicators.rsi ? (
-                    <Line options={rsiChartOptions} data={rsiChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No RSI data available for {symbol}.
-                    </p>
-                  )}
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Price History with Indicators</h3>
+                  <div className="h-80">
+                    <Line options={chartOptions} data={closingPriceData} />
+                  </div>
                 </div>
-
-                {/* MACD Chart */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
-                  {technicalIndicators.macd ? (
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Ichimoku Cloud</h3>
+                  <div className="h-80">
+                    <Line options={ichimokuChartOptions} data={ichimokuChartData} />
+                  </div>
+                </div>
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Relative Strength Index (RSI)</h3>
+                  <div className="h-80">
+                    <Line options={rsiChartOptions} data={rsiChartData} />
+                  </div>
+                </div>
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">MACD</h3>
+                  <div className="h-80">
                     <Chart
                       type="bar"
                       options={macdChartOptions}
-                      data={macdChartData as ChartData<"bar", number[], string>}
+                      data={macdChartData}
                     />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No MACD data available for {symbol}.
-                    </p>
-                  )}
+                  </div>
                 </div>
-
-                {/* ATR Chart */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Average True Range (ATR)
-                  </h3>
-                  {technicalIndicators.atr ? (
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Average True Range (ATR)</h3>
+                  <div className="h-80">
                     <Line options={atrChartOptions} data={atrChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No ATR data available for {symbol}.
-                    </p>
-                  )}
+                  </div>
                 </div>
-
-                {/* Ichimoku Chart */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Ichimoku Cloud
-                  </h3>
-                  {technicalIndicators.ichimoku ? (
-                    <Line options={ichimokuChartOptions} data={ichimokuChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Ichimoku Cloud data available for {symbol}.
-                    </p>
-                  )}
-                </div>
-
-                {/* AROON Chart */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Aroon Indicator
-                  </h3>
-                  {technicalIndicators.aroon ? (
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Aroon Indicator</h3>
+                  <div className="h-80">
                     <Line options={aroonChartOptions} data={aroonChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Aroon data available for {symbol}.
-                    </p>
-                  )}
+                  </div>
                 </div>
               </div>
             </Card>
           </motion.div>
         </div>
 
-        {/* Floating Chatbot Logo */}
-        <motion.div
-          className="fixed bottom-6 right-6 z-50 group"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
-          whileHover={{ scale: 1.1 }}
-        >
+        <motion.div className="fixed bottom-6 right-6 z-50 group" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 1 }} whileHover={{ scale: 1.1 }}>
           <Link href="/forexadvisor">
-            <Button
-              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all duration-300"
-            >
+            <Button className="p-4 rounded-full shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all duration-300">
               <MessageCircle className="h-6 w-6 text-white" />
             </Button>
           </Link>
-          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
-            Your Forex Advisor
-          </div>
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-card text-foreground text-sm font-medium px-3 py-1 rounded-lg shadow-md">Your Forex Advisor</div>
         </motion.div>
       </main>
     </div>

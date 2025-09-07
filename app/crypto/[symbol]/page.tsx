@@ -20,12 +20,11 @@ import {
   ChartData,
   ChartOptions,
 } from "chart.js";
-import { Chart, Line, Bar } from "react-chartjs-2";
+import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
-import { BarChart3, MessageCircle } from "lucide-react";
-import { AnnotationOptions } from "chartjs-plugin-annotation";
-import { toast } from "react-hot-toast";
+import { BarChart3, MessageCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { marketThemes } from "@/lib/themes";
 
 // Register Chart.js components
 ChartJS.register(
@@ -39,6 +38,39 @@ ChartJS.register(
   Legend,
   annotationPlugin
 );
+
+// Format large numbers with commas and appropriate precision for crypto
+const formatCryptoNumber = (num: number | string | undefined): string => {
+  if (num === undefined || num === null) return "N/A";
+  const number = typeof num === "string" ? parseFloat(num) : num;
+  if (isNaN(number)) return "N/A";
+  
+  if (number >= 1000000) {
+    return `$${(number / 1000000).toFixed(2)}M`;
+  } else if (number >= 1000) {
+    return `$${(number / 1000).toFixed(2)}K`;
+  } else if (number >= 1) {
+    return `$${number.toFixed(2)}`;
+  } else if (number >= 0.01) {
+    return `$${number.toFixed(4)}`;
+  } else {
+    return `$${number.toFixed(8)}`;
+  }
+};
+
+// Get trend indicator with color coding
+const getTrendInfo = (value: number | string | undefined) => {
+  if (value === undefined || value === null) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  const number = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(number)) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+  
+  if (number > 0) {
+    return { icon: <TrendingUp className="w-4 h-4" />, color: "text-green-500" };
+  } else if (number < 0) {
+    return { icon: <TrendingDown className="w-4 h-4" />, color: "text-red-500" };
+  }
+  return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
+};
 
 // Theme colors
 const orange500 = "#F97316"; // Tailwind from-orange-500
@@ -181,6 +213,7 @@ export default function CryptoDetails() {
   const [technicalIndicators, setTechnicalIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const theme = marketThemes.crypto;
 
   if (!symbol) {
     return (
@@ -335,50 +368,59 @@ export default function CryptoDetails() {
       {
         label: "Closing Price",
         data: closingPrices,
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "20-Day EMA",
         data: ema20Data,
-        borderColor: "rgb(0, 191, 255)",
-        backgroundColor: "rgba(0, 191, 255, 0.5)",
+        borderColor: "#00BFFF",
+        backgroundColor: "rgba(0, 191, 255, 0.2)",
         fill: false,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         label: "50-Day EMA",
         data: ema50Data,
-        borderColor: "rgb(0, 0, 255)",
-        backgroundColor: "rgba(0, 0, 255, 0.5)",
+        borderColor: "#0000FF",
+        backgroundColor: "rgba(0, 0, 255, 0.2)",
         fill: false,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         label: "Bollinger Upper Band",
         data: bbandsUpper,
-        borderColor: "rgb(128, 0, 128)",
-        backgroundColor: "rgba(128, 0, 128, 0.5)",
+        borderColor: "#800080",
+        backgroundColor: "rgba(128, 0, 128, 0.1)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Bollinger Middle Band",
         data: bbandsMiddle,
-        borderColor: "rgb(128, 128, 128)",
-        backgroundColor: "rgba(128, 128, 128, 0.5)",
+        borderColor: "#808080",
+        backgroundColor: "rgba(128, 128, 128, 0.1)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Bollinger Lower Band",
         data: bbandsLower,
-        borderColor: "rgb(128, 0, 128)",
-        backgroundColor: "rgba(128, 0, 128, 0.5)",
+        borderColor: "#800080",
+        backgroundColor: "rgba(128, 0, 128, 0.1)",
         fill: false,
+        pointRadius: 0,
       },
       {
         label: "Supertrend",
         data: supertrendData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        borderColor: "#FF0000",
+        backgroundColor: "rgba(255, 0, 0, 0.2)",
         fill: false,
         pointRadius: 3,
         pointStyle: "circle",
@@ -388,9 +430,66 @@ export default function CryptoDetails() {
 
   const chartOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: `${symbol} Price History with Indicators` },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: `${symbol} Price History`,
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          },
+          callback: function(value: any) {
+            return "$" + value;
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -408,46 +507,112 @@ export default function CryptoDetails() {
       {
         label: "RSI",
         data: rsiData,
-        borderColor: "rgb(138, 43, 226)",
-        backgroundColor: "rgba(138, 43, 226, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
-  const rsiChartOptions: ChartOptions<"line"> & {
-    plugins: {
-      annotation: {
-        annotations: AnnotationOptions<"line">[];
-      };
-    };
-  } = {
+  const rsiChartOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "Relative Strength Index (RSI)" },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: "Relative Strength Index (RSI)",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
       annotation: {
         annotations: [
           {
             type: "line",
             yMin: 70,
             yMax: 70,
-            borderColor: "red",
+            borderColor: "rgba(239, 68, 68, 0.8)",
             borderWidth: 1,
-            label: { content: "Overbought (70)", display: true, position: "end" },
+            borderDash: [6, 6],
+            label: { 
+              content: "Overbought (70)", 
+              display: true, 
+              position: "end",
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
+            },
           },
           {
             type: "line",
             yMin: 30,
             yMax: 30,
-            borderColor: "green",
+            borderColor: "rgba(34, 197, 94, 0.8)",
             borderWidth: 1,
-            label: { content: "Oversold (30)", display: true, position: "end" },
+            borderDash: [6, 6],
+            label: { 
+              content: "Oversold (30)", 
+              display: true, 
+              position: "end",
+              color: "#f3f4f6",
+              backgroundColor: "rgba(30, 41, 59, 0.8)",
+            },
           },
         ],
       },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
     },
-    scales: { y: { min: 0, max: 100 } },
+    scales: { 
+      y: { 
+        min: 0, 
+        max: 100,
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
+    },
   };
 
   // MACD Chart
@@ -471,32 +636,94 @@ export default function CryptoDetails() {
         type: "line" as const,
         label: "MACD",
         data: macdData,
-        borderColor: "rgb(0, 191, 255)",
-        backgroundColor: "rgba(0, 191, 255, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         type: "line" as const,
         label: "Signal Line",
         data: macdSignalData,
-        borderColor: "rgb(255, 165, 0)",
-        backgroundColor: "rgba(255, 165, 0, 0.5)",
+        borderColor: theme.secondary,
+        backgroundColor: `${theme.secondary}20`,
         fill: false,
+        borderDash: [5, 5],
+        pointRadius: 0,
       },
       {
         type: "bar" as const,
         label: "Histogram",
         data: macdHistData,
-        backgroundColor: "rgba(128, 128, 128, 0.5)",
+        backgroundColor: (context: any) => {
+          const value = context.dataset.data[context.dataIndex];
+          return value > 0 ? "rgba(34, 197, 94, 0.6)" : "rgba(239, 68, 68, 0.6)";
+        },
       },
     ],
   };
 
   const macdChartOptions: ChartOptions<"bar"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "MACD" },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: "MACD",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -514,18 +741,75 @@ export default function CryptoDetails() {
       {
         label: "ATR",
         data: atrData,
-        borderColor: "rgb(255, 99, 71)",
-        backgroundColor: "rgba(255, 99, 71, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   const atrChartOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "Average True Range (ATR)" },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: "Average True Range (ATR)",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -536,15 +820,17 @@ export default function CryptoDetails() {
       {
         label: "Closing Price",
         data: closingPrices,
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        borderColor: theme.primary,
+        backgroundColor: `${theme.primary}20`,
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
       {
         label: "Supertrend",
         data: supertrendData,
-        borderColor: "rgb(255, 0, 0)",
-        backgroundColor: "rgba(255, 0, 0, 0.5)",
+        borderColor: "#FF0000",
+        backgroundColor: "rgba(255, 0, 0, 0.2)",
         fill: false,
         pointRadius: 3,
         pointStyle: "circle",
@@ -554,9 +840,67 @@ export default function CryptoDetails() {
 
   const supertrendChartOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "Supertrend" },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: "Supertrend",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          },
+          callback: function(value: any) {
+            return "$" + value;
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -574,18 +918,75 @@ export default function CryptoDetails() {
       {
         label: "OBV",
         data: obvData,
-        borderColor: "rgb(70, 130, 180)",
-        backgroundColor: "rgba(70, 130, 180, 0.5)",
+        borderColor: "#4682B4",
+        backgroundColor: "rgba(70, 130, 180, 0.2)",
         fill: false,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   const obvChartOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "On-Balance Volume (OBV)" },
+      legend: { 
+        position: "top" as const,
+        labels: {
+          color: "#6B7280",
+          font: {
+            size: 12,
+          },
+        }
+      },
+      title: { 
+        display: true, 
+        text: "On-Balance Volume (OBV)",
+        color: "#6B7280",
+        font: {
+          size: 16,
+        }
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        backgroundColor: "rgba(30, 41, 59, 0.9)",
+        titleColor: "#f3f4f6",
+        bodyColor: "#e5e7eb",
+        borderColor: "rgba(75, 85, 99, 0.5)",
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(107, 114, 128, 0.1)",
+        },
+        ticks: {
+          color: "#6B7280",
+          font: {
+            size: 10,
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false
     },
   };
 
@@ -711,19 +1112,19 @@ export default function CryptoDetails() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b">
+      <header className="border-b border-border">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">FinanceAI</span>
+              <BarChart3 className="h-8 w-8 text-amber-500" />
+              <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">FinanceAI</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/choose-market">
-                <Button variant="ghost">Analyze Market</Button>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground hover:bg-accent">Analyze Market</Button>
               </Link>
               <Link href="/cryptos">
-                <Button variant="outline">Back to Crypto Listings</Button>
+                <Button variant="outline" className="border-amber-500 text-amber-500 hover:bg-amber-500 hover:text-white">Back to Crypto Listings</Button>
               </Link>
             </div>
           </div>
@@ -732,7 +1133,7 @@ export default function CryptoDetails() {
 
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Hero Section */}
-        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20">
+        <section className="py-10 px-4 bg-gradient-to-b from-background to-muted/20 rounded-xl mb-8">
           <div className="max-w-full mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -742,23 +1143,27 @@ export default function CryptoDetails() {
               <div className="flex justify-center items-center gap-4 mb-4">
                 {overview.logo_base && overview.logo_quote ? (
                   <div className="flex gap-2">
-                    <Image
-                      src={overview.logo_base}
-                      alt={`${symbol} base logo`}
-                      width={25}
-                      height={25}
-                      className="rounded"
-                    />
-                    <Image
-                      src={overview.logo_quote}
-                      alt={`${symbol} quote logo`}
-                      width={25}
-                      height={25}
-                      className="rounded"
-                    />
+                    <div className="bg-white p-2 rounded-full shadow-lg">
+                      <Image
+                        src={overview.logo_base}
+                        alt={`${symbol} base logo`}
+                        width={30}
+                        height={30}
+                        className="rounded-full"
+                      />
+                    </div>
+                    <div className="bg-white p-2 rounded-full shadow-lg">
+                      <Image
+                        src={overview.logo_quote}
+                        alt={`${symbol} quote logo`}
+                        width={30}
+                        height={30}
+                        className="rounded-full"
+                      />
+                    </div>
                   </div>
                 ) : null}
-                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">
+                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">
                   {symbol} - {cryptoData.quote?.name || "Unknown"}
                 </h1>
               </div>
@@ -778,50 +1183,87 @@ export default function CryptoDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Cryptocurrency Pair Statistics</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Cryptocurrency Pair Statistics</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <p>
-                    <strong>Current Price:</strong>{" "}
-                    {cryptoData.price?.price
-                      ? parseFloat(cryptoData.price.price).toFixed(8)
-                      : "N/A"}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Current Price</p>
+                  <div className="flex items-center mt-1">
+                    <p className="text-2xl font-bold text-foreground">
+                      {cryptoData.price?.price
+                        ? formatCryptoNumber(parseFloat(cryptoData.price.price))
+                        : "N/A"}
+                    </p>
+                    {cryptoData.quote && (
+                      <span className={`ml-2 flex items-center text-sm ${getTrendInfo(cryptoData.quote.change).color}`}>
+                        {getTrendInfo(cryptoData.quote.change).icon}
+                        <span className="ml-1">
+                          {parseFloat(cryptoData.quote.change || "0").toFixed(8)} ({parseFloat(cryptoData.quote.percent_change || "0").toFixed(2)}%)
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">24h Range</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.low || "0"))} - {formatCryptoNumber(parseFloat(cryptoData.quote.high || "0"))}
                   </p>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Volume (24h)</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {cryptoData.quote.volume ? formatCryptoNumber(parseFloat(cryptoData.quote.volume)) : "N/A"}
+                  </p>
+                </div>
+                
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Currencies</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {cryptoData.quote.currency_base}/{cryptoData.quote.currency_quote}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                <div>
                   <p>
                     <strong>EOD Price ({eodDateFormatted}):</strong>{" "}
                     {cryptoData.eod?.close
-                      ? parseFloat(cryptoData.eod.close).toFixed(8)
+                      ? formatCryptoNumber(parseFloat(cryptoData.eod.close))
                       : "N/A"}
                   </p>
                   <p>
                     <strong>Latest Close:</strong>{" "}
-                    {parseFloat(cryptoData.quote.close || "0").toFixed(8)}
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.close || "0"))}
                   </p>
                   <p>
                     <strong>Latest Open:</strong>{" "}
-                    {parseFloat(cryptoData.quote.open || "0").toFixed(8)}
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.open || "0"))}
                   </p>
                   <p>
                     <strong>Daily High:</strong>{" "}
-                    {parseFloat(cryptoData.quote.high || "0").toFixed(8)}
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.high || "0"))}
                   </p>
                   <p>
                     <strong>Daily Low:</strong>{" "}
-                    {parseFloat(cryptoData.quote.low || "0").toFixed(8)}
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.low || "0"))}
                   </p>
                 </div>
                 <div>
                   <p>
                     <strong>Previous Close:</strong>{" "}
-                    {parseFloat(cryptoData.quote.previous_close || "0").toFixed(8)}
+                    {formatCryptoNumber(parseFloat(cryptoData.quote.previous_close || "0"))}
                   </p>
                   <p>
                     <strong>Change:</strong>{" "}
@@ -853,217 +1295,247 @@ export default function CryptoDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Technical Indicators</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Technical Indicators Summary</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* EMA */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Exponential Moving Averages</h3>
-                  <p>
-                    <strong>20-Day EMA:</strong>{" "}
-                    {latestEma20 ? parseFloat(latestEma20.ema).toFixed(8) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>50-Day EMA:</strong>{" "}
-                    {latestEma50 ? parseFloat(latestEma50.ema).toFixed(8) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        emaInterpretation.includes("Bullish")
-                          ? "bg-green-100 text-green-800"
-                          : emaInterpretation.includes("Bearish")
-                          ? "bg-red-100 text-red-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {emaInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    Exponential Moving Averages
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">20-Day EMA</p>
+                      <p className="font-medium">
+                        {latestEma20 ? formatCryptoNumber(parseFloat(latestEma20.ema)) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">50-Day EMA</p>
+                      <p className="font-medium">
+                        {latestEma50 ? formatCryptoNumber(parseFloat(latestEma50.ema)) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          emaInterpretation.includes("Bullish")
+                            ? "bg-green-100 text-green-800"
+                            : emaInterpretation.includes("Bearish")
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {emaInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* RSI */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Relative Strength Index (RSI)</h3>
-                  <p>
-                    <strong>14-Day RSI:</strong>{" "}
-                    {latestRsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        rsiInterpretation === "Overbought"
-                          ? "bg-red-100 text-red-800"
-                          : rsiInterpretation === "Oversold"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {rsiInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    Relative Strength Index (RSI)
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">14-Day RSI</p>
+                      <p className="font-medium">
+                        {latestRsi ? parseFloat(latestRsi.rsi).toFixed(2) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          rsiInterpretation === "Overbought"
+                            ? "bg-red-100 text-red-800"
+                            : rsiInterpretation === "Oversold"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {rsiInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* MACD */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">MACD</h3>
-                  {latestMacd ? (
-                    <>
-                      <p>
-                        <strong>MACD Line:</strong>{" "}
-                        {parseFloat(latestMacd.macd).toFixed(8)}
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    MACD
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">MACD Line</p>
+                      <p className="font-medium">
+                        {latestMacd ? parseFloat(latestMacd.macd).toFixed(8) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Signal Line:</strong>{" "}
-                        {parseFloat(latestMacd.macd_signal).toFixed(8)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Signal Line</p>
+                      <p className="font-medium">
+                        {latestMacd ? parseFloat(latestMacd.macd_signal).toFixed(8) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Histogram:</strong>{" "}
-                        {parseFloat(latestMacd.macd_hist).toFixed(8)}
-                      </p>
-                      <p>
-                        <strong>Interpretation:</strong>{" "}
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            macdInterpretation.includes("Bullish")
-                              ? "bg-green-100 text-green-800"
-                              : macdInterpretation.includes("Bearish")
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {macdInterpretation}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No MACD data available for {symbol}.
-                    </p>
-                  )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          macdInterpretation.includes("Bullish")
+                            ? "bg-green-100 text-green-800"
+                            : macdInterpretation.includes("Bearish")
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {macdInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* BBANDS */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Bollinger Bands</h3>
-                  {latestBbands ? (
-                    <>
-                      <p>
-                        <strong>Upper Band:</strong>{" "}
-                        {parseFloat(latestBbands.upper_band).toFixed(8)}
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    Bollinger Bands
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upper Band</p>
+                      <p className="font-medium">
+                        {latestBbands ? formatCryptoNumber(parseFloat(latestBbands.upper_band)) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Middle Band:</strong>{" "}
-                        {parseFloat(latestBbands.middle_band).toFixed(8)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Middle Band</p>
+                      <p className="font-medium">
+                        {latestBbands ? formatCryptoNumber(parseFloat(latestBbands.middle_band)) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Lower Band:</strong>{" "}
-                        {parseFloat(latestBbands.lower_band).toFixed(8)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Lower Band</p>
+                      <p className="font-medium">
+                        {latestBbands ? formatCryptoNumber(parseFloat(latestBbands.lower_band)) : "N/A"}
                       </p>
-                      <p>
-                        <strong>Interpretation:</strong>{" "}
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            bbandsInterpretation.includes("Overbought")
-                              ? "bg-red-100 text-red-800"
-                              : bbandsInterpretation.includes("Oversold")
-                              ? "bg-green-100 text-green-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {bbandsInterpretation}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Bollinger Bands data available for {symbol}.
-                    </p>
-                  )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          bbandsInterpretation.includes("Overbought")
+                            ? "bg-red-100 text-red-800"
+                            : bbandsInterpretation.includes("Oversold")
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {bbandsInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* ATR */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Average True Range (ATR)</h3>
-                  <p>
-                    <strong>14-Day ATR:</strong>{" "}
-                    {latestAtr ? parseFloat(latestAtr.atr).toFixed(8) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        atrInterpretation.includes("High")
-                          ? "bg-red-100 text-red-800"
-                          : atrInterpretation.includes("Low")
-                          ? "bg-green-100 text-green-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {atrInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    Average True Range (ATR)
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">14-Day ATR</p>
+                      <p className="font-medium">
+                        {latestAtr ? parseFloat(latestAtr.atr).toFixed(8) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          atrInterpretation.includes("High")
+                            ? "bg-red-100 text-red-800"
+                            : atrInterpretation.includes("Low")
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {atrInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Supertrend */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Supertrend</h3>
-                  <p>
-                    <strong>Latest Supertrend:</strong>{" "}
-                    {latestSupertrend ? parseFloat(latestSupertrend.supertrend).toFixed(8) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        supertrendInterpretation.includes("Bullish")
-                          ? "bg-green-100 text-green-800"
-                          : supertrendInterpretation.includes("Bearish")
-                          ? "bg-red-100 text-red-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {supertrendInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    Supertrend
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Current Value</p>
+                      <p className="font-medium">
+                        {latestSupertrend ? formatCryptoNumber(parseFloat(latestSupertrend.supertrend)) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          supertrendInterpretation.includes("Bullish")
+                            ? "bg-green-100 text-green-800"
+                            : supertrendInterpretation.includes("Bearish")
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {supertrendInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* OBV */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">On-Balance Volume (OBV)</h3>
-                  <p>
-                    <strong>Latest OBV:</strong>{" "}
-                    {latestObv ? parseFloat(latestObv.obv).toFixed(0) : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Interpretation:</strong>{" "}
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        obvInterpretation.includes("Confirmation")
-                          ? "bg-green-100 text-green-800"
-                          : obvInterpretation.includes("Divergence")
-                          ? "bg-red-100 text-red-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {obvInterpretation}
-                    </span>
-                  </p>
+                <div className="bg-accent/10 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-foreground flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5 text-amber-500" />
+                    On-Balance Volume (OBV)
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Current Value</p>
+                      <p className="font-medium">
+                        {latestObv ? formatCryptoNumber(parseFloat(latestObv.obv)) : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Interpretation</p>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {obvInterpretation}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
           </motion.div>
 
-          {/* Time Series Data (Charts) */}
+          {/* Charts Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1071,134 +1543,69 @@ export default function CryptoDetails() {
             className="relative group"
           >
             <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
+              className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
             ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
+            <Card className="relative p-6 bg-card border-border rounded-xl">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">Time Series Data</h2>
+                <h2 className="text-2xl font-semibold text-foreground">Technical Indicator Charts</h2>
               </div>
-              <div className="grid grid-cols-1 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Daily Closing Prices with Indicators
-                  </h3>
-                  {timeSeries.length > 0 ? (
-                    <Line options={chartOptions} data={closingPriceData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No historical data available for {symbol}.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Technical Indicator Charts */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="relative group"
-          >
-            <div
-              className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"
-            ></div>
-            <Card className="relative p-6 bg-card">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-600">
-                  <BarChart3 className="h-6 w-6 text-white" />
-                </div>
-                <h2 className="text-2xl font-semibold">Technical Indicator Charts</h2>
-              </div>
+              
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Relative Strength Index (RSI)
-                  </h3>
-                  {technicalIndicators.rsi ? (
-                    <Line options={rsiChartOptions} data={rsiChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No RSI data available for {symbol}.
-                    </p>
-                  )}
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Price History with Indicators</h3>
+                  <div className="h-80">
+                    <Line options={chartOptions} data={closingPriceData} />
+                  </div>
                 </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">MACD</h3>
-                  {technicalIndicators.macd ? (
-                    <Bar data={macdChartData as ChartData<"bar", number[], string>} options={macdChartOptions} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No MACD data available for {symbol}.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    Average True Range (ATR)
-                  </h3>
-                  {technicalIndicators.atr ? (
-                    <Line options={atrChartOptions} data={atrChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No ATR data available for {symbol}.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">Supertrend</h3>
-                  {technicalIndicators.supertrend ? (
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Supertrend</h3>
+                  <div className="h-80">
                     <Line options={supertrendChartOptions} data={supertrendChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No Supertrend data available for {symbol}.
-                    </p>
-                  )}
+                  </div>
                 </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2 text-muted-foreground">
-                    On-Balance Volume (OBV)
-                  </h3>
-                  {technicalIndicators.obv ? (
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Relative Strength Index (RSI)</h3>
+                  <div className="h-80">
+                    <Line options={rsiChartOptions} data={rsiChartData} />
+                  </div>
+                </div>
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">MACD</h3>
+                  <div className="h-80">
+                    <Chart
+                      type="bar"
+                      options={macdChartOptions}
+                      data={macdChartData}
+                    />
+                  </div>
+                </div>
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">Average True Range (ATR)</h3>
+                  <div className="h-80">
+                    <Line options={atrChartOptions} data={atrChartData} />
+                  </div>
+                </div>
+                <div className="h-96">
+                  <h3 className="text-lg font-medium mb-4 text-foreground">On-Balance Volume (OBV)</h3>
+                  <div className="h-80">
                     <Line options={obvChartOptions} data={obvChartData} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No OBV data available for {symbol}.
-                    </p>
-                  )}
+                  </div>
                 </div>
               </div>
             </Card>
           </motion.div>
         </div>
 
-        {/* Floating Chatbot Logo */}
-        <motion.div
-          className="fixed bottom-6 right-6 z-50 group"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
-          whileHover={{ scale: 1.1 }}
-        >
+        <motion.div className="fixed bottom-6 right-6 z-50 group" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 1 }} whileHover={{ scale: 1.1 }}>
           <Link href="/cryptoadvisor">
-            <Button
-              className="p-4 rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-yellow-600 hover:from-orange-600 hover:to-yellow-700 transition-all duration-300"
-            >
+            <Button className="p-4 rounded-full shadow-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 transition-all duration-300">
               <MessageCircle className="h-6 w-6 text-white" />
             </Button>
           </Link>
-          {/* Tooltip */}
-          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-sm font-medium px-3 py-1 rounded-lg shadow-md">
-            Your Crypto Advisor
-          </div>
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-card text-foreground text-sm font-medium px-3 py-1 rounded-lg shadow-md">Your Crypto Advisor</div>
         </motion.div>
       </main>
     </div>

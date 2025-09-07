@@ -13,6 +13,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - AI-powered market sentiment analysis
   - Historical performance tracking
   - Stock list with curated selection of stocks
+  - Modernized card-based UI with enhanced data visualization
   - **Reddit Community Sentiment Analysis**: Real-time sentiment analysis from 20+ financial subreddits with relevance scoring
 
 - **Cryptocurrency Analysis**
@@ -22,6 +23,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - Market sentiment indicators
   - Portfolio tracking
   - Real-time price updates
+  - Modernized card-based UI with enhanced data visualization
   - **Reddit Community Sentiment Analysis**: Cryptocurrency sentiment from crypto-focused subreddits
 
 - **Forex Analysis**
@@ -29,6 +31,7 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
   - Currency pair analysis with 15+ technical indicators
   - Market trend analysis
   - Live forex pair prices (USD/JPY, EUR/USD)
+  - Modernized card-based UI with enhanced data visualization
   - **Reddit Community Sentiment Analysis**: Forex sentiment from currency trading subreddits with forex-specific pattern matching
   - **Advanced Forex Pattern Recognition**: Smart symbol detection for various forex pair formats (EUR/USD, EURUSD, Euro Dollar)
 
@@ -70,6 +73,9 @@ A comprehensive financial analysis platform built with Next.js that provides AI-
 - Animated transitions with Framer Motion
 - Dark/Light theme toggle with system preference detection
 - Theme persistence across page refreshes
+- Modernized card-based layouts for market listings
+- Consistent color themes across all market types
+- Enhanced data visualization with trend indicators
 
 ## 🛠️ Tech Stack
 
@@ -143,6 +149,7 @@ ai-finance/
 │   └── use-toast.ts      # Toast notification hook
 ├── lib/                  # Utility functions
 │   ├── market-intelligence.ts # Market intelligence utilities
+│   ├── themes.ts         # Shared theme configuration for consistent color themes
 │   └── utils.ts          # Utility functions
 ├── public/               # Static assets
 │   ├── manifest.json     # Web app manifest
@@ -170,25 +177,33 @@ The project is deployed on render and can be accessed at:
 
 ![Finance AI Front Page](public/Finance-Markets-Analysis.png)
 
-#### Market Analysis Page 2
+#### Market Selection Page
 
-![Market Analysis Page 2](public/Finance-Markets-Analysis%20page%202.png)
+![Market Selection Page](public/Finance-Markets-Analysis%20page%202.png)
 
-#### Market Analysis Page 3
+#### Stock Analysis Page
 
-![Market Analysis Page 3](public/Finance-Markets-Analysis%20page%203.png)
+![Stock Analysis Page](public/Finance-Markets-Analysis%20page%203.png)
 
-#### Market Analysis Page 4
+#### Technical Indicators Dashboard
 
-![Market Analysis Page 4](public/Finance-Markets-Analysis%20page%204.png)
+![Technical Indicators Dashboard](public/Finance-Markets-Analysis%20page%204.png)
 
-#### Market Analysis Page 5
+#### Market Data Overview
 
-![Market Analysis Page 5](public/Finance-Markets-Analysis%20page%205.png)
+![Market Data Overview](public/Finance-Markets-Analysis%20page%205.png)
 
-#### Market Analysis Page 6
+#### Detailed Market Analysis
 
-![Market Analysis Page 6](public/Finance-Markets-Analysis%20page%206.png)
+![Detailed Market Analysis](public/Finance-Markets-Analysis%20page%206.png)
+
+#### Reddit Sentiment Analysis
+
+![Reddit Sentiment Analysis](public/Finance-Markets-Analysis-Reddit.png)
+
+#### AI Advisor Chatbot Architecture
+
+![AI Advisor Chatbot Architecture](public/Diagram_of_the_chatbot.png)
 
 ## 🚀 Getting Started
 

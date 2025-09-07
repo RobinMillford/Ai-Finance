@@ -28,7 +28,6 @@ export default function CryptoList() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [quoteCurrencyFilter, setQuoteCurrencyFilter] = useState("All");
   const [quoteCurrencyOptions, setQuoteCurrencyOptions] = useState<string[]>([]);
@@ -36,24 +35,49 @@ export default function CryptoList() {
   const router = useRouter();
   const perPage = 50;
 
-  // Line 41-43
-  // First define fetchCryptoPairs with useCallback
+  // Fetch all crypto pairs on mount
+  useEffect(() => {
+    fetchCryptoPairs();
+  }, []);
+
+  // Update filtered crypto pairs when filters or page changes
+  useEffect(() => {
+    let filtered = allCryptoPairs;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (pair) =>
+          pair.symbol.toLowerCase().includes(lowerQuery) ||
+          pair.currency_base.toLowerCase().includes(lowerQuery) ||
+          pair.currency_quote.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    // Apply quote currency filter
+    if (quoteCurrencyFilter !== "All") {
+      filtered = filtered.filter((pair) => pair.currency_quote === quoteCurrencyFilter);
+    }
+
+    // Calculate pagination
+    const newTotalPages = Math.ceil(filtered.length / perPage) || 1;
+    setTotalPages(newTotalPages);
+
+    // Adjust page if needed
+    if (page > newTotalPages) {
+      setPage(newTotalPages);
+    }
+
+    // Apply pagination
+    const paginatedPairs = filtered.slice((page - 1) * perPage, page * perPage);
+    setFilteredCryptoPairs(paginatedPairs);
+  }, [searchQuery, quoteCurrencyFilter, allCryptoPairs, page]);
+
   const fetchCryptoPairs = useCallback(async () => {
     setLoading(true);
     try {
-      const queryParams = new URLSearchParams();
-      queryParams.append('page', page.toString());
-      queryParams.append('perPage', perPage.toString());
-      
-      if (searchQuery) {
-        queryParams.append('searchQuery', searchQuery);
-      }
-      
-      if (quoteCurrencyFilter !== 'All') {
-        queryParams.append('quoteCurrency', quoteCurrencyFilter);
-      }
-      
-      const response = await fetch(`/api/cryptos?${queryParams.toString()}`);
+      const response = await fetch(`/api/cryptos`);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -65,7 +89,7 @@ export default function CryptoList() {
       // Handle the data
       const pairs = Array.isArray(data) ? data : [];
       setAllCryptoPairs(pairs);
-      setFilteredCryptoPairs(pairs);
+      setFilteredCryptoPairs(pairs.slice(0, perPage));
       
       // Extract unique quote currencies for the filter
       if (quoteCurrencyOptions.length === 0) {
@@ -75,8 +99,8 @@ export default function CryptoList() {
         setQuoteCurrencyOptions(['All', ...uniqueQuoteCurrencies]);
       }
       
-      setTotalCount(pairs.length);
       setTotalPages(Math.ceil(pairs.length / perPage));
+      setPage(1); // Reset to first page on new fetch
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error fetching cryptocurrency pairs:', errorMessage);
@@ -88,20 +112,15 @@ export default function CryptoList() {
     } finally {
       setLoading(false);
     }
-  }, [page, searchQuery, quoteCurrencyFilter, perPage, toast, quoteCurrencyOptions.length]);
-  
-  // Then use it in useEffect
-  useEffect(() => {
-    fetchCryptoPairs();
-  }, [page, quoteCurrencyFilter, searchQuery, fetchCryptoPairs]);
-  
-  const debouncedSearch = debounce(() => {
-    setPage(1); // Reset to page 1 when search query changes
-    fetchCryptoPairs();
-  }, 1000);
+  }, [perPage, toast, quoteCurrencyOptions.length]);
 
-  const handleSearch = () => {
-    debouncedSearch();
+  const debouncedSearch = debounce((query: string) => {
+    setSearchQuery(query);
+    setPage(1); // Reset to page 1 when search query changes
+  }, 500);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    debouncedSearch(e.target.value);
   };
 
   const handleQuoteCurrencyChange = (value: string) => {
@@ -127,8 +146,6 @@ export default function CryptoList() {
       });
     }
   };
-
-  const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   if (loading && allCryptoPairs.length === 0) {
     return (
@@ -224,7 +241,7 @@ export default function CryptoList() {
                   type="text"
                   placeholder="Search crypto pairs by symbol or name..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearch}
                   className="pl-10 bg-white border-orange-200 focus:border-orange-500 focus:ring-orange-500 text-gray-900 placeholder-gray-500"
                 />
               </div>
@@ -250,7 +267,7 @@ export default function CryptoList() {
               </div>
 
               <Button
-                onClick={handleSearch}
+                onClick={fetchCryptoPairs}
                 disabled={loading}
                 className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-2 text-white transition-all hover:scale-105"
               >
@@ -258,12 +275,12 @@ export default function CryptoList() {
                   {loading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Searching...
+                      Refreshing...
                     </>
                   ) : (
                     <>
-                      <Search className="h-5 w-5" />
-                      Search
+                      <RefreshCw className="h-5 w-5" />
+                      Refresh
                     </>
                   )}
                 </span>

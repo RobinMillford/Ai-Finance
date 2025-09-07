@@ -55,7 +55,9 @@ interface RedditPost {
   relevance_score: number;
 }
 
-interface RedditSummary {
+interface RedditData {
+  symbol: string;
+  posts: RedditPost[];
   total_posts: number;
   bullish_count: number;
   bearish_count: number;
@@ -66,12 +68,6 @@ interface RedditSummary {
   average_sentiment_score: number;
   overall_sentiment: "Bullish" | "Bearish" | "Neutral";
   confidence: "High" | "Medium" | "Low";
-}
-
-interface RedditData {
-  symbol: string;
-  posts: RedditPost[];
-  summary: RedditSummary;
 }
 
 interface RedditSocialSentimentProps {
@@ -193,29 +189,29 @@ export function RedditSocialSentiment({
           </div>
           <Badge 
             variant="outline" 
-            className={`${getSentimentDisplay(redditData.summary as any).color} border-0`}
+            className={`${getSentimentDisplay({ label: redditData.overall_sentiment, score: redditData.average_sentiment_score, confidence: redditData.confidence, words: { positive: [], negative: [] } }).color} border-0`}
           >
-            {redditData.summary.overall_sentiment}
+            {redditData.overall_sentiment}
           </Badge>
         </div>
         
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="text-center">
-            <div className="text-green-600 font-bold">{redditData.summary.bullish_percentage}%</div>
+            <div className="text-green-600 font-bold">{redditData.bullish_percentage}%</div>
             <div className="text-muted-foreground">Bullish</div>
           </div>
           <div className="text-center">
-            <div className="text-red-600 font-bold">{redditData.summary.bearish_percentage}%</div>
+            <div className="text-red-600 font-bold">{redditData.bearish_percentage}%</div>
             <div className="text-muted-foreground">Bearish</div>
           </div>
           <div className="text-center">
-            <div className="text-gray-600 font-bold">{redditData.summary.neutral_percentage}%</div>
+            <div className="text-gray-600 font-bold">{redditData.neutral_percentage}%</div>
             <div className="text-muted-foreground">Neutral</div>
           </div>
         </div>
         
         <div className="mt-3 text-xs text-muted-foreground text-center">
-          Based on {redditData.summary.total_posts} posts • {redditData.summary.confidence} confidence
+          Based on {redditData.total_posts} posts • {redditData.confidence} confidence
         </div>
       </Card>
     );
@@ -286,7 +282,7 @@ export function RedditSocialSentiment({
         >
           {/* Summary Card */}
           <div className="relative group">
-            <div className={`absolute -inset-0.5 bg-gradient-to-r ${getOverallSentimentColor(redditData.summary.overall_sentiment)} rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-500`}></div>
+            <div className={`absolute -inset-0.5 bg-gradient-to-r ${getOverallSentimentColor(redditData.overall_sentiment)} rounded-xl blur opacity-25 group-hover:opacity-75 transition duration-500`}></div>
             <Card className="relative p-6 bg-card/80 backdrop-blur-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -300,36 +296,36 @@ export function RedditSocialSentiment({
                 </div>
                 <Badge 
                   variant="outline" 
-                  className={`text-lg px-4 py-2 ${getSentimentDisplay(redditData.summary as any).color} border-0`}
+                  className={`text-lg px-4 py-2 ${getSentimentDisplay({ label: redditData.overall_sentiment, score: redditData.average_sentiment_score, confidence: redditData.confidence, words: { positive: [], negative: [] } }).color} border-0`}
                 >
-                  {redditData.summary.overall_sentiment}
+                  {redditData.overall_sentiment}
                 </Badge>
               </div>
 
               {/* Sentiment Statistics */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <div className="text-2xl font-bold text-green-600">{redditData.summary.bullish_count}</div>
+                  <div className="text-2xl font-bold text-green-600">{redditData.bullish_count}</div>
                   <div className="text-sm text-muted-foreground">Bullish Posts</div>
-                  <div className="text-lg font-semibold text-green-600">{redditData.summary.bullish_percentage}%</div>
+                  <div className="text-lg font-semibold text-green-600">{redditData.bullish_percentage}%</div>
                 </div>
                 
                 <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
-                  <div className="text-2xl font-bold text-red-600">{redditData.summary.bearish_count}</div>
+                  <div className="text-2xl font-bold text-red-600">{redditData.bearish_count}</div>
                   <div className="text-sm text-muted-foreground">Bearish Posts</div>
-                  <div className="text-lg font-semibold text-red-600">{redditData.summary.bearish_percentage}%</div>
+                  <div className="text-lg font-semibold text-red-600">{redditData.bearish_percentage}%</div>
                 </div>
                 
                 <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-gray-600">{redditData.summary.neutral_count}</div>
+                  <div className="text-2xl font-bold text-gray-600">{redditData.neutral_count}</div>
                   <div className="text-sm text-muted-foreground">Neutral Posts</div>
-                  <div className="text-lg font-semibold text-gray-600">{redditData.summary.neutral_percentage}%</div>
+                  <div className="text-lg font-semibold text-gray-600">{redditData.neutral_percentage}%</div>
                 </div>
                 
                 <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                  <div className="text-2xl font-bold text-blue-600">{redditData.summary.total_posts}</div>
+                  <div className="text-2xl font-bold text-blue-600">{redditData.total_posts}</div>
                   <div className="text-sm text-muted-foreground">Total Posts</div>
-                  <div className="text-lg font-semibold text-blue-600">{redditData.summary.confidence} Confidence</div>
+                  <div className="text-lg font-semibold text-blue-600">{redditData.confidence} Confidence</div>
                 </div>
               </div>
 
@@ -337,10 +333,10 @@ export function RedditSocialSentiment({
               <div className="flex items-center justify-center gap-4 p-4 rounded-lg bg-muted/50">
                 <span className="text-sm font-medium">Average Sentiment Score:</span>
                 <span className={`text-xl font-bold ${
-                  redditData.summary.average_sentiment_score > 0 ? 'text-green-600' : 
-                  redditData.summary.average_sentiment_score < 0 ? 'text-red-600' : 'text-gray-600'
+                  redditData.average_sentiment_score > 0 ? 'text-green-600' : 
+                  redditData.average_sentiment_score < 0 ? 'text-red-600' : 'text-gray-600'
                 }`}>
-                  {redditData.summary.average_sentiment_score > 0 ? '+' : ''}{redditData.summary.average_sentiment_score}
+                  {redditData.average_sentiment_score > 0 ? '+' : ''}{redditData.average_sentiment_score}
                 </span>
               </div>
             </Card>

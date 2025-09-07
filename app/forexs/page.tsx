@@ -50,9 +50,9 @@ export default function Forex() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate network delay
       const response = await fetch(
-        `/api/forexs?page=${page}&perPage=${perPage}¤cyGroup=${selectedType}&searchQuery=${encodeURIComponent(
-          searchQuery
-        )}`
+        `/api/forexs?page=${page}&perPage=${perPage}&currencyGroup=${encodeURIComponent(
+          selectedType
+        )}&searchQuery=${encodeURIComponent(searchQuery)}`
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -62,7 +62,7 @@ export default function Forex() {
 
       const pairs = data.pairs ?? [];
       setAllForexPairs(pairs);
-      setFilteredForexPairs(pairs);
+      setFilteredForexPairs(pairs); // Use the filtered data from the API
       setTotalCount(data.totalCount ?? 0);
       setTotalPages(Math.ceil((data.totalCount ?? 0) / perPage));
 

@@ -185,12 +185,12 @@ export default function Stocks() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href="/choose-market">
-                    <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Other Markets
                     </Button>
                   </Link>
                   <Link href="/choose-advisor">
-                    <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       AI Advisors
                     </Button>
                   </Link>
@@ -204,7 +204,7 @@ export default function Stocks() {
                     </Button>
                   </Link>
                   <Link href="/">
-                    <Button variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-100">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Back to Home
                     </Button>
                   </Link>
@@ -233,14 +233,14 @@ export default function Stocks() {
                     type="text"
                     placeholder="Search stocks by symbol or name..."
                     onChange={(e) => handleSearch(e.target.value)}
-                    className="pl-10 h-12 bg-white border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-gray-900 placeholder-gray-500 rounded-xl shadow-sm"
+                    className="pl-10 h-12 bg-background border border-input focus:border-blue-500 focus:ring-blue-500 text-foreground placeholder-muted-foreground rounded-xl shadow-sm"
                   />
                 </div>
 
                 {/* Exchange Filter */}
-                <div className="flex items-center gap-2 bg-blue-50 px-4 rounded-xl">
+                <div className="flex items-center gap-2 bg-secondary px-4 rounded-xl">
                   <Filter className="h-5 w-5 text-blue-500" />
-                  <label htmlFor="exchange-filter" className="text-sm font-medium text-blue-700 whitespace-nowrap">
+                  <label htmlFor="exchange-filter" className="text-sm font-medium text-foreground whitespace-nowrap">
                     Exchange:
                   </label>
                   <select
@@ -250,11 +250,11 @@ export default function Stocks() {
                       setSelectedExchange(e.target.value);
                       setPage(1); // Reset to page 1 when filter changes
                     }}
-                    className="border-0 bg-transparent py-2 text-blue-900 focus:ring-0 focus:ring-blue-500"
+                    className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-blue-500"
                     disabled={loading}
                   >
                     {exchangeOptions.map((exchange) => (
-                      <option key={exchange} value={exchange}>
+                      <option key={exchange} value={exchange} className="text-foreground bg-background">
                         {exchange}
                       </option>
                     ))}
@@ -262,9 +262,9 @@ export default function Stocks() {
                 </div>
 
                 {/* Type Filter */}
-                <div className="flex items-center gap-2 bg-blue-50 px-4 rounded-xl">
+                <div className="flex items-center gap-2 bg-secondary px-4 rounded-xl">
                   <Filter className="h-5 w-5 text-blue-500" />
-                  <label htmlFor="type-filter" className="text-sm font-medium text-blue-700 whitespace-nowrap">
+                  <label htmlFor="type-filter" className="text-sm font-medium text-foreground whitespace-nowrap">
                     Type:
                   </label>
                   <select
@@ -274,11 +274,11 @@ export default function Stocks() {
                       setSelectedType(e.target.value);
                       setPage(1); // Reset to page 1 when filter changes
                     }}
-                    className="border-0 bg-transparent py-2 text-blue-900 focus:ring-0 focus:ring-blue-500"
+                    className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-blue-500"
                     disabled={loading}
                   >
                     {typeOptions.map((type) => (
-                      <option key={type} value={type}>
+                      <option key={type} value={type} className="text-foreground bg-background">
                         {type}
                       </option>
                     ))}
@@ -288,22 +288,11 @@ export default function Stocks() {
                 <Button
                   onClick={fetchStocks}
                   disabled={loading}
-                  className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-2 text-white shadow-lg hover:shadow-xl transition-all"
+                  variant="outline"
+                  className="border-input text-foreground hover:bg-accent rounded-xl"
                 >
-                  <span className="relative z-10 flex items-center gap-2">
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span className="hidden sm:inline">Refreshing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-5 w-5" />
-                        <span className="hidden sm:inline">Refresh</span>
-                      </>
-                    )}
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-500 opacity-0 transition-opacity group-hover:opacity-100"></div>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                  Refresh Data
                 </Button>
               </div>
             </CardContent>
@@ -352,17 +341,17 @@ export default function Stocks() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className="bg-white rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-all duration-300 p-4"
+                        className="rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-all duration-300 p-4 bg-card"
                       >
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-bold text-lg text-blue-600">{stock.symbol}</h3>
-                            <p className="text-sm text-gray-600 truncate">{stock.name}</p>
+                            <p className="text-sm text-muted-foreground">{stock.name}</p>
                           </div>
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             stock.status === "Common Stock"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-indigo-100 text-indigo-800"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                              : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
                           }`}>
                             {stock.status}
                           </span>
@@ -370,11 +359,11 @@ export default function Stocks() {
                         
                         <div className="mt-3 flex items-center justify-between">
                           <div>
-                            <p className="text-xs text-gray-500">Exchange</p>
-                            <p className="text-sm font-medium">{stock.exchange}</p>
+                            <p className="text-xs text-muted-foreground">Exchange</p>
+                            <p className="text-sm font-medium text-foreground">{stock.exchange}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-gray-500">Change</p>
+                            <p className="text-xs text-muted-foreground">Change</p>
                             <div className="flex items-center">
                               {stock.change ? (
                                 <>
@@ -386,7 +375,7 @@ export default function Stocks() {
                                   </span>
                                 </>
                               ) : (
-                                <span className="text-sm text-gray-500">N/A</span>
+                                <span className="text-sm text-muted-foreground">N/A</span>
                               )}
                             </div>
                           </div>
@@ -396,7 +385,7 @@ export default function Stocks() {
                           <Link href={`/stock/${stock.symbol}`} className="block">
                             <Button 
                               variant="outline" 
-                              className="w-full group relative overflow-hidden rounded-lg border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-all"
+                              className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
                               <span className="relative z-10 flex items-center justify-center gap-2">
                                 Analyze
@@ -414,9 +403,9 @@ export default function Stocks() {
                       className="col-span-full py-12 text-center"
                     >
                       <div className="flex flex-col items-center justify-center">
-                        <BarChart3 className="h-12 w-12 text-gray-300 mb-3" />
+                        <BarChart3 className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
                         <p className="text-lg font-medium">No stocks found</p>
-                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                        <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
                       </div>
                     </motion.div>
                   )}
@@ -429,17 +418,17 @@ export default function Stocks() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1 || loading}
                   variant="outline"
-                  className="border-blue-300 text-blue-600 hover:bg-blue-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Previous
                 </Button>
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-700 font-medium">Page</span>
-                  <div className="bg-blue-100 text-blue-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">Page</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {page}
                   </div>
-                  <span className="text-blue-700 font-medium">of</span>
-                  <div className="bg-blue-100 text-blue-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">of</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {totalPages}
                   </div>
                 </div>
@@ -447,7 +436,7 @@ export default function Stocks() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages || loading}
                   variant="outline"
-                  className="border-blue-300 text-blue-600 hover:bg-blue-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Next
                 </Button>

@@ -211,12 +211,12 @@ export default function Forex() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href="/choose-market">
-                    <Button variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Other Markets
                     </Button>
                   </Link>
                   <Link href="/choose-advisor">
-                    <Button variant="outline" className="border-green-200 text-green-600 hover:bg-green-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       AI Advisors
                     </Button>
                   </Link>
@@ -230,7 +230,7 @@ export default function Forex() {
                     </Button>
                   </Link>
                   <Link href="/">
-                    <Button variant="outline" className="border-green-300 text-green-600 hover:bg-green-100">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Back to Home
                     </Button>
                   </Link>
@@ -260,25 +260,25 @@ export default function Forex() {
                     placeholder="Search forex pairs by symbol or name..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-12 bg-white border-green-200 focus:border-green-500 focus:ring-green-500 text-gray-900 placeholder-gray-500 rounded-xl shadow-sm"
+                    className="pl-10 h-12 bg-background border border-input focus:border-green-500 focus:ring-green-500 text-foreground placeholder-muted-foreground rounded-xl shadow-sm"
                   />
                 </div>
 
                 {/* Type Filter (Currency Group) */}
-                <div className="flex items-center gap-2 bg-green-50 px-4 rounded-xl">
+                <div className="flex items-center gap-2 bg-secondary px-4 rounded-xl">
                   <Filter className="h-5 w-5 text-green-500" />
-                  <label htmlFor="type-filter" className="text-sm font-medium text-green-700 whitespace-nowrap">
+                  <label htmlFor="type-filter" className="text-sm font-medium text-foreground whitespace-nowrap">
                     Currency Group:
                   </label>
                   <select
                     id="type-filter"
                     value={selectedType}
                     onChange={(e) => handleTypeChange(e.target.value)}
-                    className="border-0 bg-transparent py-2 text-green-900 focus:ring-0 focus:ring-green-500"
+                    className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-green-500"
                     disabled={loading}
                   >
                     {typeOptions.map((type) => (
-                      <option key={type} value={type} className="text-gray-900">
+                      <option key={type} value={type} className="text-foreground bg-background">
                         {type}
                       </option>
                     ))}
@@ -334,7 +334,7 @@ export default function Forex() {
                   onClick={fetchForexPairs}
                   disabled={loading}
                   variant="outline"
-                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl"
+                  className="border-input text-foreground hover:bg-accent rounded-xl"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                   Refresh Data
@@ -352,20 +352,20 @@ export default function Forex() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className="bg-white rounded-xl border border-green-100 shadow-sm hover:shadow-md transition-all duration-300 p-4"
+                        className="rounded-xl border border-green-100 shadow-sm hover:shadow-md transition-all duration-300 p-4 bg-card"
                       >
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-bold text-lg text-green-600">{pair.symbol}</h3>
-                            <p className="text-sm text-gray-600 truncate">{pair.name}</p>
+                            <p className="text-sm text-muted-foreground">{pair.name}</p>
                           </div>
                           <span
                             className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                               pair.status === "Major"
-                                ? "bg-green-100 text-green-800"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                                 : pair.status === "Minor"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-gray-100 text-gray-800"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
                             }`}
                           >
                             {pair.status}
@@ -374,12 +374,12 @@ export default function Forex() {
                         
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <div>
-                            <p className="text-xs text-gray-500">Base</p>
-                            <p className="text-sm font-medium">{pair.base_currency || "N/A"}</p>
+                            <p className="text-xs text-muted-foreground">Base</p>
+                            <p className="text-sm font-medium text-foreground">{pair.base_currency || "N/A"}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Quote</p>
-                            <p className="text-sm font-medium">{pair.quote_currency || "N/A"}</p>
+                            <p className="text-xs text-muted-foreground">Quote</p>
+                            <p className="text-sm font-medium text-foreground">{pair.quote_currency || "N/A"}</p>
                           </div>
                         </div>
                         
@@ -391,7 +391,7 @@ export default function Forex() {
                           >
                             <Button
                               variant="outline"
-                              className="w-full group relative overflow-hidden rounded-lg border-green-300 text-green-600 hover:bg-green-50 hover:border-green-400 transition-all"
+                              className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
                               <span className="relative z-10 flex items-center justify-center gap-2">
                                 Analyze
@@ -409,9 +409,9 @@ export default function Forex() {
                       className="col-span-full py-12 text-center"
                     >
                       <div className="flex flex-col items-center justify-center">
-                        <Globe className="h-12 w-12 text-gray-300 mb-3" />
+                        <Globe className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
                         <p className="text-lg font-medium">No forex pairs found</p>
-                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                        <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
                       </div>
                     </motion.div>
                   )}
@@ -424,17 +424,17 @@ export default function Forex() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1 || loading}
                   variant="outline"
-                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Previous
                 </Button>
                 <div className="flex items-center gap-2">
-                  <span className="text-green-700 font-medium">Page</span>
-                  <div className="bg-green-100 text-green-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">Page</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {page}
                   </div>
-                  <span className="text-green-700 font-medium">of</span>
-                  <div className="bg-green-100 text-green-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">of</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {totalPages}
                   </div>
                 </div>
@@ -442,7 +442,7 @@ export default function Forex() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages || loading}
                   variant="outline"
-                  className="border-green-300 text-green-600 hover:bg-green-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Next
                 </Button>

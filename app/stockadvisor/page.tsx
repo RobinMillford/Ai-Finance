@@ -1149,7 +1149,7 @@ I'm still here to help with your financial learning journey!`;
                       session.id === currentChatId ? "bg-blue-100 dark:bg-blue-900" : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
-                    <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
+                    <div className="flex-1" onClick={() => handleSwitchChat(session.id)}>
                       <span className="text-sm font-medium" style={{ color: indigo600 }}>
                         {session.title}
                       </span>

@@ -226,12 +226,12 @@ export default function CryptoList() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href="/choose-market">
-                    <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Other Markets
                     </Button>
                   </Link>
                   <Link href="/choose-advisor">
-                    <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       AI Advisors
                     </Button>
                   </Link>
@@ -245,7 +245,7 @@ export default function CryptoList() {
                     </Button>
                   </Link>
                   <Link href="/">
-                    <Button variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-100">
+                    <Button variant="outline" className="border-input text-foreground hover:bg-accent">
                       Back to Home
                     </Button>
                   </Link>
@@ -274,25 +274,25 @@ export default function CryptoList() {
                     type="text"
                     placeholder="Search crypto pairs by symbol or name..."
                     onChange={handleSearch}
-                    className="pl-10 h-12 bg-white border-orange-200 focus:border-orange-500 focus:ring-orange-500 text-gray-900 placeholder-gray-500 rounded-xl shadow-sm"
+                    className="pl-10 h-12 bg-background border border-input focus:border-orange-500 focus:ring-orange-500 text-foreground placeholder-muted-foreground rounded-xl shadow-sm"
                   />
                 </div>
 
                 {/* Quote Currency Filter */}
-                <div className="flex items-center gap-2 bg-amber-50 px-4 rounded-xl">
+                <div className="flex items-center gap-2 bg-secondary px-4 rounded-xl">
                   <Filter className="h-5 w-5 text-amber-500" />
-                  <label htmlFor="quote-currency-filter" className="text-sm font-medium text-amber-700 whitespace-nowrap">
+                  <label htmlFor="quote-currency-filter" className="text-sm font-medium text-foreground whitespace-nowrap">
                     Quote Currency:
                   </label>
                   <select
                     id="quote-currency-filter"
                     value={quoteCurrencyFilter}
                     onChange={(e) => handleQuoteCurrencyChange(e.target.value)}
-                    className="border-0 bg-transparent py-2 text-amber-900 focus:ring-0 focus:ring-amber-500"
+                    className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-amber-500"
                     disabled={loading}
                   >
                     {quoteCurrencyOptions.map((currency) => (
-                      <option key={currency} value={currency} className="text-gray-900">
+                      <option key={currency} value={currency} className="text-foreground bg-background">
                         {currency === "All" ? "All Quote Currencies" : currency}
                       </option>
                     ))}
@@ -348,7 +348,7 @@ export default function CryptoList() {
                   onClick={fetchCryptoPairs}
                   disabled={loading}
                   variant="outline"
-                  className="border-orange-300 text-orange-600 hover:bg-orange-100 rounded-xl"
+                  className="border-input text-foreground hover:bg-accent rounded-xl"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                   Refresh Data
@@ -366,36 +366,36 @@ export default function CryptoList() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className="bg-white rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition-all duration-300 p-4"
+                        className="rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition-all duration-300 p-4 bg-card"
                       >
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-bold text-lg text-orange-600">{pair.symbol}</h3>
-                            <p className="text-sm text-gray-600">{pair.currency_base}/{pair.currency_quote}</p>
+                            <p className="text-sm text-muted-foreground">{pair.currency_base}/{pair.currency_quote}</p>
                           </div>
                         </div>
                         
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <div>
-                            <p className="text-xs text-gray-500">Base Currency</p>
-                            <p className="text-sm font-medium">{pair.currency_base}</p>
+                            <p className="text-xs text-muted-foreground">Base Currency</p>
+                            <p className="text-sm font-medium text-foreground">{pair.currency_base}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Quote Currency</p>
-                            <p className="text-sm font-medium">{pair.currency_quote}</p>
+                            <p className="text-xs text-muted-foreground">Quote Currency</p>
+                            <p className="text-sm font-medium text-foreground">{pair.currency_quote}</p>
                           </div>
                         </div>
                         
                         <div className="mt-3">
-                          <p className="text-xs text-gray-500">Exchanges</p>
-                          <p className="text-sm text-gray-600 truncate">{pair.available_exchanges.join(", ")}</p>
+                          <p className="text-xs text-muted-foreground">Exchanges</p>
+                          <p className="text-sm text-muted-foreground">{pair.available_exchanges.join(", ")}</p>
                         </div>
                         
                         <div className="mt-4">
                           <Link href={`/crypto/${encodeURIComponent(pair.symbol)}`} className="block">
                             <Button
                               variant="outline"
-                              className="w-full group relative overflow-hidden rounded-lg border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 transition-all"
+                              className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
                               <span className="relative z-10 flex items-center justify-center gap-2">
                                 Analyze
@@ -413,9 +413,9 @@ export default function CryptoList() {
                       className="col-span-full py-12 text-center"
                     >
                       <div className="flex flex-col items-center justify-center">
-                        <Bitcoin className="h-12 w-12 text-gray-300 mb-3" />
+                        <Bitcoin className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
                         <p className="text-lg font-medium">No crypto pairs found</p>
-                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                        <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
                       </div>
                     </motion.div>
                   )}
@@ -428,17 +428,17 @@ export default function CryptoList() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1 || loading}
                   variant="outline"
-                  className="border-orange-300 text-orange-600 hover:bg-orange-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Previous
                 </Button>
                 <div className="flex items-center gap-2">
-                  <span className="text-amber-700 font-medium">Page</span>
-                  <div className="bg-amber-100 text-amber-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">Page</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {page}
                   </div>
-                  <span className="text-amber-700 font-medium">of</span>
-                  <div className="bg-amber-100 text-amber-800 rounded-lg px-3 py-1 font-semibold">
+                  <span className="font-medium text-foreground">of</span>
+                  <div className="rounded-lg px-3 py-1 font-semibold bg-secondary text-secondary-foreground">
                     {totalPages}
                   </div>
                 </div>
@@ -446,7 +446,7 @@ export default function CryptoList() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages || loading}
                   variant="outline"
-                  className="border-orange-300 text-orange-600 hover:bg-orange-100 rounded-xl px-6"
+                  className="border-input text-foreground hover:bg-accent rounded-xl px-6"
                 >
                   Next
                 </Button>

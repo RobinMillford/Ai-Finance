@@ -1495,7 +1495,7 @@ export default function ForexDetails() {
                     <Chart
                       type="bar"
                       options={macdChartOptions}
-                      data={macdChartData}
+                      data={macdChartData as ChartData<"bar", number[], string>}
                     />
                   </div>
                 </div>

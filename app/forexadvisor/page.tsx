@@ -1293,7 +1293,7 @@ I'm still here to help with your forex learning journey!`;
                       session.id === currentChatId ? "bg-green-100 dark:bg-green-900" : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
-                    <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
+                    <div className="flex-1" onClick={() => handleSwitchChat(session.id)}>
                       <span className="text-sm font-medium" style={{ color: emerald600 }}>{session.title}</span>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>

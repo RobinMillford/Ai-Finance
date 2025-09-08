@@ -1209,7 +1209,7 @@ I'm still here to help with your crypto learning journey!`;
                       session.id === currentChatId ? "bg-orange-100 dark:bg-orange-900" : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
-                    <div className="flex-1 truncate" onClick={() => handleSwitchChat(session.id)}>
+                    <div className="flex-1" onClick={() => handleSwitchChat(session.id)}>
                       <span className="text-sm font-medium" style={{ color: yellow600 }}>{session.title}</span>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteChat(session.id)}>

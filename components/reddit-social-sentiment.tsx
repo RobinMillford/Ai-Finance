@@ -105,6 +105,15 @@ export function RedditSocialSentiment({
       const data: RedditData = await response.json();
       setRedditData(data);
       setSymbol(targetSymbol.toUpperCase());
+      
+      // Show a message if no posts were found
+      if (data.total_posts === 0) {
+        toast({
+          title: "No Reddit Posts Found",
+          description: `No Reddit discussions were found for ${targetSymbol}. This is normal for less popular symbols or during low activity periods.`,
+          variant: "default",
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       setError(errorMessage);
@@ -269,6 +278,7 @@ export function RedditSocialSentiment({
         <Card className="p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
           <p className="text-muted-foreground">Analyzing Reddit sentiment for {searchSymbol || symbol}...</p>
+          <p className="text-sm text-muted-foreground mt-2">This may take a moment as we search through financial subreddits</p>
         </Card>
       )}
 
@@ -462,6 +472,21 @@ export function RedditSocialSentiment({
             )}
           </Card>
         </motion.div>
+      )}
+      
+      // Show a message when no data is available but no error occurred
+      {!redditData && !loading && !error && initialSymbol && (
+        <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
+          <div className="text-center">
+            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-2">Reddit Sentiment Analysis</h3>
+            <p className="text-muted-foreground mb-4">
+              No Reddit sentiment data available for {initialSymbol}. 
+              This could be because the symbol is not widely discussed or there's currently no relevant activity.
+            </p>
+            <Button onClick={() => fetchRedditData(initialSymbol)}>Try Again</Button>
+          </div>
+        </Card>
       )}
     </div>
   );

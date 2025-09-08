@@ -128,7 +128,7 @@ ai-finance/
 │   ├── choose-advisor/    # AI advisor selection
 │   ├── choose-market/     # Market selection
 │   ├── crypto/            # Crypto analysis pages
-│   ├── cryptos/           # Crypto market pages
+│   ├── cryptos/            # Crypto market pages
 │   ├── cryptoadvisor/     # Crypto AI advisor
 │   ├── forex/             # Forex analysis pages
 │   ├── forexs/            # Forex market pages
@@ -237,8 +237,8 @@ TWELVE_DATA_API_KEY=your_twelve_data_key
 NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key
 NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
 REDDIT_CLIENT_ID=your_reddit_client_id
-REDDIT_CLIENT_SECRET=your_reddit_client_secr
-REDDIT_USER_AGENT=
+REDDIT_CLIENT_SECRET=your_reddit_client_secret
+REDDIT_USER_AGENT=FinanceAI-Bot/1.0 (by /u/your_username)
 ```
 
 4. Start the development server:
@@ -264,28 +264,11 @@ Vercel will automatically build and deploy your application with each push to th
 
 ### Reddit API Setup (Recommended for Deployment)
 
-To avoid 403 Forbidden errors when deploying to platforms like Render, you should set up Reddit API credentials:
+To avoid 403 Forbidden errors when deploying to platforms like Render, the application now implements proper OAuth authentication with Reddit API.
 
-1. Go to [Reddit App Preferences](https://www.reddit.com/prefs/apps)
-2. Click "Create App" or "Create Another App"
-3. Fill in the form:
-   - Name: FinanceAI Bot
-   - App type: Select "script"
-   - Description: Financial sentiment analysis bot
-   - About URL: Leave blank
-   - Redirect URI: http://localhost:3000 (for local development)
-4. Click "Create app"
-5. Note down the client ID (under the app name) and client secret
-6. Add these credentials to your `.env.local` file:
+For detailed instructions on setting up Reddit API credentials and troubleshooting common issues, please refer to our [Reddit API Setup Guide](docs/REDDIT_API_SETUP.md).
 
-```env
-REDDIT_CLIENT_ID=your_app_client_id
-REDDIT_CLIENT_SECRET=your_app_client_secret
-REDDIT_USERNAME=your_reddit_username
-REDDIT_PASSWORD=your_reddit_password
-```
-
-This will enable authenticated requests to the Reddit API, avoiding the 403 errors you're experiencing on Render deployment.
+The application will automatically use your Reddit API credentials for authenticated requests, which helps avoid rate limiting and IP blocking issues on hosted environments.
 
 ## 📊 Available Scripts
 

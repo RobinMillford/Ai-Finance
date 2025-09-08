@@ -494,7 +494,7 @@ export function RedditSocialSentiment({
         </motion.div>
       )}
       
-      // Show a message when no data is available but no error occurred
+      {/* Show a message when no data is available but no error occurred */}
       {!redditData && !loading && !error && initialSymbol && (
         <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
           <div className="text-center">
@@ -514,7 +514,7 @@ export function RedditSocialSentiment({
         </Card>
       )}
   
-      // Show a message when no data is available after a search
+      {/* Show a message when no data is available after a search */}
       {!redditData && !loading && !error && !initialSymbol && searchSymbol && (
         <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
           <div className="text-center">

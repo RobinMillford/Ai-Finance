@@ -26,18 +26,6 @@ interface RedditPost {
   upvote_ratio: number;
 }
 
-// Interface for Reddit Comment
-interface RedditComment {
-  id: string;
-  body: string;
-  author: string;
-  created_utc: number;
-  score: number;
-  permalink: string;
-  ups: number;
-  downs: number;
-}
-
 // Interface for Sentiment Analysis Result
 interface SentimentResult {
   label: "Bullish" | "Bearish" | "Neutral";
@@ -208,6 +196,34 @@ function analyzeFinancialSentiment(text: string, symbol?: string): SentimentResu
   };
 }
 
+// Fetch Reddit access token using your credentials
+async function getRedditAccessToken() {
+  if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET) {
+    throw new Error('Reddit API credentials not configured');
+  }
+
+  const authString = `${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`;
+  const authBuffer = Buffer.from(authString, 'utf-8');
+  const authHeader = `Basic ${authBuffer.toString('base64')}`;
+
+  const response = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      'Authorization': authHeader,
+      'User-Agent': REDDIT_USER_AGENT,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get Reddit access token: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
 // Fetch Reddit data using authenticated Reddit API with your existing setup
 async function fetchRedditData(symbol: string, subreddits: string[] = FINANCIAL_SUBREDDITS) {
   const allPosts: any[] = [];
@@ -269,26 +285,45 @@ async function fetchRedditData(symbol: string, subreddits: string[] = FINANCIAL_
   console.log(`Target subreddits: [${targetSubreddits.slice(0, 5).join(', ')}...]`);
   
   try {
-    // Use your existing Reddit API setup
+    // Use your existing Reddit API setup with proper OAuth authentication
     if (REDDIT_CLIENT_ID && REDDIT_CLIENT_SECRET) {
       console.log('Using authenticated Reddit API with your existing credentials');
+      
+      // Get access token
+      let accessToken: string;
+      try {
+        accessToken = await getRedditAccessToken();
+        console.log('Successfully obtained Reddit access token');
+      } catch (authError) {
+        console.error('Failed to obtain Reddit access token:', authError);
+        // Fallback to unauthenticated requests if authentication fails
+        console.log('Falling back to unauthenticated requests');
+        accessToken = '';
+      }
       
       for (const subreddit of targetSubreddits.slice(0, 10)) {
         for (const query of searchQueries.slice(0, 4)) {
           try {
-            // Use the Reddit API with your existing user agent
-            const searchUrl = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&sort=hot&limit=15&t=week`;
+            // Use the Reddit API with proper authentication
+            const searchUrl = `https://oauth.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&sort=hot&limit=15&t=week`;
             
             console.log(`Searching r/${subreddit} for: "${query}"`);
             
+            const headers: Record<string, string> = {
+              'User-Agent': REDDIT_USER_AGENT
+            };
+            
+            // Add authorization header if we have an access token
+            if (accessToken) {
+              headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+            
             const response = await fetch(searchUrl, {
-              headers: {
-                'User-Agent': REDDIT_USER_AGENT
-              }
+              headers
             });
             
             if (!response.ok) {
-              console.warn(`Failed to fetch from r/${subreddit}: ${response.status}`);
+              console.warn(`Failed to fetch from r/${subreddit}: ${response.status} ${response.statusText}`);
               continue;
             }
             

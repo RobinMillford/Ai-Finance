@@ -18,6 +18,7 @@ import {
   Tooltip,
   Legend,
   ChartData,
+  BarController,
 } from "chart.js";
 import { Chart, Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
@@ -35,7 +36,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  annotationPlugin
+  annotationPlugin,
+  BarController
 );
 
 // Format large numbers with commas

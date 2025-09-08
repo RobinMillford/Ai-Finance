@@ -39,87 +39,133 @@ const markets = [
 ];
 
 // Market Card Component
-const MarketCard = ({ icon: Icon, title, description, link, gradient, features, color, isActive, onClick }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ y: -5 }}
-    className={`relative group cursor-pointer ${isActive ? 'z-10' : 'z-0'}`}
-    onClick={onClick}
-  >
-    <div className={`absolute -inset-0.5 bg-gradient-to-r ${gradient} rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500`}></div>
-    <Card className={`relative p-6 bg-card/80 backdrop-blur-sm hover:bg-card/90 transition-all duration-300 border border-primary/10 shadow-lg ${isActive ? 'ring-2 ring-primary' : ''}`}>
-      <div className="flex flex-col items-start gap-4">
-        <div className={`p-3 rounded-lg bg-gradient-to-br ${gradient} shadow-md`}>
-          <Icon className="h-6 w-6 text-white" />
+const MarketCard = ({ icon: Icon, title, description, link, gradient, features, color, isActive, onClick }: any) => {
+  // Function to get the correct bullet point color class
+  const getBulletPointClass = () => {
+    switch (color) {
+      case "blue":
+        return "bg-blue-500";
+      case "green":
+        return "bg-green-500";
+      case "orange":
+        return "bg-orange-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
+
+  // Function to get the correct border color class for detail view
+  const getBorderClass = () => {
+    switch (color) {
+      case "blue":
+        return "bg-blue-500";
+      case "green":
+        return "bg-green-500";
+      case "orange":
+        return "bg-orange-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5 }}
+      className={`relative group cursor-pointer ${isActive ? 'z-10' : 'z-0'}`}
+      onClick={onClick}
+    >
+      <div className={`absolute -inset-0.5 bg-gradient-to-r ${gradient} rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500`}></div>
+      <Card className={`relative p-6 bg-card/80 backdrop-blur-sm hover:bg-card/90 transition-all duration-300 border border-primary/10 shadow-lg ${isActive ? 'ring-2 ring-primary' : ''}`}>
+        <div className="flex flex-col items-start gap-4">
+          <div className={`p-3 rounded-lg bg-gradient-to-br ${gradient} shadow-md`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="text-xl font-semibold">{title}</h3>
+          <p className="text-muted-foreground">{description}</p>
+          <ul className="space-y-2 mt-2">
+            {features.map((feature: string, index: number) => (
+              <li key={index} className="flex items-center text-sm text-muted-foreground">
+                <div className={`w-1.5 h-1.5 rounded-full ${getBulletPointClass()} mr-2`}></div>
+                {feature}
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center text-primary group-hover:translate-x-1 transition-transform duration-300 mt-2">
+            Explore <ChevronRight className="ml-1 h-4 w-4" />
+          </div>
         </div>
-        <h3 className="text-xl font-semibold">{title}</h3>
-        <p className="text-muted-foreground">{description}</p>
-        <ul className="space-y-2 mt-2">
-          {features.map((feature: string, index: number) => (
-            <li key={index} className="flex items-center text-sm text-muted-foreground">
-              <div className={`w-1.5 h-1.5 rounded-full bg-${color}-500 mr-2`}></div>
-              {feature}
-            </li>
-          ))}
-        </ul>
-        <div className="flex items-center text-primary group-hover:translate-x-1 transition-transform duration-300 mt-2">
-          Explore <ChevronRight className="ml-1 h-4 w-4" />
-        </div>
-      </div>
-    </Card>
-  </motion.div>
-);
+      </Card>
+    </motion.div>
+  );
+};
 
 // Market Detail Component
-const MarketDetail = ({ market, onBack }: any) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.95 }}
-    transition={{ duration: 0.3 }}
-    className="relative"
-  >
-    <div className={`absolute -inset-4 bg-gradient-to-r ${market.gradient} rounded-2xl blur-xl opacity-20`}></div>
-    <Card className="relative p-8 bg-card/80 backdrop-blur-sm border border-primary/10 shadow-xl">
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="mb-6 hover:bg-primary/10"
-        onClick={onBack}
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to markets
-      </Button>
-      
-      <div className="flex flex-col md:flex-row gap-8 items-start">
-        <div className={`p-4 rounded-xl bg-gradient-to-br ${market.gradient} shadow-lg`}>
-          <market.icon className="h-12 w-12 text-white" />
-        </div>
+const MarketDetail = ({ market, onBack }: any) => {
+  // Function to get the correct bullet point color class
+  const getBulletPointClass = () => {
+    switch (market.color) {
+      case "blue":
+        return "bg-blue-500";
+      case "green":
+        return "bg-green-500";
+      case "orange":
+        return "bg-orange-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3 }}
+      className="relative"
+    >
+      <div className={`absolute -inset-4 bg-gradient-to-r ${market.gradient} rounded-2xl blur-xl opacity-20`}></div>
+      <Card className="relative p-8 bg-card/80 backdrop-blur-sm border border-primary/10 shadow-xl">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-6 hover:bg-primary/10"
+          onClick={onBack}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to markets
+        </Button>
         
-        <div className="flex-1">
-          <h2 className="text-3xl font-bold mb-4">{market.title} Market</h2>
-          <p className="text-muted-foreground mb-6">{market.description}</p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            {market.features.map((feature: string, index: number) => (
-              <div key={index} className="flex items-center p-3 rounded-lg bg-primary/5 border border-primary/10">
-                <div className={`w-2 h-2 rounded-full bg-${market.color}-500 mr-3`}></div>
-                <span>{feature}</span>
-              </div>
-            ))}
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+          <div className={`p-4 rounded-xl bg-gradient-to-br ${market.gradient} shadow-lg`}>
+            <market.icon className="h-12 w-12 text-white" />
           </div>
           
-          <Link href={market.link}>
-            <Button size="lg" className={`bg-gradient-to-r ${market.gradient} hover:opacity-90 transition-opacity w-full sm:w-auto`}>
-              Explore {market.title} Market
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+          <div className="flex-1">
+            <h2 className="text-3xl font-bold mb-4">{market.title} Market</h2>
+            <p className="text-muted-foreground mb-6">{market.description}</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+              {market.features.map((feature: string, index: number) => (
+                <div key={index} className="flex items-center p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className={`w-2 h-2 rounded-full ${getBulletPointClass()} mr-3`}></div>
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+            
+            <Link href={market.link}>
+              <Button size="lg" className={`bg-gradient-to-r ${market.gradient} hover:opacity-90 transition-opacity w-full sm:w-auto`}>
+                Explore {market.title} Market
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
         </div>
-      </div>
-    </Card>
-  </motion.div>
-);
+      </Card>
+    </motion.div>
+  );
+};
 
 export default function ChooseMarket() {
   const [activeMarket, setActiveMarket] = useState<number | null>(null);

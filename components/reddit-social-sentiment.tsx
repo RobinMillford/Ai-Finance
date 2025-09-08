@@ -110,7 +110,7 @@ export function RedditSocialSentiment({
       if (data.total_posts === 0) {
         toast({
           title: "No Reddit Posts Found",
-          description: `No Reddit discussions were found for ${targetSymbol}. This is normal for less popular symbols or during low activity periods.`,
+          description: `No Reddit discussions were found for ${targetSymbol}. This is normal for less popular symbols or when Reddit API access is restricted on deployed servers.`,
           variant: "default",
         });
       }
@@ -312,165 +312,185 @@ export function RedditSocialSentiment({
                 </Badge>
               </div>
 
-              {/* Sentiment Statistics */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <div className="text-2xl font-bold text-green-600">{redditData.bullish_count}</div>
-                  <div className="text-sm text-muted-foreground">Bullish Posts</div>
-                  <div className="text-lg font-semibold text-green-600">{redditData.bullish_percentage}%</div>
+              {/* Show message when no posts found */}
+              {redditData.total_posts === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold mb-2">No Reddit Discussions Found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    We couldn't find any Reddit discussions for {redditData.symbol}. This could be due to:
+                  </p>
+                  <ul className="text-muted-foreground text-sm mb-4 text-left max-w-md mx-auto">
+                    <li className="mb-1">• Limited discussions about this symbol</li>
+                    <li className="mb-1">• Reddit API restrictions on deployed servers</li>
+                    <li className="mb-1">• Temporary Reddit API issues</li>
+                    <li>• Try checking again later or use from localhost</li>
+                  </ul>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button onClick={() => fetchRedditData(redditData.symbol)}>Try Again</Button>
+                    <Link href="https://www.reddit.com" target="_blank">
+                      <Button variant="outline">Search Reddit Directly</Button>
+                    </Link>
+                  </div>
                 </div>
-                
-                <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
-                  <div className="text-2xl font-bold text-red-600">{redditData.bearish_count}</div>
-                  <div className="text-sm text-muted-foreground">Bearish Posts</div>
-                  <div className="text-lg font-semibold text-red-600">{redditData.bearish_percentage}%</div>
-                </div>
-                
-                <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-gray-600">{redditData.neutral_count}</div>
-                  <div className="text-sm text-muted-foreground">Neutral Posts</div>
-                  <div className="text-lg font-semibold text-gray-600">{redditData.neutral_percentage}%</div>
-                </div>
-                
-                <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                  <div className="text-2xl font-bold text-blue-600">{redditData.total_posts}</div>
-                  <div className="text-sm text-muted-foreground">Total Posts</div>
-                  <div className="text-lg font-semibold text-blue-600">{redditData.confidence} Confidence</div>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {/* Sentiment Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+                      <div className="text-2xl font-bold text-green-600">{redditData.bullish_count}</div>
+                      <div className="text-sm text-muted-foreground">Bullish Posts</div>
+                      <div className="text-lg font-semibold text-green-600">{redditData.bullish_percentage}%</div>
+                    </div>
+                    
+                    <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
+                      <div className="text-2xl font-bold text-red-600">{redditData.bearish_count}</div>
+                      <div className="text-sm text-muted-foreground">Bearish Posts</div>
+                      <div className="text-lg font-semibold text-red-600">{redditData.bearish_percentage}%</div>
+                    </div>
+                    
+                    <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                      <div className="text-2xl font-bold text-gray-600">{redditData.neutral_count}</div>
+                      <div className="text-sm text-muted-foreground">Neutral Posts</div>
+                      <div className="text-lg font-semibold text-gray-600">{redditData.neutral_percentage}%</div>
+                    </div>
+                    
+                    <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                      <div className="text-2xl font-bold text-blue-600">{redditData.total_posts}</div>
+                      <div className="text-sm text-muted-foreground">Total Posts</div>
+                      <div className="text-lg font-semibold text-blue-600">{redditData.confidence} Confidence</div>
+                    </div>
+                  </div>
 
-              {/* Sentiment Score */}
-              <div className="flex items-center justify-center gap-4 p-4 rounded-lg bg-muted/50">
-                <span className="text-sm font-medium">Average Sentiment Score:</span>
-                <span className={`text-xl font-bold ${
-                  redditData.average_sentiment_score > 0 ? 'text-green-600' : 
-                  redditData.average_sentiment_score < 0 ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {redditData.average_sentiment_score > 0 ? '+' : ''}{redditData.average_sentiment_score}
-                </span>
-              </div>
+                  {/* Sentiment Score */}
+                  <div className="flex items-center justify-center gap-4 p-4 rounded-lg bg-muted/50">
+                    <span className="text-sm font-medium">Average Sentiment Score:</span>
+                    <span className={`text-xl font-bold ${
+                      redditData.average_sentiment_score > 0 ? 'text-green-600' : 
+                      redditData.average_sentiment_score < 0 ? 'text-red-600' : 'text-gray-600'
+                    }`}>
+                      {redditData.average_sentiment_score > 0 ? '+' : ''}{redditData.average_sentiment_score}
+                    </span>
+                  </div>
+                </>
+              )}
             </Card>
           </div>
 
           {/* Posts List */}
-          <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
-            <div className="flex items-center gap-3 mb-6">
-              <MessageSquare className="h-6 w-6 text-primary" />
-              <h3 className="text-xl font-semibold">Recent Discussions</h3>
-            </div>
+          {redditData.total_posts > 0 && (
+            <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
+              <div className="flex items-center gap-3 mb-6">
+                <MessageSquare className="h-6 w-6 text-primary" />
+                <h3 className="text-xl font-semibold">Recent Discussions</h3>
+              </div>
 
-            <div className="space-y-4">
-              {redditData.posts.slice(0, 10).map((post, index) => {
-                const sentimentDisplay = getSentimentDisplay(post.sentiment);
-                const SentimentIcon = sentimentDisplay.icon;
-                
-                return (
-                  <motion.div
-                    key={post.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="relative group"
-                  >
-                    <div className={`absolute -inset-0.5 ${sentimentDisplay.borderColor} rounded-lg blur opacity-0 group-hover:opacity-50 transition duration-300`}></div>
-                    <div className="relative p-4 rounded-lg border border-border/50 hover:border-border transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="text-xs">
-                              r/{post.subreddit}
-                            </Badge>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${sentimentDisplay.color} border-0`}
-                            >
-                              <SentimentIcon className="h-3 w-3 mr-1" />
-                              {post.sentiment.label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {post.sentiment.confidence} confidence
-                            </span>
+              <div className="space-y-4">
+                {redditData.posts.slice(0, 10).map((post, index) => {
+                  const sentimentDisplay = getSentimentDisplay(post.sentiment);
+                  const SentimentIcon = sentimentDisplay.icon;
+                  
+                  return (
+                    <motion.div
+                      key={post.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.1 }}
+                      className="relative group"
+                    >
+                      <div className={`absolute -inset-0.5 ${sentimentDisplay.borderColor} rounded-lg blur opacity-0 group-hover:opacity-50 transition duration-300`}></div>
+                      <div className="relative p-4 rounded-lg border border-border/50 hover:border-border transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">
+                                r/{post.subreddit}
+                              </Badge>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${sentimentDisplay.color} border-0`}
+                              >
+                                <SentimentIcon className="h-3 w-3 mr-1" />
+                                {post.sentiment.label}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {post.sentiment.confidence} confidence
+                              </span>
+                            </div>
+                            
+                            <h4 className="font-semibold text-sm mb-2 line-clamp-2">
+                              {post.title}
+                            </h4>
+                            
+                            {post.selftext && (
+                              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                {post.selftext}
+                              </p>
+                            )}
+                            
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                u/{post.author}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(post.created_utc)}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <ArrowUp className="h-3 w-3" />
+                                {post.score}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                {post.num_comments}
+                              </div>
+                            </div>
                           </div>
                           
-                          <h4 className="font-semibold text-sm mb-2 line-clamp-2">
-                            {post.title}
-                          </h4>
-                          
-                          {post.selftext && (
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                              {post.selftext}
-                            </p>
-                          )}
-                          
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              u/{post.author}
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="text-right">
+                              <div className="text-sm font-semibold">
+                                Score: {post.sentiment.score > 0 ? '+' : ''}{post.sentiment.score}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Relevance: {post.relevance_score}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(post.created_utc)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <ArrowUp className="h-3 w-3" />
-                              {post.score}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MessageSquare className="h-3 w-3" />
-                              {post.num_comments}
-                            </div>
+                            
+                            <Link href={post.permalink} target="_blank" rel="noopener noreferrer">
+                              <Button size="sm" variant="outline" className="text-xs">
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </Link>
                           </div>
                         </div>
                         
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="text-right">
-                            <div className="text-sm font-semibold">
-                              Score: {post.sentiment.score > 0 ? '+' : ''}{post.sentiment.score}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Relevance: {post.relevance_score}
+                        {/* Sentiment Keywords */}
+                        {(post.sentiment.words.positive.length > 0 || post.sentiment.words.negative.length > 0) && (
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <div className="flex flex-wrap gap-1">
+                              {post.sentiment.words.positive.slice(0, 3).map((word, i) => (
+                                <Badge key={i} variant="outline" className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20">
+                                  +{word}
+                                </Badge>
+                              ))}
+                              {post.sentiment.words.negative.slice(0, 3).map((word, i) => (
+                                <Badge key={i} variant="outline" className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20">
+                                  -{word}
+                                </Badge>
+                              ))}
                             </div>
                           </div>
-                          
-                          <Link href={post.permalink} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" variant="outline" className="text-xs">
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                        </div>
+                        )}
                       </div>
-                      
-                      {/* Sentiment Keywords */}
-                      {(post.sentiment.words.positive.length > 0 || post.sentiment.words.negative.length > 0) && (
-                        <div className="mt-3 pt-3 border-t border-border/50">
-                          <div className="flex flex-wrap gap-1">
-                            {post.sentiment.words.positive.slice(0, 3).map((word, i) => (
-                              <Badge key={i} variant="outline" className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20">
-                                +{word}
-                              </Badge>
-                            ))}
-                            {post.sentiment.words.negative.slice(0, 3).map((word, i) => (
-                              <Badge key={i} variant="outline" className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20">
-                                -{word}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            
-            {redditData.posts.length === 0 && (
-              <div className="text-center py-8">
-                <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No Reddit discussions found for {redditData.symbol}</p>
+                    </motion.div>
+                  );
+                })}
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
         </motion.div>
       )}
       
@@ -481,10 +501,35 @@ export function RedditSocialSentiment({
             <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <h3 className="text-lg font-semibold mb-2">Reddit Sentiment Analysis</h3>
             <p className="text-muted-foreground mb-4">
-              No Reddit sentiment data available for {initialSymbol}. 
-              This could be because the symbol is not widely discussed or there's currently no relevant activity.
+              Reddit sentiment analysis is currently unavailable. This is common when deploying to hosted environments like Render, 
+              as Reddit often blocks requests from server IPs. Try accessing this feature from localhost, or check back later.
             </p>
-            <Button onClick={() => fetchRedditData(initialSymbol)}>Try Again</Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button onClick={() => fetchRedditData(initialSymbol || "")}>Try Again</Button>
+              <Link href="https://www.reddit.com" target="_blank">
+                <Button variant="outline">Visit Reddit Directly</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      )}
+  
+      // Show a message when no data is available after a search
+      {!redditData && !loading && !error && !initialSymbol && searchSymbol && (
+        <Card className="p-6 bg-card/80 backdrop-blur-sm border border-primary/10">
+          <div className="text-center">
+            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-2">No Reddit Data Found</h3>
+            <p className="text-muted-foreground mb-4">
+              No Reddit discussions were found for "{searchSymbol}". This could be because the symbol is not widely discussed 
+              or Reddit API access is currently restricted.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button onClick={() => setSearchSymbol("")}>Search Again</Button>
+              <Link href="https://www.reddit.com" target="_blank">
+                <Button variant="outline">Search Reddit Directly</Button>
+              </Link>
+            </div>
           </div>
         </Card>
       )}

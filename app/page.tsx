@@ -9,6 +9,8 @@ import { TrendingUp, Newspaper, Brain, BarChart3, DollarSign, Bitcoin, ArrowRigh
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import React from "react";
+import { AuthStatus } from "@/components/AuthStatus";
+import { useSession } from 'next-auth/react';
 
 interface Stock {
   symbol: string;
@@ -42,7 +44,24 @@ const FeatureCard = ({ icon: Icon, title, description, link, delay }: any) => (
     className="relative group"
   >
     <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 via-primary/50 to-primary/30 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
-    <Link href={link}>
+    <button 
+      onClick={() => {
+        // Define which features are protected (require authentication)
+        const protectedFeatures = [
+          'Reddit Social Sentiment',
+          'AI-Powered Analysis'
+        ];
+        
+        const isProtectedFeature = protectedFeatures.includes(title);
+        
+        if (isProtectedFeature && status !== 'authenticated') {
+          window.location.href = '/auth/signin';
+        } else {
+          window.location.href = link;
+        }
+      }}
+      className="w-full text-left"
+    >
       <Card className="relative p-6 bg-card/80 backdrop-blur-sm hover:bg-card/90 transition-all duration-300 border border-primary/10 shadow-lg">
         <div className="flex flex-col items-start gap-4">
           <div className="p-3 rounded-lg bg-primary/10 ring-1 ring-primary/20">
@@ -55,7 +74,7 @@ const FeatureCard = ({ icon: Icon, title, description, link, delay }: any) => (
           </div>
         </div>
       </Card>
-    </Link>
+    </button>
   </motion.div>
 );
 
@@ -80,6 +99,7 @@ export default function Home() {
   const [cryptoPairs, setCryptoPairs] = useState<CryptoPair[]>([]);
   const [activeFeature, setActiveFeature] = useState(0);
   const { toast } = useToast();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
     fetchStocks();
@@ -98,13 +118,17 @@ export default function Home() {
     try {
       const response = await fetch("/api/stocks");
       const data = await response.json();
-      setStocks(data);
+      // Ensure we're setting an array even if data is undefined
+      setStocks(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error("Failed to fetch stock listings:", error);
       toast({
         title: "Error",
         description: "Failed to fetch stock listings",
         variant: "destructive",
       });
+      // Set empty array on error
+      setStocks([]);
     }
   };
 
@@ -112,13 +136,17 @@ export default function Home() {
     try {
       const response = await fetch("/api/forexs?page=1&perPage=1000");
       const data = await response.json();
-      setForexPairs(data.pairs || []);
+      // Ensure we're setting an array even if data is undefined
+      setForexPairs(Array.isArray(data.pairs) ? data.pairs : []);
     } catch (error) {
+      console.error("Failed to fetch forex listings:", error);
       toast({
         title: "Error",
         description: "Failed to fetch forex listings",
         variant: "destructive",
       });
+      // Set empty array on error
+      setForexPairs([]);
     }
   };
 
@@ -126,17 +154,26 @@ export default function Home() {
     try {
       const response = await fetch("/api/cryptos");
       const data = await response.json();
-      setCryptoPairs(data || []);
+      // Ensure we're setting an array even if data is undefined
+      setCryptoPairs(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error("Failed to fetch crypto listings:", error);
       toast({
         title: "Error",
         description: "Failed to fetch crypto listings",
         variant: "destructive",
       });
+      // Set empty array on error
+      setCryptoPairs([]);
     }
   };
 
   const formatNumber = (num: number) => {
+    // Handle undefined or null values
+    if (num === undefined || num === null) {
+      return "0";
+    }
+    
     if (num >= 1000) {
       return (num / 1000).toFixed(1) + "K";
     }
@@ -202,7 +239,7 @@ export default function Home() {
     {
       icon: Globe,
       title: "Global Market Coverage",
-      description: `Comprehensive data on ${formatNumber(stocks.length)}+ stocks, ${formatNumber(forexPairs.length)}+ forex pairs, and ${formatNumber(cryptoPairs.length)}+ cryptocurrencies.`
+      description: `Comprehensive data on ${formatNumber(stocks?.length || 0)}+ stocks, ${formatNumber(forexPairs?.length || 0)}+ forex pairs, and ${formatNumber(cryptoPairs?.length || 0)}+ cryptocurrencies.`
     }
   ];
 
@@ -229,24 +266,46 @@ export default function Home() {
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">FinanceAI</span>
             </div>
-            <div className="hidden md:flex space-x-1">
-              <Link href="/choose-market">
-                <Button variant="ghost" className="hover:bg-primary/10">Markets</Button>
+            <div className="hidden md:flex items-center space-x-1">
+              <Link href="/choose-market" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                Markets
               </Link>
-              <Link href="/news">
-                <Button variant="ghost" className="hover:bg-primary/10">News</Button>
+              <Link href="/news" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                News
               </Link>
-              <Link href="/reddit">
-                <Button variant="ghost" className="hover:bg-primary/10 flex items-center gap-1">
-                  <MessageSquare className="h-4 w-4" />
-                  Sentiment
-                </Button>
+              <button 
+                onClick={() => {
+                  if (status === 'authenticated') {
+                    window.location.href = '/reddit';
+                  } else {
+                    window.location.href = '/auth/signin';
+                  }
+                }}
+                className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                Sentiment
+              </button>
+              <button 
+                onClick={() => {
+                  if (status === 'authenticated') {
+                    window.location.href = '/choose-advisor';
+                  } else {
+                    window.location.href = '/auth/signin';
+                  }
+                }}
+                className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                AI Advisors
+              </button>
+              <Link href="/about" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                About
               </Link>
-              <Link href="/choose-advisor">
-                <Button variant="ghost" className="hover:bg-primary/10">AI Advisors</Button>
+              <Link href="/contact" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                Contact
               </Link>
             </div>
             <div className="flex items-center space-x-4">
+              <AuthStatus />
               <Link href="/choose-market">
                 <Button className="bg-primary hover:bg-primary/90 relative group hidden sm:flex">
                   <span className="relative z-10">Get Started</span>
@@ -283,17 +342,29 @@ export default function Home() {
                   Make informed decisions with real-time data on stocks, forex, and crypto, AI-powered insights, <span className="font-semibold text-primary">community sentiment analysis</span>, and comprehensive financial news.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  <Link href="/choose-advisor">
-                    <Button size="lg" className="w-full sm:w-auto bg-primary hover:bg-primary/90 relative group">
-                      <span className="relative z-10 flex items-center">
-                        Try AI Advisors
-                        <Zap className="ml-2 h-4 w-4" />
-                      </span>
-                      <span className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="lg" 
+                    className="w-full sm:w-auto bg-primary hover:bg-primary/90 relative group"
+                    onClick={() => {
+                      if (status === 'authenticated') {
+                        window.location.href = '/choose-advisor';
+                      } else {
+                        window.location.href = '/auth/signin';
+                      }
+                    }}
+                  >
+                    <span className="relative z-10 flex items-center">
+                      Try AI Advisors
+                      <Zap className="ml-2 h-4 w-4" />
+                    </span>
+                    <span className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                  </Button>
                   <Link href="/choose-market">
-                    <Button size="lg" variant="outline" className="w-full sm:w-auto border-primary/20 hover:bg-primary/10">
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      className="w-full sm:w-auto border-primary/20 hover:bg-primary/10"
+                    >
                       View Markets
                     </Button>
                   </Link>
@@ -375,9 +446,9 @@ export default function Home() {
               transition={{ duration: 0.8 }}
               className="grid grid-cols-1 sm:grid-cols-3 gap-6"
             >
-              <StatCard value={formatNumber(stocks.length)} label="Listed Stocks" icon={LineChart} />
-              <StatCard value={formatNumber(forexPairs.length)} label="Forex Pairs" icon={Globe} />
-              <StatCard value={formatNumber(cryptoPairs.length)} label="Crypto Pairs" icon={Bitcoin} />
+              <StatCard value={formatNumber(stocks?.length || 0)} label="Listed Stocks" icon={LineChart} />
+              <StatCard value={formatNumber(forexPairs?.length || 0)} label="Forex Pairs" icon={Globe} />
+              <StatCard value={formatNumber(cryptoPairs?.length || 0)} label="Crypto Pairs" icon={Bitcoin} />
             </motion.div>
           </div>
         </section>
@@ -468,12 +539,19 @@ export default function Home() {
                   </div>
                   
                   <div className="mt-8 pt-6 border-t border-border/50">
-                    <Link href="/reddit">
-                      <Button className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90">
-                        Explore Reddit Sentiment
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <Button 
+                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90"
+                      onClick={() => {
+                        if (status === 'authenticated') {
+                          window.location.href = '/reddit';
+                        } else {
+                          window.location.href = '/auth/signin';
+                        }
+                      }}
+                    >
+                      Explore Reddit Sentiment
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                   </div>
                 </Card>
               </motion.div>
@@ -688,17 +766,29 @@ export default function Home() {
                 Join thousands of investors who are already leveraging AI-powered insights and community intelligence to make smarter financial decisions.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/choose-advisor">
-                  <Button size="lg" className="w-full sm:w-auto bg-primary hover:bg-primary/90 relative group">
-                    <span className="relative z-10 flex items-center">
-                      Try AI Advisors Free
-                      <Zap className="ml-2 h-4 w-4" />
-                    </span>
-                    <span className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg" 
+                  className="w-full sm:w-auto bg-primary hover:bg-primary/90 relative group"
+                  onClick={() => {
+                    if (status === 'authenticated') {
+                      window.location.href = '/choose-advisor';
+                    } else {
+                      window.location.href = '/auth/signin';
+                    }
+                  }}
+                >
+                  <span className="relative z-10 flex items-center">
+                    Try AI Advisors
+                    <Zap className="ml-2 h-4 w-4" />
+                  </span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
                 <Link href="/choose-market">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto border-primary/20 hover:bg-primary/10">
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="w-full sm:w-auto border-primary/20 hover:bg-primary/10"
+                  >
                     Explore Markets
                   </Button>
                 </Link>
@@ -706,6 +796,8 @@ export default function Home() {
             </motion.div>
           </div>
         </section>
+
+        {/* Footer */}
       </main>
       
       {/* Footer */}
@@ -739,11 +831,49 @@ export default function Home() {
             <div>
               <h3 className="font-semibold mb-4">Products</h3>
               <ul className="space-y-2">
-                <li><Link href="/stocks" className="text-muted-foreground hover:text-primary">Stock Analysis</Link></li>
-                <li><Link href="/forexs" className="text-muted-foreground hover:text-primary">Forex Analysis</Link></li>
-                <li><Link href="/cryptos" className="text-muted-foreground hover:text-primary">Crypto Analysis</Link></li>
-                <li><Link href="/reddit" className="text-muted-foreground hover:text-primary">Reddit Sentiment</Link></li>
-                <li><Link href="/choose-advisor" className="text-muted-foreground hover:text-primary">AI Advisors</Link></li>
+                <li>
+                  <Link href="/stocks" className="text-muted-foreground hover:text-primary">
+                    Stock Analysis
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/forexs" className="text-muted-foreground hover:text-primary">
+                    Forex Analysis
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/cryptos" className="text-muted-foreground hover:text-primary">
+                    Crypto Analysis
+                  </Link>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      if (status === 'authenticated') {
+                        window.location.href = '/reddit';
+                      } else {
+                        window.location.href = '/auth/signin';
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-primary text-left"
+                  >
+                    Reddit Sentiment
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      if (status === 'authenticated') {
+                        window.location.href = '/choose-advisor';
+                      } else {
+                        window.location.href = '/auth/signin';
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-primary text-left"
+                  >
+                    AI Advisors
+                  </button>
+                </li>
               </ul>
             </div>
             

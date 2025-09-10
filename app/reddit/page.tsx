@@ -18,6 +18,7 @@ import {
   Globe,
   ArrowRight
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 // Popular symbols for quick analysis
 const POPULAR_SYMBOLS = {
@@ -52,6 +53,14 @@ export default function RedditSocialPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const { toast } = useToast();
+  const { data: session, status } = useSession();
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/auth/signin';
+    }
+  }, [status]);
 
   // Load recent searches from localStorage
   useEffect(() => {

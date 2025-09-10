@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BarChart3, DollarSign, Bitcoin, ArrowRight, ChevronRight, Sparkles, Zap, Brain, ArrowLeft, Search, Filter, Sliders } from "lucide-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 // Advisor data for the cards
 const advisors = [
@@ -147,6 +148,14 @@ export default function ChooseAdvisor() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredAdvisors, setFilteredAdvisors] = useState(advisors);
+  const { data: session, status } = useSession();
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/auth/signin';
+    }
+  }, [status]);
 
   useEffect(() => {
     // Simulate loading

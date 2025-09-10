@@ -12,6 +12,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from "@/lib/market-intelligence";
+import { useSession } from "next-auth/react";
 
 // Theme colors inspired by from-green-500 to-emerald-600
 const green500 = "#10B981"; // Tailwind from-green-500
@@ -229,6 +230,14 @@ export default function ForexAdvisor() {
   const [forexPairsError, setForexPairsError] = useState<string | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { data: session, status } = useSession();
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/auth/signin';
+    }
+  }, [status]);
 
   useEffect(() => {
     const loadForexPairs = async () => {

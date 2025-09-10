@@ -4,9 +4,7 @@ import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Link from 'next/link';
-import { Button } from "@/components/ui/button";
-import { MessageSquare } from "lucide-react";
+import AuthContext from '@/contexts/AuthContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -49,18 +47,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <div className="fixed bottom-4 left-4 z-50">
-            <ThemeToggle />
-          </div>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <AuthContext>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <div className="fixed bottom-4 left-4 z-50">
+              <ThemeToggle />
+            </div>
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </AuthContext>
       </body>
     </html>
   );

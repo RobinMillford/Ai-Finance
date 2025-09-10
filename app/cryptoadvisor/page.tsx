@@ -13,6 +13,7 @@ import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MessageContentComplex } from "@langchain/core/messages"; // Import for type checking
 import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from "@/lib/market-intelligence";
+import { useSession } from "next-auth/react";
 
 // Theme colors inspired by from-orange-500 to-yellow-600
 const orange500 = "#F97316"; // Tailwind from-orange-500
@@ -180,6 +181,14 @@ export default function CryptoAdvisor() {
   const [cryptoPairsError, setCryptoPairsError] = useState<string | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { data: session, status } = useSession();
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/auth/signin';
+    }
+  }, [status]);
 
   useEffect(() => {
     const loadCryptoPairs = async () => {

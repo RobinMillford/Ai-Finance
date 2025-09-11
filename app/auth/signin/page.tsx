@@ -52,7 +52,7 @@ export default function SignInPage() {
     if (result?.error) {
       setError(result.error === 'CredentialsSignIn' 
         ? 'Invalid email or password' 
-        : 'Authentication failed. Please try again.');
+        : result.error);
     } else {
       // Redirect to home or callback URL
       const callbackUrl = searchParams.get('callbackUrl') || '/';

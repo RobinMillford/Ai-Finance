@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { BarChart3, ChevronLeft, Github, Globe } from "lucide-react";
+import { BarChart3, ChevronLeft, Github, Globe, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function SignUpPage() {
   const [name, setName] = useState('');
@@ -20,26 +21,55 @@ export default function SignUpPage() {
   const [passwordStrength, setPasswordStrength] = useState('');
   const router = useRouter();
 
-  // Validate email format
+  // Enhanced email validation with domain checking
   const isValidEmail = (email: string) => {
+    // Basic email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (!emailRegex.test(email)) {
+      return false;
+    }
+
+    // Check for valid domains (common email providers)
+    const validDomains = [
+      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 
+      'icloud.com', 'aol.com', 'protonmail.com', 'mail.com',
+      'zoho.com', 'yandex.com', 'qq.com', '163.com', '126.com',
+      'gmx.com', 'live.com', 'msn.com', 'ymail.com'
+    ];
+    
+    const domain = email.split('@')[1]?.toLowerCase();
+    return domain ? validDomains.includes(domain) : false;
   };
 
-  // Validate password strength
+  // Enhanced password validation with stronger requirements
   const validatePassword = (password: string) => {
-    const minLength = password.length >= 8;
+    const minLength = password.length >= 12;
     const hasUpper = /[A-Z]/.test(password);
     const hasLower = /[a-z]/.test(password);
     const hasNumber = /\d/.test(password);
     const hasSpecial = /[@$!%*?&]/.test(password);
-
-    if (!minLength) return 'Password must be at least 8 characters long';
+    
+    // Additional checks for common weak passwords
+    const weakPasswords = [
+      'password', '12345678', 'qwertyui', 'admin123', 
+      'welcome1', 'letmein1', 'password123', '123456789',
+      'football', 'iloveyou', '1234567890', 'starwars'
+    ];
+    
+    const lowerPassword = password.toLowerCase();
+    const containsWeakPassword = weakPasswords.some(weak => lowerPassword.includes(weak));
+    
+    // Check for repetitive characters (e.g., aaaa, 1111)
+    const hasRepetitiveChars = /(.)\1{3,}/.test(password);
+    
+    if (!minLength) return 'Password must be at least 12 characters long';
     if (!hasUpper) return 'Password must contain at least one uppercase letter';
     if (!hasLower) return 'Password must contain at least one lowercase letter';
     if (!hasNumber) return 'Password must contain at least one number';
     if (!hasSpecial) return 'Password must contain at least one special character (@$!%*?&)';
-
+    if (containsWeakPassword) return 'Password contains common weak patterns';
+    if (hasRepetitiveChars) return 'Password contains repetitive characters';
+    
     return '';
   };
 
@@ -54,7 +84,7 @@ export default function SignUpPage() {
     
     // Validate email
     if (!isValidEmail(email)) {
-      setError('Please enter a valid email address');
+      setError('Please enter a valid email address from a recognized provider (e.g., Gmail, Outlook, Yahoo)');
       return;
     }
     
@@ -137,6 +167,14 @@ export default function SignUpPage() {
         </div>
 
         <Card className="p-6 bg-card/50 backdrop-blur-sm border border-primary/10 shadow-xl">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
@@ -169,6 +207,9 @@ export default function SignUpPage() {
                 className="bg-background/50 border-primary/20"
                 required
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Only emails from recognized providers are accepted (Gmail, Outlook, Yahoo, etc.)
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -191,7 +232,7 @@ export default function SignUpPage() {
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character.
+                Password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character. Cannot contain common patterns.
               </p>
             </div>
             <div className="space-y-2">
@@ -210,9 +251,6 @@ export default function SignUpPage() {
                 required
               />
             </div>
-            {error && (
-              <div className="text-sm text-red-500">{error}</div>
-            )}
             <Button 
               disabled={isLoading} 
               className="w-full bg-primary hover:bg-primary/90 relative group"

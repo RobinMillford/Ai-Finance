@@ -4,7 +4,7 @@ import GitHubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import dbConnect from './mongodb';
 import User from '../models/User';
-import { verifyPassword } from './auth-utils';
+import { verifyPassword, isValidEmailDomain } from './auth-utils';
 
 // Define the NextAuth options
 export const authOptions: NextAuthOptions = {
@@ -40,6 +40,11 @@ export const authOptions: NextAuthOptions = {
         
         // In a real application, you would validate the credentials against your database
         if (credentials?.email && credentials?.password) {
+          // Validate email domain
+          if (!isValidEmailDomain(credentials.email)) {
+            throw new Error('Please use a valid email from a recognized provider');
+          }
+          
           // Find user
           const user = await User.findOne({ email: credentials.email });
           
@@ -52,6 +57,11 @@ export const authOptions: NextAuthOptions = {
           
           if (!isValid) {
             return null;
+          }
+          
+          // Check if user has verified their email (if applicable)
+          if (user.emailVerificationToken) {
+            throw new Error('Please verify your email before signing in');
           }
           
           return {
@@ -109,6 +119,12 @@ export const authOptions: NextAuthOptions = {
           let existingUser = await User.findOne({ email: user.email });
           
           if (!existingUser) {
+            // Validate email domain for OAuth users too
+            if (user.email && !isValidEmailDomain(user.email)) {
+              console.log('OAuth user with invalid email domain rejected');
+              return false;
+            }
+            
             // Create new user
             console.log('Creating new user');
             existingUser = await User.create({

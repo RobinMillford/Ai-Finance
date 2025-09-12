@@ -12,12 +12,17 @@ export async function PUT(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const preferences = await request.json();
     
     await dbConnect();
     
     const user = await User.findByIdAndUpdate(
-      session.user.id,
+      session.user.id as string,
       { 
         $set: { 
           notificationPreferences: preferences
@@ -46,10 +51,14 @@ export async function GET(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     await dbConnect();
     
-    const user = await User.findById(session.user.id).select('notificationPreferences');
+    const user = await User.findById(session.user.id as string).select('notificationPreferences');
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

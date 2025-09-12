@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useUserAssets } from '@/hooks/useUserAssets';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +44,7 @@ export default function ProfilePage() {
   }
 
   // If user is not authenticated, don't render the profile page
-  if (status === 'unauthenticated') {
+  if (status === 'unauthenticated' || !session) {
     return null;
   }
 

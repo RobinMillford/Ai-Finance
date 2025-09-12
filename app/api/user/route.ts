@@ -14,10 +14,14 @@ export async function GET(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     await dbConnect();
     
-    const user = await User.findById(session.user.id).select('-password');
+    const user = await User.findById(session.user.id as string).select('-password');
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

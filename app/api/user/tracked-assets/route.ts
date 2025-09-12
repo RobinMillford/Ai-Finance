@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     await dbConnect();
     
-    const user = await User.findById(session.user.id);
+    const user = await User.findById(session.user.id as string);
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -45,6 +49,10 @@ export async function POST(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     const { type, symbol } = await request.json();
     
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
     await dbConnect();
     
     const user = await User.findByIdAndUpdate(
-      session.user.id,
+      session.user.id as string,
       { 
         $addToSet: { 
           trackedAssets: { 
@@ -88,6 +96,10 @@ export async function DELETE(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
@@ -99,7 +111,7 @@ export async function DELETE(request: NextRequest) {
     await dbConnect();
     
     const user = await User.findByIdAndUpdate(
-      session.user.id,
+      session.user.id as string,
       { $pull: { trackedAssets: { symbol } } },
       { new: true }
     );

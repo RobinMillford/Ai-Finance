@@ -12,12 +12,17 @@ export async function PUT(request: NextRequest) {
     }
     
     const session = authResult.session;
+    // Check if session and user exist
+    if (!session || !session.user || !('id' in session.user)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const { name, isPublic } = await request.json();
     
     await dbConnect();
     
     const user = await User.findByIdAndUpdate(
-      session.user.id,
+      session.user.id as string,
       { 
         $set: { 
           name: name || undefined,

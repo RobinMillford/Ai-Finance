@@ -20,14 +20,10 @@ export const authOptions: NextAuthOptions = {
           response_type: "code"
         }
       },
-      // Add redirect URIs for Google OAuth
-      redirectProxyUrl: process.env.NEXTAUTH_URL_INTERNAL || process.env.NEXTAUTH_URL,
     }),
     GitHubProvider({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
-      // Add redirect URIs for GitHub OAuth
-      redirectProxyUrl: process.env.NEXTAUTH_URL_INTERNAL || process.env.NEXTAUTH_URL,
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -93,7 +89,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Send properties to the client
       if (session.user) {
-        session.user.id = token.sub;
+        // Extend the session user type to include id
+        (session.user as any).id = token.sub;
       }
       return session;
     },
@@ -160,9 +157,6 @@ export const authOptions: NextAuthOptions = {
   
   // Add error handling
   events: {
-    async signInError(message) {
-      console.error('Sign in error:', message);
-    },
     async signOut(message) {
       console.log('User signed out:', message);
     }

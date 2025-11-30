@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  BarChart3, 
   Loader2, 
   Search, 
   MessageCircle, 
@@ -17,13 +16,15 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Plus
+  Plus,
+  Star // Added Star icon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { debounce } from "lodash";
 import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
+import { AddToWatchlistDialog } from "@/components/AddToWatchlistDialog"; // Added Import
 import { marketThemes } from "@/lib/themes";
 
 interface CryptoPair {
@@ -59,11 +60,20 @@ export default function CryptoList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [quoteCurrencyFilter, setQuoteCurrencyFilter] = useState("All");
   const [quoteCurrencyOptions, setQuoteCurrencyOptions] = useState<string[]>([]);
+  
+  // Portfolio Dialog State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoPair | null>(null);
+
+  // Watchlist Dialog State
+  const [isWatchDialogOpen, setIsWatchDialogOpen] = useState(false);
+  const [selectedWatchCrypto, setSelectedWatchCrypto] = useState<CryptoPair | null>(null);
+
   const { toast } = useToast();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const perPage = 50;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const theme = marketThemes.crypto;
 
   // Fetch all crypto pairs on mount
@@ -125,7 +135,7 @@ export default function CryptoList() {
       // Extract unique quote currencies for the filter
       if (quoteCurrencyOptions.length === 0) {
         const uniqueQuoteCurrencies = Array.from(
-          new Set(pairs.map((pair) => pair.currency_quote))
+          new Set(pairs.map((pair: CryptoPair) => pair.currency_quote))
         ).sort();
         setQuoteCurrencyOptions(['All', ...uniqueQuoteCurrencies]);
       }
@@ -157,25 +167,6 @@ export default function CryptoList() {
   const handleQuoteCurrencyChange = (value: string) => {
     setQuoteCurrencyFilter(value);
     setPage(1); // Reset to page 1 when filter changes
-  };
-
-  const handleAnalyze = async (symbol: string) => {
-    try {
-      const response = await fetch(`/api/cryptos?symbol=${symbol}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Cryptocurrency pair ${symbol} is not supported`);
-      }
-      router.push(`/crypto/${encodeURIComponent(symbol)}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error validating symbol ${symbol}:`, errorMessage);
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
   };
 
   if (loading && allCryptoPairs.length === 0) {
@@ -395,7 +386,7 @@ export default function CryptoList() {
                           <p className="text-sm text-muted-foreground">{pair.available_exchanges.join(", ")}</p>
                         </div>
                         
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-4 grid grid-cols-3 gap-2">
                           <Button
                             variant="default"
                             size="sm"
@@ -409,6 +400,22 @@ export default function CryptoList() {
                             <Plus className="h-4 w-4 mr-1" />
                             Add
                           </Button>
+
+                          {/* WATCH BUTTON */}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWatchCrypto(pair);
+                              setIsWatchDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white"
+                          >
+                            <Star className="h-4 w-4 mr-1" />
+                            Watch
+                          </Button>
+
                           <Link href={`/crypto/${pair.symbol}`}>
                             <Button
                               variant="outline"
@@ -425,17 +432,13 @@ export default function CryptoList() {
                       </motion.div>
                     ))
                   ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="col-span-full py-12 text-center"
-                    >
+                    <div className="col-span-full py-12 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <Bitcoin className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
                         <p className="text-lg font-medium">No crypto pairs found</p>
                         <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>
@@ -472,6 +475,7 @@ export default function CryptoList() {
             </CardContent>
           </Card>
         </motion.div>
+      
       {/* Add to Portfolio Dialog */}
       {selectedCrypto && (
         <AddToPortfolioDialog
@@ -482,6 +486,19 @@ export default function CryptoList() {
             name: `${selectedCrypto.currency_base}/${selectedCrypto.currency_quote}`,
             type: "crypto",
             exchange: selectedCrypto.available_exchanges[0] || "Crypto",
+          }}
+        />
+      )}
+
+      {/* Add to Watchlist Dialog */}
+      {selectedWatchCrypto && (
+        <AddToWatchlistDialog
+          open={isWatchDialogOpen}
+          onOpenChange={setIsWatchDialogOpen}
+          asset={{
+            symbol: selectedWatchCrypto.symbol,
+            name: `${selectedWatchCrypto.currency_base}/${selectedWatchCrypto.currency_quote}`,
+            type: "crypto",
           }}
         />
       )}

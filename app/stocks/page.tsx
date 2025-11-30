@@ -17,14 +17,17 @@ import {
   Filter,
   TrendingDown,
   Minus,
-  Plus
+  Plus,
+  Star
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
+import { AddToWatchlistDialog } from "@/components/AddToWatchlistDialog";
 import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
 import { marketThemes } from "@/lib/themes";
 
+// Defined locally to avoid import conflicts with React.MouseEvent vs Global MouseEvent
 interface Stock {
   symbol: string;
   name: string;
@@ -66,7 +69,10 @@ export default function Stocks() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [isWatchDialogOpen, setIsWatchDialogOpen] = useState(false);
+  const [selectedWatchStock, setSelectedWatchStock] = useState<Stock | null>(null);
   const perPage = 50;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const theme = marketThemes.stock;
 
   // Fetch all stocks on mount
@@ -153,8 +159,6 @@ export default function Stocks() {
     }, 500),
     []
   );
-
-  const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-blue-50/20 p-4 md:p-6">
@@ -252,7 +256,7 @@ export default function Stocks() {
                     value={selectedExchange}
                     onChange={(e) => {
                       setSelectedExchange(e.target.value);
-                      setPage(1); // Reset to page 1 when filter changes
+                      setPage(1); 
                     }}
                     className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-blue-500"
                     disabled={loading}
@@ -276,7 +280,7 @@ export default function Stocks() {
                     value={selectedType}
                     onChange={(e) => {
                       setSelectedType(e.target.value);
-                      setPage(1); // Reset to page 1 when filter changes
+                      setPage(1);
                     }}
                     className="border-0 bg-transparent py-2 text-foreground focus:ring-0 focus:ring-blue-500"
                     disabled={loading}
@@ -352,11 +356,10 @@ export default function Stocks() {
                             <h3 className="font-bold text-lg text-blue-600">{stock.symbol}</h3>
                             <p className="text-sm text-muted-foreground">{stock.name}</p>
                           </div>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            stock.status === "Common Stock"
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stock.status === "Common Stock"
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                               : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
-                          }`}>
+                            }`}>
                             {stock.status}
                           </span>
                         </div>
@@ -384,8 +387,7 @@ export default function Stocks() {
                             </div>
                           </div>
                         </div>
-                        
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-4 grid grid-cols-3 gap-2">
                           <Button
                             variant="default"
                             size="sm"
@@ -399,7 +401,24 @@ export default function Stocks() {
                             <Plus className="h-4 w-4 mr-1" />
                             Add
                           </Button>
-                          <Link href={`/stock/${stock.symbol}`}>
+
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWatchStock(stock);
+                              setIsWatchDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white"
+                          >
+                            <Star className="h-4 w-4 mr-1" />
+                            Watch
+                          </Button>
+
+                          <Link
+                            href={`/stock/${stock.symbol}`}
+                          >
                             <Button
                               variant="outline"
                               size="sm"
@@ -415,17 +434,9 @@ export default function Stocks() {
                       </motion.div>
                     ))
                   ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="col-span-full py-12 text-center"
-                    >
-                      <div className="flex flex-col items-center justify-center">
-                        <BarChart3 className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
-                        <p className="text-lg font-medium">No stocks found</p>
-                        <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
-                      </div>
-                    </motion.div>
+                    <div className="col-span-full text-center py-12">
+                      <p className="text-muted-foreground">No stocks found</p>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>
@@ -462,19 +473,32 @@ export default function Stocks() {
             </CardContent>
           </Card>
         </motion.div>
-      {selectedStock && (
-        <AddToPortfolioDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          asset={{
-            symbol: selectedStock.symbol,
-            name: selectedStock.name,
-            type: "stock",
-            exchange: selectedStock.exchange,
-          }}
-        />
-      )}
-    </motion.div>
-  </div>
+        
+        {selectedStock && (
+          <AddToPortfolioDialog
+            open={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            asset={{
+              symbol: selectedStock.symbol,
+              name: selectedStock.name,
+              type: "stock",
+              exchange: selectedStock.exchange,
+            }}
+          />
+        )}
+
+        {selectedWatchStock && (
+          <AddToWatchlistDialog
+            open={isWatchDialogOpen}
+            onOpenChange={setIsWatchDialogOpen}
+            asset={{
+              symbol: selectedWatchStock.symbol,
+              name: selectedWatchStock.name,
+              type: "stock",
+            }}
+          />
+        )}
+      </motion.div>
+    </div>
   );
 }

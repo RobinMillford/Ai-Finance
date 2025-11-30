@@ -59,6 +59,11 @@ export function AuthStatus() {
             Portfolio
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/watchlist">
+            Watchlist
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => signOut()}>
           Log out
         </DropdownMenuItem>

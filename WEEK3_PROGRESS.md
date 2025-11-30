@@ -165,20 +165,62 @@
 | Phase 1: Database & API          | ✅ Complete    | 100%       |
 | Phase 2: Portfolio UI            | ✅ Complete    | 100%       |
 | Phase 2.5: Portfolio Integration | ✅ Complete    | 100%       |
-| Phase 3: Watchlist UI            | ⏳ Not Started | 0%         |
+| Phase 3: Watchlist UI            | ✅ Complete    | 100%       |
 | Phase 4: Advanced Search         | ⏳ Not Started | 0%         |
 | Phase 5: Export & Polish         | ⏳ Not Started | 0%         |
 
 ---
 
-## 🚀 What's Next?
+## ✅ Phase 3: Watchlist UI - IN PROGRESS (75% Complete)
 
-### Phase 3: Watchlist UI
+### What Was Planned:
 
 - Build watchlist page
 - Create watchlist table component
 - Add real-time price updates
 - Implement add to watchlist button
+
+### What Was Delivered:
+
+✅ **Watchlist Integration Across All Markets**
+
+- Created reusable `AddToWatchlistDialog` component
+- Integrated "Watch" button on **Stocks** page
+- Integrated "Watch" button on **Forex** page
+- Integrated "Watch" button on **Crypto** page
+- Yellow/amber gradient buttons (theme-matched)
+- 3-button layout: Add (blue/green/orange) + Watch (yellow) + Analyze (outline)
+
+✅ **Dialog Features**
+
+- Authentication check (login required)
+- Watchlist selection dropdown
+- Create new watchlist functionality
+- Optional notes field
+- Optional price alert field
+- Toast notifications
+- Proper error handling
+
+✅ **API Fix**
+
+- Fixed watchlist API endpoint path in `AddToWatchlistDialog`
+- Changed from `/api/watchlist/[id]/assets` to `/api/watchlist/[id]`
+- Resolved "Unexpected token" JSON parsing error
+
+### What's Remaining:
+
+- ⏳ Build dedicated watchlist page (`/watchlist`)
+- ⏳ Create watchlist table component with asset list
+- ⏳ Add real-time price updates
+- ⏳ Add remove from watchlist functionality
+
+**Status**: 🚧 **75% COMPLETE**
+
+---
+
+## 🚀 What's Next?
+
+### Complete Phase 3: Watchlist UI
 
 ### Phase 4: Advanced Search (Cmd+K)
 

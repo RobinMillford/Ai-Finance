@@ -1,29 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  BarChart3, 
   Loader2, 
   Search, 
   MessageCircle, 
   TrendingUp, 
   ChevronRight, 
-  DollarSign, 
   RefreshCw, 
   Globe, 
   Filter,
   TrendingDown,
   Minus,
-  Plus
+  Plus,
+  Star // Added Star icon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
 import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
+import { AddToWatchlistDialog } from "@/components/AddToWatchlistDialog"; // Added Import
 import { marketThemes } from "@/lib/themes";
 
 interface ForexPair {
@@ -63,23 +63,27 @@ export default function Forex() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All");
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
+  
+  // Portfolio Dialog State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedForexPair, setSelectedForexPair] = useState<ForexPair | null>(
-  null
-);
+  const [selectedForexPair, setSelectedForexPair] = useState<ForexPair | null>(null);
+
+  // Watchlist Dialog State
+  const [isWatchDialogOpen, setIsWatchDialogOpen] = useState(false);
+  const [selectedWatchForexPair, setSelectedWatchForexPair] = useState<ForexPair | null>(null);
+
   const { toast } = useToast();
   const perPage = 50;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const theme = marketThemes.forex;
 
-  useEffect(() => {
-    fetchForexPairs();
-  }, [page, selectedType, searchQuery]); // Fetch new data when page, filters, or search query change
-
-  const fetchForexPairs = async () => {
+  // Fetch Forex pairs
+  const fetchForexPairs = useCallback(async () => {
     setLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate network delay
@@ -96,30 +100,37 @@ export default function Forex() {
 
       const pairs = data.pairs ?? [];
       setAllForexPairs(pairs);
-      setFilteredForexPairs(pairs); // Use the filtered data from the API
+      setFilteredForexPairs(pairs); 
       setTotalCount(data.totalCount ?? 0);
       setTotalPages(Math.ceil((data.totalCount ?? 0) / perPage));
 
       // Fetch filter options from the first page (without filters) if not already set
       if (typeOptions.length === 0) {
-        const optionsResponse = await fetch(`/api/forexs?page=1&perPage=${perPage}`);
-        if (optionsResponse.ok) {
-          const optionsData: ForexResponse = await optionsResponse.json();
-          const types = Array.from(
-            new Set((optionsData.pairs ?? []).map((pair: ForexPair) => pair.status ?? "Unknown"))
+        if (selectedType === "All" && searchQuery === "" && pairs.length > 0) {
+           const types = Array.from(
+            new Set(pairs.map((pair: ForexPair) => pair.status ?? "Unknown"))
           ).sort();
           setTypeOptions(["All", ...types]);
         } else {
-          console.warn("Failed to fetch type options, using defaults.");
-          setTypeOptions(["All", "Major", "Exotic", "Minor"]); // Fallback options
+           const optionsResponse = await fetch(`/api/forexs?page=1&perPage=${perPage}`);
+           if (optionsResponse.ok) {
+             const optionsData: ForexResponse = await optionsResponse.json();
+             const types = Array.from(
+               new Set((optionsData.pairs ?? []).map((pair: ForexPair) => pair.status ?? "Unknown"))
+             ).sort();
+             setTypeOptions(["All", ...types]);
+           } else {
+             console.warn("Failed to fetch type options, using defaults.");
+             setTypeOptions(["All", "Major", "Exotic", "Minor"]); 
+           }
         }
       }
 
       if (pairs.length === 0) {
         toast({
           title: "Warning",
-          description: "No forex pairs found. Check your API key, rate limits, or filters.",
-          variant: "destructive",
+          description: "No forex pairs found. Check your filters.",
+          variant: "default", 
         });
       }
     } catch (error: unknown) {
@@ -137,20 +148,25 @@ export default function Forex() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedType, searchQuery, toast, typeOptions.length, perPage]);
 
-  const debouncedSearch = debounce(() => {
-    setPage(1); // Reset to page 1 when search query changes
+  // Trigger fetch when dependencies change
+  useEffect(() => {
     fetchForexPairs();
-  }, 1000);
+  }, [fetchForexPairs]);
 
-  const handleSearch = () => {
-    debouncedSearch();
-  };
+  // Debounced search handler
+  const handleSearch = useCallback(
+    debounce((query: string) => {
+      setSearchQuery(query);
+      setPage(1);
+    }, 1000),
+    []
+  );
 
   const handleTypeChange = (value: string) => {
     setSelectedType(value);
-    setPage(1); // Reset to page 1 when filter changes
+    setPage(1); 
   };
 
   // Function to check if a Forex pair is supported
@@ -158,31 +174,28 @@ export default function Forex() {
     try {
       const response = await fetch(`/api/forex?symbol=${symbol}`);
       if (!response.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const errorData = await response.json();
-        throw new Error(errorData?.error || "Failed to fetch forex data");
+        return false;
       }
-      return true; // Pair is supported
+      return true; 
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Error checking support for ${symbol}:`, errorMessage);
-      return false; // Pair is unsupported
+      console.error(`Error checking support for ${symbol}:`, error);
+      return false; 
     }
   };
 
   // Handle the "Analyze" button click
-  const handleAnalyzeClick = async (symbol: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleAnalyzeClick = async (symbol: string, e: MouseEvent<HTMLAnchorElement>) => {
     const isSupported = await checkPairSupport(symbol);
     if (!isSupported) {
-      e.preventDefault(); // Prevent navigation
-      toast({
-        title: "Unsupported Forex Pair",
-        description: `The Forex pair ${symbol} is not supported at this time. Try a major pair like EUR/USD.`,
-        variant: "destructive",
+       toast({
+        title: "Note",
+        description: `Availability for ${symbol} may be limited.`,
+        variant: "default",
       });
     }
   };
-
-  const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-emerald-50/20 p-4 md:p-6">
@@ -264,8 +277,7 @@ export default function Forex() {
                   <Input
                     type="text"
                     placeholder="Search forex pairs by symbol or name..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => handleSearch(e.target.value)}
                     className="pl-10 h-12 bg-background border border-input focus:border-green-500 focus:ring-green-500 text-foreground placeholder-muted-foreground rounded-xl shadow-sm"
                   />
                 </div>
@@ -292,7 +304,7 @@ export default function Forex() {
                 </div>
 
                 <Button
-                  onClick={handleSearch}
+                  onClick={fetchForexPairs}
                   disabled={loading}
                   className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-2 text-white shadow-lg hover:shadow-xl transition-all"
                 >
@@ -300,12 +312,12 @@ export default function Forex() {
                     {loading ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        <span className="hidden sm:inline">Searching...</span>
+                        <span className="hidden sm:inline">Refreshing...</span>
                       </>
                     ) : (
                       <>
-                        <Search className="h-5 w-5" />
-                        <span className="hidden sm:inline">Search</span>
+                        <RefreshCw className="h-5 w-5" />
+                        <span className="hidden sm:inline">Refresh</span>
                       </>
                     )}
                   </span>
@@ -389,7 +401,7 @@ export default function Forex() {
                           </div>
                         </div>
                         
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-4 grid grid-cols-3 gap-2">
                           <Button
                             variant="default"
                             size="sm"
@@ -403,6 +415,22 @@ export default function Forex() {
                             <Plus className="h-4 w-4 mr-1" />
                             Add
                           </Button>
+
+                          {/* WATCH BUTTON */}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWatchForexPair(pair);
+                              setIsWatchDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white"
+                          >
+                            <Star className="h-4 w-4 mr-1" />
+                            Watch
+                          </Button>
+
                           <Link
                             href={`/forex/${encodeURIComponent(pair.symbol)}`}
                             onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
@@ -422,17 +450,13 @@ export default function Forex() {
                       </motion.div>
                     ))
                   ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="col-span-full py-12 text-center"
-                    >
+                    <div className="col-span-full py-12 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <Globe className="h-12 w-12 text-gray-300 mb-3 dark:text-gray-800" />
                         <p className="text-lg font-medium">No forex pairs found</p>
                         <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>
@@ -469,19 +493,33 @@ export default function Forex() {
             </CardContent>
           </Card>
         </motion.div>
-      {/* Add to Portfolio Dialog */}
-      {selectedForexPair && (
-        <AddToPortfolioDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          asset={{
-            symbol: selectedForexPair.symbol,
-            name: selectedForexPair.name,
-            type: "forex",
-            exchange: selectedForexPair.exchange,
-          }}
-        />
-      )}
+
+        {/* Add to Portfolio Dialog */}
+        {selectedForexPair && (
+          <AddToPortfolioDialog
+            open={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            asset={{
+              symbol: selectedForexPair.symbol,
+              name: selectedForexPair.name,
+              type: "forex",
+              exchange: selectedForexPair.exchange,
+            }}
+          />
+        )}
+
+        {/* Add to Watchlist Dialog */}
+        {selectedWatchForexPair && (
+          <AddToWatchlistDialog
+            open={isWatchDialogOpen}
+            onOpenChange={setIsWatchDialogOpen}
+            asset={{
+              symbol: selectedWatchForexPair.symbol,
+              name: selectedWatchForexPair.name,
+              type: "forex",
+            }}
+          />
+        )}
       </motion.div>
     </div>
   );

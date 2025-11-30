@@ -36,22 +36,6 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-primary/50 rounded-full blur opacity-30"></div>
-                <BarChart3 className="h-8 w-8 text-primary relative z-10" />
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">FinanceAI</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/profile">
-                <Button variant="outline" className="border-primary/20 hover:bg-primary/10">
-                  Profile
-                </Button>
-              </Link>
-              <Button 
-                onClick={() => signOut()} 
-                variant="outline" 
-                className="border-primary/20 hover:bg-primary/10"
-              >
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
               </Button>

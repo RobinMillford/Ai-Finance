@@ -17,11 +17,13 @@ import {
   Globe, 
   Filter,
   TrendingDown,
-  Minus
+  Minus,
+  Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
+import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
 import { marketThemes } from "@/lib/themes";
 
 interface ForexPair {
@@ -65,6 +67,10 @@ export default function Forex() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All");
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedForexPair, setSelectedForexPair] = useState<ForexPair | null>(
+  null
+);
   const { toast } = useToast();
   const perPage = 50;
   const theme = marketThemes.forex;
@@ -383,17 +389,30 @@ export default function Forex() {
                           </div>
                         </div>
                         
-                        <div className="mt-4">
-                          <Link 
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedForexPair(pair);
+                              setIsAddDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                          <Link
                             href={`/forex/${encodeURIComponent(pair.symbol)}`}
                             onClick={(e) => handleAnalyzeClick(pair.symbol, e)}
-                            className="block"
                           >
                             <Button
                               variant="outline"
+                              size="sm"
                               className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
-                              <span className="relative z-10 flex items-center justify-center gap-2">
+                              <span className="relative z-10 flex items-center justify-center gap-1">
                                 Analyze
                                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                               </span>
@@ -450,6 +469,19 @@ export default function Forex() {
             </CardContent>
           </Card>
         </motion.div>
+      {/* Add to Portfolio Dialog */}
+      {selectedForexPair && (
+        <AddToPortfolioDialog
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          asset={{
+            symbol: selectedForexPair.symbol,
+            name: selectedForexPair.name,
+            type: "forex",
+            exchange: selectedForexPair.exchange,
+          }}
+        />
+      )}
       </motion.div>
     </div>
   );

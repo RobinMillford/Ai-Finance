@@ -16,11 +16,13 @@ import {
   LineChart, 
   Filter,
   TrendingDown,
-  Minus
+  Minus,
+  Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { debounce } from "lodash";
+import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
 import { marketThemes } from "@/lib/themes";
 
 interface Stock {
@@ -62,6 +64,8 @@ export default function Stocks() {
   const [exchangeOptions, setExchangeOptions] = useState<string[]>([]);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const { toast } = useToast();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const perPage = 50;
   const theme = marketThemes.stock;
 
@@ -381,13 +385,27 @@ export default function Stocks() {
                           </div>
                         </div>
                         
-                        <div className="mt-4">
-                          <Link href={`/stock/${stock.symbol}`} className="block">
-                            <Button 
-                              variant="outline" 
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStock(stock);
+                              setIsAddDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                          <Link href={`/stock/${stock.symbol}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
-                              <span className="relative z-10 flex items-center justify-center gap-2">
+                              <span className="relative z-10 flex items-center justify-center gap-1">
                                 Analyze
                                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                               </span>
@@ -444,7 +462,19 @@ export default function Stocks() {
             </CardContent>
           </Card>
         </motion.div>
-      </motion.div>
-    </div>
+      {selectedStock && (
+        <AddToPortfolioDialog
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          asset={{
+            symbol: selectedStock.symbol,
+            name: selectedStock.name,
+            type: "stock",
+            exchange: selectedStock.exchange,
+          }}
+        />
+      )}
+    </motion.div>
+  </div>
   );
 }

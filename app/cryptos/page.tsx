@@ -16,12 +16,14 @@ import {
   Filter,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { debounce } from "lodash";
+import { AddToPortfolioDialog } from "@/components/AddToPortfolioDialog";
 import { marketThemes } from "@/lib/themes";
 
 interface CryptoPair {
@@ -57,6 +59,8 @@ export default function CryptoList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [quoteCurrencyFilter, setQuoteCurrencyFilter] = useState("All");
   const [quoteCurrencyOptions, setQuoteCurrencyOptions] = useState<string[]>([]);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoPair | null>(null);
   const { toast } = useToast();
   const router = useRouter();
   const perPage = 50;
@@ -391,13 +395,27 @@ export default function CryptoList() {
                           <p className="text-sm text-muted-foreground">{pair.available_exchanges.join(", ")}</p>
                         </div>
                         
-                        <div className="mt-4">
-                          <Link href={`/crypto/${encodeURIComponent(pair.symbol)}`} className="block">
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCrypto(pair);
+                              setIsAddDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                          <Link href={`/crypto/${pair.symbol}`}>
                             <Button
                               variant="outline"
+                              size="sm"
                               className="w-full group relative overflow-hidden rounded-lg border-input text-foreground hover:bg-accent transition-all"
                             >
-                              <span className="relative z-10 flex items-center justify-center gap-2">
+                              <span className="relative z-10 flex items-center justify-center gap-1">
                                 Analyze
                                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                               </span>
@@ -454,6 +472,19 @@ export default function CryptoList() {
             </CardContent>
           </Card>
         </motion.div>
+      {/* Add to Portfolio Dialog */}
+      {selectedCrypto && (
+        <AddToPortfolioDialog
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          asset={{
+            symbol: selectedCrypto.symbol,
+            name: `${selectedCrypto.currency_base}/${selectedCrypto.currency_quote}`,
+            type: "crypto",
+            exchange: selectedCrypto.available_exchanges[0] || "Crypto",
+          }}
+        />
+      )}
       </motion.div>
     </div>
   );

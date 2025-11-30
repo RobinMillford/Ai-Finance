@@ -11,7 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 
 export function AuthStatus() {
@@ -56,8 +55,8 @@ export function AuthStatus() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/profile">
-            Profile
+          <Link href="/portfolio">
+            Portfolio
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => signOut()}>

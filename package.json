@@ -51,6 +51,7 @@
     "ai": "^5.0.95",
     "autoprefixer": "10.4.15",
     "axios": "^1.12.1",
+    "bcryptjs": "^3.0.3",
     "chart.js": "^4.4.8",
     "chartjs-plugin-annotation": "^3.1.0",
     "class-variance-authority": "^0.7.0",

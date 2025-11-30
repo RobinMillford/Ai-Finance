@@ -1,0 +1,58 @@
+### Create Portfolio
+POST http://localhost:3000/api/portfolio
+Content-Type: application/json
+
+{
+  "name": "My Tech Portfolio",
+  "description": "Long-term tech investments"
+}
+
+###
+
+### List Portfolios
+GET http://localhost:3000/api/portfolio
+
+###
+
+### Create Watchlist
+POST http://localhost:3000/api/watchlist
+Content-Type: application/json
+
+{
+  "name": "Tech Stocks to Watch"
+}
+
+###
+
+### List Watchlists
+GET http://localhost:3000/api/watchlist
+
+###
+
+### Add Holding (replace {portfolio_id} with actual ID from create response)
+POST http://localhost:3000/api/portfolio/{portfolio_id}/holdings
+Content-Type: application/json
+
+{
+  "symbol": "AAPL",
+  "assetType": "stock",
+  "quantity": 10,
+  "purchasePrice": 150.50,
+  "purchaseDate": "2024-01-15",
+  "notes": "Bought on dip"
+}
+
+###
+
+### Add Asset to Watchlist (replace {watchlist_id} with actual ID)
+POST http://localhost:3000/api/watchlist/{watchlist_id}
+Content-Type: application/json
+
+{
+  "symbol": "TSLA",
+  "assetType": "stock",
+  "notes": "Waiting for better entry",
+  "alertPrice": 200
+}
+
+###

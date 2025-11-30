@@ -15,11 +15,11 @@ type RateLimitConfig = {
  * @param config - Rate limit configuration
  * @returns Wrapped handler with rate limiting
  */
-export function withRateLimit(
-  handler: (request: Request) => Promise<Response>,
+export function withRateLimit<T extends any[] = []>(
+  handler: (request: Request, ...args: T) => Promise<Response>,
   config: RateLimitConfig = RATE_LIMITS.API_DEFAULT
 ) {
-  return async (request: Request): Promise<Response> => {
+  return async (request: Request, ...args: T): Promise<Response> => {
     const identifier = getClientIdentifier(request);
     
     if (rateLimiter.isRateLimited(identifier, config.limit, config.windowMs)) {
@@ -44,7 +44,7 @@ export function withRateLimit(
     }
 
     const remaining = rateLimiter.getRemaining(identifier, config.limit);
-    const response = await handler(request);
+    const response = await handler(request, ...args);
     
     // Add rate limit headers to response
     const headers = new Headers(response.headers);

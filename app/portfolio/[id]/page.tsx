@@ -33,6 +33,7 @@ import {
   Loader2,
   DollarSign,
   Percent,
+  BarChart3,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { SymbolSearch } from "@/components/SymbolSearch";
@@ -286,6 +287,14 @@ export default function PortfolioDetailPage() {
             </div>
 
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.push(`/portfolio/${params.id}/analytics`)}
+              >
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Analytics
+              </Button>
               <ExportButton
                 onExportCSV={() => exportPortfolioToCSV(portfolio, portfolio.holdings)}
                 onExportPDF={() => exportPortfolioToPDF(portfolio, portfolio.holdings)}

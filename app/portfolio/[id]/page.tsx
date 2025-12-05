@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { SymbolSearch } from "@/components/SymbolSearch";
+import { ExportButton } from "@/components/ExportButton";
+import { exportPortfolioToCSV, exportPortfolioToPDF } from "@/lib/export-utils";
 
 interface Holding {
   symbol: string;
@@ -283,7 +285,12 @@ export default function PortfolioDetailPage() {
               </p>
             </div>
 
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <div className="flex gap-2">
+              <ExportButton
+                onExportCSV={() => exportPortfolioToCSV(portfolio, portfolio.holdings)}
+                onExportPDF={() => exportPortfolioToPDF(portfolio, portfolio.holdings)}
+              />
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="lg" className="gap-2">
                   <Plus className="w-5 h-5" />
@@ -391,6 +398,7 @@ export default function PortfolioDetailPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
         </motion.div>
 

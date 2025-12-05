@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { CommandPalette } from "@/components/CommandPalette";
 import AuthContext from '@/contexts/AuthContext';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -61,6 +62,7 @@ export default function RootLayout({
               </div>
               {children}
               <Toaster />
+              <CommandPalette />
             </ThemeProvider>
           </AuthContext>
         </ErrorBoundary>

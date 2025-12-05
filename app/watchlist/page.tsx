@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { ExportButton } from "@/components/ExportButton";
+import { exportWatchlistToCSV, exportWatchlistToPDF } from "@/lib/export-utils";
 
 interface WatchlistAsset {
   symbol: string;
@@ -488,6 +490,11 @@ export default function WatchlistPage() {
                     </div>
                   )}
                 </div>
+                <ExportButton
+                  onExportCSV={() => selectedWatchlist ? exportWatchlistToCSV(selectedWatchlist) : false}
+                  onExportPDF={() => selectedWatchlist ? exportWatchlistToPDF(selectedWatchlist) : false}
+                  variant="outline"
+                />
                 <Button
                   variant="outline"
                   size="icon"

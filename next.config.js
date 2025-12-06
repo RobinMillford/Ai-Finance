@@ -11,9 +11,6 @@ const nextConfig = {
     minimumCacheTTL: 60,
   },
 
-  // Enable SWC minification
-  swcMinify: true,
-
   // Compiler options
   compiler: {
     // Remove console logs in production
@@ -27,6 +24,9 @@ const nextConfig = {
     // Optimize package imports
     optimizePackageImports: ['recharts', 'lucide-react', 'framer-motion', 'date-fns'],
   },
+
+  // Turbopack config (empty to silence webpack warning)
+  turbopack: {},
 
   // Headers for security and performance
   async headers() {
@@ -63,57 +63,6 @@ const nextConfig = {
     ];
   },
 
-  // Webpack configuration
-  webpack: (config, { isServer, dev }) => {
-    // Optimize bundle size
-    if (!isServer && !dev) {
-      config.optimization = {
-        ...config.optimization,
-        moduleIds: 'deterministic',
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            default: false,
-            vendors: false,
-            // Framework chunk
-            framework: {
-              name: 'framework',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
-              priority: 40,
-              enforce: true,
-            },
-            // Vendor chunk
-            vendor: {
-              name: 'vendor',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/]/,
-              priority: 20,
-            },
-            // Common chunk
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              priority: 10,
-              reuseExistingChunk: true,
-              enforce: true,
-            },
-            // Chart libraries
-            charts: {
-              name: 'charts',
-              test: /[\\/]node_modules[\\/](recharts|d3)[\\/]/,
-              chunks: 'async',
-              priority: 30,
-            },
-          },
-        },
-      };
-    }
-
-    return config;
-  },
-
   // Production source maps
   productionBrowserSourceMaps: false,
 };
@@ -124,3 +73,4 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 });
 
 module.exports = withBundleAnalyzer(nextConfig);
+

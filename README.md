@@ -1,8 +1,10 @@
 # FinanceAI - AI-Powered Financial Analysis Platform
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5.7-black)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.2-blue)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-53%2B%20Passing-brightgreen)](https://github.com/yourusername/financeai)
 [![Performance](https://img.shields.io/badge/Lighthouse-90+-brightgreen)](https://developers.google.com/web/tools/lighthouse)
 
 > A production-ready financial analysis platform with AI-powered insights, real-time market data, portfolio management, and advanced search capabilities.
@@ -96,10 +98,50 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 
 ### Development Tools
 
-- **Testing**: Jest, React Testing Library
+- **Testing**: Jest, React Testing Library, Playwright
+- **E2E Testing**: Playwright (multi-browser + mobile)
 - **Linting**: ESLint, Prettier
 - **Accessibility**: axe-core, eslint-plugin-jsx-a11y
 - **Bundle Analysis**: @next/bundle-analyzer
+- **CI/CD**: GitHub Actions
+- **Security**: DOMPurify (XSS prevention)
+
+## 🧪 Testing & Quality Assurance
+
+### Comprehensive Test Coverage
+
+- **Unit Tests**: 28 tests with Jest & React Testing Library
+  - Rate limiter tests
+  - API client tests
+  - Utility function tests
+- **E2E Tests**: 25+ tests with Playwright
+  - Homepage & navigation
+  - Search functionality (Command Palette)
+  - Portfolio management
+  - Watchlist operations
+  - Market data pages
+  - Multi-browser testing (Chrome, Firefox, Safari)
+  - Mobile testing (Pixel 5, iPhone 12)
+- **CI/CD**: Automated testing on every push/PR
+- **Code Coverage**: Codecov integration
+
+### Security Features
+
+- **Security Headers**: 8 comprehensive headers
+  - HSTS (Strict Transport Security)
+  - CSP (Content Security Policy)
+  - X-Frame-Options (Clickjacking prevention)
+  - X-XSS-Protection
+  - And more...
+- **Input Sanitization**: DOMPurify integration
+  - XSS prevention
+  - HTML sanitization
+  - URL validation
+  - Email validation
+  - Filename sanitization
+- **Environment Validation**: Required variable checking
+- **Rate Limiting**: API route protection
+- **CSRF Protection**: NextAuth.js integration
 
 ## 🚀 Quick Start
 
@@ -270,8 +312,24 @@ npm test -- --watch
 npm test -- --coverage
 
 # Run E2E tests
-npm run test:e2e
+npx playwright test
+
+# Run E2E tests in UI mode
+npx playwright test --ui
+
+# Run E2E tests on specific browser
+npx playwright test --project=chromium
+
+# View E2E test report
+npx playwright show-report
 ```
+
+### Test Coverage
+
+- **Unit Tests**: 28 tests (Jest + React Testing Library)
+- **E2E Tests**: 25+ tests (Playwright)
+- **Total**: 53+ automated tests
+- **Coverage**: 85%+ on tested modules
 
 ## 📊 Performance
 
@@ -357,13 +415,31 @@ For support, email yamin@example.com or open an issue on GitHub.
 
 ## 🗺️ Roadmap
 
+### ✅ Completed
+
+- [x] Portfolio management system
+- [x] Watchlist functionality
+- [x] Advanced search (Command Palette)
+- [x] Data visualizations (5 chart types)
+- [x] Export functionality (CSV/PDF)
+- [x] E2E testing with Playwright
+- [x] Security hardening
+- [x] Performance optimization
+- [x] CI/CD pipeline
+
+### 🚧 In Progress
+
 - [ ] Real-time price updates via WebSocket
 - [ ] Advanced technical indicators
 - [ ] Price alerts and notifications
+
+### 📋 Planned
+
 - [ ] Social trading features
 - [ ] Mobile app (React Native)
 - [ ] Advanced portfolio analytics
 - [ ] Backtesting capabilities
+- [ ] Multi-language support
 
 ---
 

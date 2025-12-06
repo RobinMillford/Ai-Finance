@@ -35,7 +35,7 @@ export default function DashboardPage() {
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <div className="relative">
+              <Button onClick={() => signOut()} variant="outline">
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
               </Button>

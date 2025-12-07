@@ -3,13 +3,15 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15.5.7-black)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-53%2B%20Passing-brightgreen)](https://github.com/yourusername/financeai)
 [![Performance](https://img.shields.io/badge/Lighthouse-90+-brightgreen)](https://developers.google.com/web/tools/lighthouse)
 
 > A production-ready financial analysis platform with AI-powered insights, real-time market data, portfolio management, and advanced search capabilities.
 
-![FinanceAI Dashboard](https://via.placeholder.com/1200x600/1a1a2e/16a34a?text=FinanceAI+Dashboard)
+![FinanceAI Dashboard](public\Finance-Markets-Analysis.png)
+
+![FinanceAI Dashboard1](public\Diagram_of_the_chatbot.png)
 
 ## 🎯 Overview
 
@@ -155,8 +157,8 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/financeai.git
-cd financeai
+git clone https://github.com/RobinMillford/Ai-Finance.git
+cd Ai-Finance
 
 # Install dependencies
 npm install
@@ -390,10 +392,6 @@ Please ensure:
 - Accessibility guidelines are followed
 - Documentation is updated
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 👨‍💻 Author
 
 **Yamin Hossain**
@@ -408,10 +406,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Recharts](https://recharts.org/) - Chart library
 - [Twelve Data](https://twelvedata.com/) - Market data
 - [Groq](https://groq.com/) - AI inference
-
-## 📞 Support
-
-For support, email yamin@example.com or open an issue on GitHub.
 
 ## 🗺️ Roadmap
 
@@ -440,6 +434,19 @@ For support, email yamin@example.com or open an issue on GitHub.
 - [ ] Advanced portfolio analytics
 - [ ] Backtesting capabilities
 - [ ] Multi-language support
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+### GPL-3.0 License Summary
+
+- ✅ **Freedom to use** - Use the software for any purpose
+- ✅ **Freedom to study** - Study how the program works and modify it
+- ✅ **Freedom to share** - Redistribute copies to help others
+- ✅ **Freedom to improve** - Distribute modified versions
+
+**Note:** Any derivative work must also be licensed under GPL-3.0 and source code must be made available.
 
 ---
 

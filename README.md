@@ -9,9 +9,9 @@
 
 > A production-ready financial analysis platform with AI-powered insights, real-time market data, portfolio management, and advanced search capabilities.
 
-![FinanceAI Dashboard](public\Finance-Markets-Analysis.png)
+![FinanceAI Dashboard](public/Finance-Markets-Analysis.png)
 
-![FinanceAI Dashboard1](public\Diagram_of_the_chatbot.png)
+![FinanceAI Dashboard1](public/Diagram_of_the_chatbot.png)
 
 ## 🎯 Overview
 

@@ -56,6 +56,9 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: http://localhost:3000
           NEXT_PUBLIC_NEWSAPI_KEY: ${{ secrets.NEXT_PUBLIC_NEWSAPI_KEY }}
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
           NEXT_PUBLIC_GROK_API_KEY: ${{ secrets.NEXT_PUBLIC_GROK_API_KEY }}

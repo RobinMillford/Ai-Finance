@@ -11,7 +11,7 @@
 
 ![FinanceAI Dashboard](public/Finance-Markets-Analysis.png)
 
-![FinanceAI Dashboard1](public/Diagram_of_the_chatbot.png)
+![FinanceAI Dashboard](public/Architecture.png)
 
 ## 🎯 Overview
 

@@ -11,11 +11,15 @@ export default function CryptoSymbolCurrencyRedirect() {
 
   useEffect(() => {
     if (symbol && currency) {
-      // Combine symbol and currency into the format expected by the main crypto page
-      // e.g., /crypto/888/USD -> /crypto/888%2FUSD
-      const combinedSymbol = `${symbol}/${currency}`;
-      const encodedSymbol = encodeURIComponent(combinedSymbol);
-      router.replace(`/crypto/${encodedSymbol}`);
+      // Validate that symbol and currency are strings and not empty
+      if (typeof symbol === 'string' && typeof currency === 'string' && 
+          symbol.trim().length > 0 && currency.trim().length > 0) {
+        // Combine symbol and currency into the format expected by the main crypto page
+        // e.g., /crypto/888/USD -> /crypto/888%2FUSD
+        const combinedSymbol = `${symbol}/${currency}`;
+        const encodedSymbol = encodeURIComponent(combinedSymbol);
+        router.replace(`/crypto/${encodedSymbol}`);
+      }
     }
   }, [symbol, currency, router]);
 

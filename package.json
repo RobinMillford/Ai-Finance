@@ -64,7 +64,7 @@
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.1",
     "framer-motion": "^12.6.3",
-    "fuse. js": "^7.1.0",
+    "fuse.js": "^7.1.0",
     "input-otp": "^1.2.4",
     "isomorphic-dompurify": "^2.33.0",
     "jspdf": "^3.0.4",

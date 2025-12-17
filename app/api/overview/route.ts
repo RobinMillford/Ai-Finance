@@ -53,18 +53,20 @@ export async function GET(request: Request) {
         logoData = { url: null, logo_base: null, logo_quote: null };
       } else {
         const logoResponseData = await logoResponse.json();
-        console.log(`Successfully fetched logo data for symbol: ${symbol}`);
+        console.log(`Successfully fetched logo data for symbol: ${symbol}`, logoResponseData);
 
         // Handle both equity and crypto/forex logo responses
         if (logoResponseData.url) {
           // Equity symbol
           logoData.url = logoResponseData.url;
+          console.log(`Set equity logo URL for ${symbol}: ${logoResponseData.url}`);
         } else if (logoResponseData.logo_base && logoResponseData.logo_quote) {
           // Crypto/forex symbol
           logoData.logo_base = logoResponseData.logo_base;
           logoData.logo_quote = logoResponseData.logo_quote;
+          console.log(`Set crypto/forex logos for ${symbol}: base=${logoResponseData.logo_base}, quote=${logoResponseData.logo_quote}`);
         } else {
-          console.warn(`Unexpected logo response format for symbol ${symbol}:`, logoResponseData);
+          console.warn(`Unexpected logo response format for symbol ${symbol}. Response:`, logoResponseData);
           logoData = { url: null, logo_base: null, logo_quote: null };
         }
       }

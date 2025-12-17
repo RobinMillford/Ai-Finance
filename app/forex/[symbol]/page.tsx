@@ -1119,7 +1119,18 @@ export default function ForexDetails() {
                       />
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="flex gap-2">
+                    {symbol.split('/').map((currency, index) => (
+                      <div
+                        key={index}
+                        className="bg-gradient-to-br from-green-500 to-emerald-600 text-white font-bold text-sm px-3 py-2 rounded-full shadow-lg"
+                      >
+                        {currency}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600">
                   {symbol} - {forexData.quote.name || "Unknown"}
                 </h1>

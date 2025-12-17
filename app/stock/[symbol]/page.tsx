@@ -1111,7 +1111,11 @@ export default function StockDetails() {
                       <Image src={overview.logo_quote} alt={`${symbol} quote logo`} width={30} height={30} className="rounded-full" />
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-lg px-4 py-3 rounded-full shadow-lg">
+                    {symbol}
+                  </div>
+                )}
                 <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
                   {symbol} - {stockData?.quote?.name || "Unknown"}
                 </h1>

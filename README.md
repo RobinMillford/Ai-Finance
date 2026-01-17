@@ -19,6 +19,15 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 
 ## ✨ Key Features
 
+### 🤖 **Multi-Agent AI Advisors** (NEW!)
+
+- **LangGraph Architecture**: Orchestrator-Workers pattern with intelligent routing
+- **3 Specialized Advisors**: Crypto, Forex, and Stock analysis
+- **4-Agent Teams**: Supervisor, Technical Analyst, Sentiment Analyst, Market Researcher
+- **Real-time Streaming**: Live agent status updates with SSE
+- **Smart Routing**: 1-2 agents for simple queries, 2-3 for comprehensive analysis
+- **Token Optimized**: 60-70% token savings vs. traditional approaches
+
 ### 📊 **Multi-Market Analysis**
 
 - **Stocks**: Real-time stock data with technical indicators
@@ -55,12 +64,19 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 - Correlation matrix (diversification analysis)
 - OHLC price charts with time ranges
 
-### 🤖 **AI-Powered Insights**
+### 🤖 **Multi-Agent AI Advisors**
 
-- LLaMA 3 integration via Groq
-- Market intelligence analysis
-- Reddit sentiment analysis (15+ subreddits)
-- News aggregation and analysis
+- **LangGraph Multi-Agent Architecture**: Orchestrator-Workers pattern with specialized agents
+- **3 Market Advisors**: Crypto, Forex, and Stock analysis with dedicated AI teams
+- **Smart Routing**: Supervisor agent intelligently routes queries to specialist agents
+- **Specialized Agents**:
+  - **Technical Analyst**: Price data, indicators (RSI, MACD, EMA, Bollinger Bands, ATR, ADX)
+  - **Sentiment Analyst**: Reddit community analysis (15+ subreddits, 75% bullish tracking)
+  - **Market Researcher**: News, earnings, sector trends via Tavily search
+  - **Final Response**: Synthesis and actionable insights
+- **LLM Models**: LLaMA 3.3 70B (supervisor) + LLaMA 3.1 8B (workers) via Groq
+- **Token Optimization**: Message truncation, smart routing (1-2 agents for simple queries)
+- **Real-time Streaming**: SSE (Server-Sent Events) for live agent status updates
 
 ### 🎨 **Modern UI/UX**
 
@@ -88,15 +104,19 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 - **API**: Next.js API Routes
 - **Database**: MongoDB Atlas
 - **Authentication**: NextAuth.js
-- **AI**: Groq (LLaMA 3), LangChain
-- **Search**: Tavily API
+- **Multi-Agent AI**: 
+  - LangGraph (State Machine Orchestration)
+  - LangChain (Tool Integration)
+  - Groq (LLaMA 3.3 70B + LLaMA 3.1 8B)
+- **Search & Intelligence**: Tavily API
 
 ### Data Sources
 
-- **Market Data**: Twelve Data API
+- **Market Data**: Twelve Data API (stocks, forex, crypto)
 - **News**: NewsAPI
-- **Community**: Reddit API
-- **Search**: Tavily Search API
+- **Community Sentiment**: Reddit API (15+ financial subreddits)
+- **Market Intelligence**: Tavily Search API
+- **Technical Indicators**: RSI, MACD, EMA, Bollinger Bands, ATR, ADX, OBV
 
 ### Development Tools
 
@@ -203,14 +223,20 @@ TWELVE_DATA_API_KEY=your_twelve_data_key
 
 # News
 NEWS_API_KEY=your_news_api_key
+NEXT_PUBLIC_NEWSAPI_KEY=your_news_api_key
 
-# AI
+# AI - Multi-Agent System (Required)
 GROQ_API_KEY=your_groq_api_key
+NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key
 
-# Search
+# Search & Intelligence
 TAVILY_API_KEY=your_tavily_api_key
+NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
 
-# Reddit (Optional)
+# Base URL
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+# Reddit (Optional - for sentiment analysis)
 REDDIT_CLIENT_ID=your_reddit_client_id
 REDDIT_CLIENT_SECRET=your_reddit_client_secret
 ```
@@ -230,11 +256,20 @@ REDDIT_CLIENT_SECRET=your_reddit_client_secret
 financeai/
 ├── app/                      # Next.js app directory
 │   ├── api/                  # API routes
+│   │   ├── chat/             # Crypto Multi-Agent API
+│   │   ├── forex-chat/       # Forex Multi-Agent API
+│   │   ├── stock-chat/       # Stock Multi-Agent API
 │   │   ├── portfolio/        # Portfolio endpoints
 │   │   ├── watchlist/        # Watchlist endpoints
 │   │   ├── stocks/           # Stock data
 │   │   ├── forex/            # Forex data
-│   │   └── cryptos/          # Crypto data
+│   │   ├── cryptos/          # Crypto data
+│   │   ├── reddit/           # Reddit sentiment
+│   │   ├── news/             # News aggregation
+│   │   └── market-intelligence/ # Market intelligence
+│   ├── cryptoadvisor/        # Crypto Multi-Agent UI
+│   ├── forexadvisor/         # Forex Multi-Agent UI
+│   ├── stockadvisor/         # Stock Multi-Agent UI
 │   ├── portfolio/            # Portfolio pages
 │   ├── watchlist/            # Watchlist pages
 │   ├── stocks/               # Stock analysis
@@ -244,12 +279,28 @@ financeai/
 ├── components/               # React components
 │   ├── ui/                   # UI components (shadcn)
 │   ├── charts/               # Chart components
+│   │   ├── PortfolioAnalytics.tsx
+│   │   ├── MarketHeatmap.tsx
+│   │   ├── CorrelationMatrix.tsx
+│   │   └── PriceChart.tsx
 │   ├── CommandPalette.tsx    # Search command palette
 │   ├── ExportButton.tsx      # Export functionality
 │   └── ...
 ├── lib/                      # Utility functions
+│   ├── ai/                   # Multi-Agent AI system
+│   │   ├── config.ts         # LLM configuration
+│   │   ├── graph.ts          # Crypto Multi-Agent graph
+│   │   ├── forex-graph.ts    # Forex Multi-Agent graph
+│   │   ├── stock-graph.ts    # Stock Multi-Agent graph
+│   │   └── tools/            # AI tools
+│   │       ├── financial.ts  # Crypto price & indicators
+│   │       ├── forex.ts      # Forex quotes & indicators
+│   │       ├── stock.ts      # Stock quotes & indicators
+│   │       ├── social.ts     # Reddit sentiment
+│   │       └── search.ts     # Tavily search & intelligence
 │   ├── export-utils.ts       # CSV/PDF export
 │   ├── mongodb.ts            # Database connection
+│   ├── market-intelligence.ts # Market analysis
 │   └── ...
 ├── models/                   # MongoDB models
 │   ├── Portfolio.ts
@@ -257,11 +308,43 @@ financeai/
 │   └── User.ts
 ├── contexts/                 # React contexts
 │   └── AuthContext.tsx
+├── e2e/                      # Playwright E2E tests
+│   ├── homepage.spec.ts
+│   ├── search.spec.ts
+│   ├── portfolio.spec.ts
+│   ├── watchlist.spec.ts
+│   └── market-data.spec.ts
 ├── public/                   # Static assets
 └── next.config.js            # Next.js configuration
 ```
 
 ## 🎨 Features in Detail
+
+### Multi-Agent AI Advisors
+
+Revolutionary AI-powered analysis with specialized agent teams:
+
+**Architecture:**
+- **Orchestrator-Workers Pattern**: Supervisor coordinates specialized agents
+- **Smart Routing**: Query analysis routes to optimal agents (1-2 for simple, 2-3 for complex)
+- **Streaming Updates**: Real-time agent status badges with SSE
+- **Token Optimization**: Message history truncation, efficient routing (60-70% token savings)
+
+**Three Market-Specific Advisors:**
+1. **Crypto Advisor** - Cryptocurrency analysis with social sentiment
+2. **Forex Advisor** - Currency pair analysis with economic indicators
+3. **Stock Advisor** - US stock analysis with technical & fundamental data
+
+**Agent Team per Advisor:**
+- Supervisor (LLaMA 3.3 70B) - Routes queries, enforces 3-call limit
+- Technical Analyst (LLaMA 3.1 8B) - Price, volume, indicators
+- Sentiment Analyst (LLaMA 3.1 8B) - Reddit community analysis
+- Market Researcher (LLaMA 3.1 8B) - News, earnings, events
+
+**Example Workflows:**
+- "What's AAPL price?" → TechnicalAnalyst → Response (1 agent, <5s)
+- "Analyze TSLA" → TechnicalAnalyst + SentimentAnalyst → Response (2 agents, <10s)
+- "BTC outlook" → All 3 agents → Comprehensive Response (<15s)
 
 ### Portfolio Management
 
@@ -402,38 +485,48 @@ Please ensure:
 ## 🙏 Acknowledgments
 
 - [Next.js](https://nextjs.org/) - React framework
+- [LangGraph](https://langchain.com/langgraph) - Multi-agent orchestration
+- [LangChain](https://langchain.com/) - AI tool integration
+- [Groq](https://groq.com/) - Ultra-fast LLM inference
 - [shadcn/ui](https://ui.shadcn.com/) - UI components
 - [Recharts](https://recharts.org/) - Chart library
 - [Twelve Data](https://twelvedata.com/) - Market data
-- [Groq](https://groq.com/) - AI inference
+- [Tavily](https://tavily.com/) - AI-powered search
 
 ## 🗺️ Roadmap
 
 ### ✅ Completed
 
+- [x] Multi-Agent AI system (Crypto, Forex, Stock advisors)
+- [x] LangGraph orchestration with smart routing
+- [x] Real-time streaming with SSE
+- [x] Token optimization (60-70% savings)
 - [x] Portfolio management system
 - [x] Watchlist functionality
 - [x] Advanced search (Command Palette)
 - [x] Data visualizations (5 chart types)
 - [x] Export functionality (CSV/PDF)
-- [x] E2E testing with Playwright
-- [x] Security hardening
-- [x] Performance optimization
-- [x] CI/CD pipeline
+- [x] E2E testing with Playwright (25+ tests)
+- [x] Security hardening (8 headers + sanitization)
+- [x] Performance optimization (90+ Lighthouse)
+- [x] CI/CD pipeline with GitHub Actions
 
 ### 🚧 In Progress
 
 - [ ] Real-time price updates via WebSocket
-- [ ] Advanced technical indicators
+- [ ] Advanced technical indicators (Fibonacci, Ichimoku)
 - [ ] Price alerts and notifications
+- [ ] Multi-timeframe analysis
 
 ### 📋 Planned
 
-- [ ] Social trading features
+- [ ] Voice-controlled AI assistant
+- [ ] Advanced backtesting with historical data
+- [ ] Social trading features & copy trading
 - [ ] Mobile app (React Native)
-- [ ] Advanced portfolio analytics
-- [ ] Backtesting capabilities
-- [ ] Multi-language support
+- [ ] Advanced portfolio analytics (Sharpe ratio, beta, alpha)
+- [ ] Multi-language support (ES, FR, DE, JP, CN)
+- [ ] Options & derivatives trading analysis
 
 ## 📄 License
 

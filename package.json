@@ -71,7 +71,7 @@
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lightweight-charts": "^5.0.9",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lucide-react": "^0.446.0",
     "mongoose": "^8.18.1",
     "next": "^16.0.9",

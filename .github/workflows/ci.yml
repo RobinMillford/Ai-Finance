@@ -119,3 +119,31 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, build, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render Deployment
+        run: |
+          RESPONSE=$(curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "do_not_clear"}' \
+            -w "\n%{http_code}")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" -eq 201 ]; then
+            echo "✅ Deployment triggered successfully!"
+            echo "Service ID: ${{ secrets.RENDER_SERVICE_ID }}"
+            echo "View logs at: https://dashboard.render.com/web/${{ secrets.RENDER_SERVICE_ID }}"
+          else
+            echo "❌ Deployment failed with status code: $HTTP_CODE"
+            exit 1
+          fi

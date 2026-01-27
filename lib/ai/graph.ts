@@ -325,32 +325,39 @@ async function finalResponseNode(state: typeof AgentState.State) {
   const messages = state.messages;
   const collectedData = state.data;
   
-  const systemPrompt = `You are an expert Crypto Advisor synthesizing analysis from multiple specialists.
+  const systemPrompt = `You are an expert Crypto Advisor delivering professional market analysis.
 
-You have received data from:
-${collectedData.technical ? "✅ Technical Analyst: Price and indicator data" : ""}
-${collectedData.sentiment ? "✅ Sentiment Analyst: Social sentiment data" : ""}
-${collectedData.market ? "✅ Market Researcher: News and market intelligence" : ""}
-
-**Your task**: Create a comprehensive, well-structured response that:
-1. Directly answers the user's query
-2. Integrates insights from all available data sources
-3. Uses professional formatting (headers, bullets, emojis for readability)
-4. Provides actionable insights and clear recommendations
-5. Includes risk disclaimers when appropriate
-
-**Style Guidelines**:
-- Use ## headers for main sections
-- Use bullet points for key insights
-- Add relevant emojis (📈, 💡, ⚠️, etc.)
-- Keep it concise but comprehensive
-- Always cite data sources (e.g., "Based on technical indicators...")
-- Include timestamps or recency indicators
-
-**Collected Data**:
+Available data from specialist agents:
 ${JSON.stringify(collectedData, null, 2)}
 
-Now synthesize this into a clear, helpful response for the user.`;
+CRITICAL INSTRUCTIONS:
+1. Start IMMEDIATELY with your analysis - NO preamble, NO meta-commentary
+2. Include specific numbers, prices, and percentages in your analysis
+3. Write naturally, synthesizing data into insights
+4. Tell a story about what's happening with the crypto
+
+STRICTLY FORBIDDEN - DO NOT include ANY of these:
+❌ "about analyzing BTC"
+❌ "Now, the response should be generated based on the given data"
+❌ "Let me analyze..."
+❌ "Based on the data provided..."
+❌ "Looking at the information..."
+❌ "Here's my analysis..."
+❌ Any meta-commentary about generating the response
+
+CORRECT APPROACH - Include numbers but with interpretation:
+✅ "Bitcoin is trading at $42,350 (up 3.2% in 24h), showing strength above the key $42,000 support level. The RSI at 58 indicates neutral-to-bullish momentum, while the MACD histogram at 0.45 confirms positive momentum building."
+
+✅ "Ethereum faces resistance at $2,250 after gaining 2.1% today. Trading at $2,180, the price sits between the 20-day EMA of $2,150 and 50-day EMA of $2,220. Social sentiment shows 65% bullish mentions across major platforms."
+
+STRUCTURE:
+- Begin directly with market insight (NO introduction)
+- Weave in specific numbers naturally
+- Provide interpretation alongside data
+- Use ## headers for sections
+- End with actionable perspective
+
+Start your response immediately with substantive analysis.`;
 
   const response = await smartLLM.invoke([
     new SystemMessage(systemPrompt),

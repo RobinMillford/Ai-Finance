@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Send, Loader2, TrendingUp, Trash2, X, Menu, Plus, Clock } from "lucide-react";
+import { Send, Loader2, TrendingUp, Trash2, X, Menu, Plus, Clock, Globe, MessageSquare, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
@@ -13,18 +13,63 @@ import { useToast } from "@/hooks/use-toast";
 const blue500 = "#3B82F6";
 const indigo600 = "#4F46E5";
 
+// Agent metadata for UI display
 const AGENT_CONFIG = {
-  Supervisor: { color: "bg-purple-500", label: "Supervisor", icon: "🎯" },
-  TechnicalAnalyst: { color: "bg-blue-500", label: "Technical Analyst", icon: "📊" },
-  SentimentAnalyst: { color: "bg-green-500", label: "Sentiment Analyst", icon: "💭" },
-  MarketResearcher: { color: "bg-orange-500", label: "Market Researcher", icon: "🔍" },
-  FinalResponse: { color: "bg-indigo-600", label: "Final Response", icon: "✨" },
-  finalResponse: { color: "bg-indigo-600", label: "Final Response", icon: "✨" },
+  supervisor: {
+    name: "Supervisor",
+    icon: Globe,
+    color: "bg-purple-500",
+    label: "Routing query...",
+  },
+  Supervisor: {
+    name: "Supervisor",
+    icon: Globe,
+    color: "bg-purple-500",
+    label: "Routing query...",
+  },
+  TechnicalAnalyst: {
+    name: "Technical Analyst",
+    icon: TrendingUp,
+    color: "bg-blue-500",
+    label: "Analyzing price & indicators...",
+  },
+  SentimentAnalyst: {
+    name: "Sentiment Analyst",
+    icon: MessageSquare,
+    color: "bg-green-500",
+    label: "Analyzing social sentiment...",
+  },
+  MarketResearcher: {
+    name: "Market Researcher",
+    icon: Globe,
+    color: "bg-orange-500",
+    label: "Researching market intelligence...",
+  },
+  finalResponse: {
+    name: "Synthesizing",
+    icon: CheckCircle2,
+    color: "bg-indigo-600",
+    label: "Generating final response...",
+  },
+  FinalResponse: {
+    name: "Synthesizing",
+    icon: CheckCircle2,
+    color: "bg-indigo-600",
+    label: "Generating final response...",
+  },
 };
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  timestamp: string;
+  agentSteps?: AgentStep[];
+}
+
+interface AgentStep {
+  agent: string;
+  status: string;
+  message: string;
   timestamp: string;
 }
 
@@ -34,21 +79,15 @@ interface ChatSession {
   messages: Message[];
 }
 
-interface AgentStatus {
-  agent: string;
-  status: string;
-  timestamp: string;
-}
-
 export default function StockAdvisor() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentAgent, setCurrentAgent] = useState<string | null>(null);
+  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([]);
-  const [showAgentPanel, setShowAgentPanel] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { data: session, status } = useSession();
@@ -90,7 +129,7 @@ export default function StockAdvisor() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, agentStatuses]);
+  }, [messages]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -103,7 +142,7 @@ export default function StockAdvisor() {
 
   const handleClearChat = () => {
     setMessages([]);
-    setAgentStatuses([]);
+    setAgentSteps([]);
     setChatSessions((prev) =>
       prev.map((session) =>
         session.id === currentChatId ? { ...session, messages: [] } : session
@@ -130,7 +169,7 @@ export default function StockAdvisor() {
     setChatSessions((prev) => [...prev, newSession]);
     setCurrentChatId(newChatId);
     setMessages([]);
-    setAgentStatuses([]);
+    setAgentSteps([]);
   };
 
   const handleSwitchChat = (chatId: string) => {
@@ -140,7 +179,7 @@ export default function StockAdvisor() {
       )
     );
     setCurrentChatId(chatId);
-    setAgentStatuses([]);
+    setAgentSteps([]);
   };
 
   const handleDeleteChat = (chatId: string) => {
@@ -202,8 +241,8 @@ export default function StockAdvisor() {
 
     setInput("");
     setLoading(true);
-    setAgentStatuses([]);
-    setShowAgentPanel(true);
+    setAgentSteps([]);
+    setCurrentAgent(null);
 
     try {
       const response = await fetch("/api/stock-chat", {
@@ -220,44 +259,60 @@ export default function StockAdvisor() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(
+          errorData.details 
+            ? `${errorData.error}: ${errorData.details}`
+            : `API error: ${response.status}`
+        );
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let buffer = "";
-      let finalContent = "";
+      let finalResponse = "";
+      const steps: AgentStep[] = [];
 
-      while (reader) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n");
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
 
-              if (data.type === "agent") {
-                setAgentStatuses((prev) => [
-                  ...prev,
-                  {
+                if (data.type === "agent") {
+                  // Skip unknown agents
+                  if (data.agent === "unknown") {
+                    continue;
+                  }
+                  
+                  // Update current agent
+                  setCurrentAgent(data.agent);
+                  
+                  // Add agent step
+                  const step: AgentStep = {
                     agent: data.agent,
-                    status: data.message,
-                    timestamp: new Date(data.timestamp).toLocaleTimeString(),
-                  },
-                ]);
-              } else if (data.type === "final") {
-                finalContent = data.message;
-              } else if (data.type === "error") {
-                throw new Error(data.error);
+                    status: data.status,
+                    message: data.message,
+                    timestamp: new Date().toLocaleTimeString(),
+                  };
+                  steps.push(step);
+                  setAgentSteps([...steps]);
+                } else if (data.type === "final") {
+                  // Final response received
+                  finalResponse = data.message;
+                  setCurrentAgent(null);
+                } else if (data.type === "error") {
+                  throw new Error(data.error);
+                }
+              } catch (parseError) {
+                console.warn("Failed to parse SSE data:", line);
               }
-            } catch (parseError) {
-              console.error("Error parsing SSE data:", parseError);
             }
           }
         }
@@ -265,8 +320,9 @@ export default function StockAdvisor() {
 
       const assistantMessage: Message = {
         role: "assistant",
-        content: finalContent || "Analysis complete.",
+        content: finalResponse || "Analysis complete.",
         timestamp: new Date().toLocaleTimeString(),
+        agentSteps: steps,
       };
 
       setMessages((prev) => {
@@ -280,6 +336,8 @@ export default function StockAdvisor() {
         );
         return updatedMessages;
       });
+
+      setAgentSteps([]);
     } catch (error) {
       console.error("Error in chatbot:", error);
       const errorMessage: Message = {
@@ -386,39 +444,8 @@ export default function StockAdvisor() {
           )}
         </AnimatePresence>
 
+        {/* Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {showAgentPanel && agentStatuses.length > 0 && (
-            <div className="border-b p-4 bg-muted/50">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold">🤖 View Agent Workflow ({agentStatuses.length} steps)</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAgentPanel(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {agentStatuses.map((status, idx) => {
-                  const config = AGENT_CONFIG[status.agent as keyof typeof AGENT_CONFIG];
-                  return (
-                    <Badge
-                      key={idx}
-                      className={`${config?.color || "bg-gray-500"} text-white text-xs`}
-                    >
-                      <span className="mr-1">{config?.icon || "🤖"}</span>
-                      <span className="font-medium">{config?.label || status.agent}</span>
-                      <span className="mx-1">•</span>
-                      <span className="opacity-90">{status.status.slice(0, 30)}</span>
-                      <span className="ml-2 opacity-75">{status.timestamp}</span>
-                    </Badge>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           <div className="flex-1 overflow-y-auto p-4">
             {messages.map((message, index) => (
               <motion.div
@@ -438,22 +465,110 @@ export default function StockAdvisor() {
                     background: message.role === "user" ? `linear-gradient(to right, ${blue500}, ${indigo600})` : undefined,
                   }}
                 >
-                  <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                    {message.content}
+                  {/* Message Content */}
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {message.content.split('\n').map((line, i) => {
+                      if (!line.trim()) return null;
+                      
+                      if (line.startsWith('#### ')) {
+                        return <h4 key={i} className="text-sm font-semibold mt-3 mb-1">{line.slice(5)}</h4>;
+                      } else if (line.startsWith('### ')) {
+                        return <h3 key={i} className="text-base font-semibold mt-3 mb-2">{line.slice(4)}</h3>;
+                      } else if (line.startsWith('## ')) {
+                        return <h2 key={i} className="text-lg font-bold mt-4 mb-2">{line.slice(3)}</h2>;
+                      } else if (line.startsWith('# ')) {
+                        return <h1 key={i} className="text-xl font-bold mt-4 mb-3">{line.slice(2)}</h1>;
+                      } else if (line.startsWith('- ')) {
+                        return <li key={i} className="ml-4">{line.slice(2)}</li>;
+                      } else if (line.match(/^\d+\./)) {
+                        return <li key={i} className="ml-4 list-decimal">{line.slice(line.indexOf('.') + 2)}</li>;
+                      } else if (line.startsWith('**') && line.endsWith('**')) {
+                        return <p key={i} className="font-bold my-1">{line.slice(2, -2)}</p>;
+                      } else {
+                        return <p key={i} className="my-1">{line}</p>;
+                      }
+                    })}
                   </div>
+
+                  {/* Agent Steps Display */}
+                  {message.role === "assistant" && message.agentSteps && message.agentSteps.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-medium text-indigo-600 dark:text-indigo-400 mb-2">
+                          🤖 View Agent Workflow ({message.agentSteps.length} steps)
+                        </summary>
+                        <div className="mt-2 space-y-2">
+                          {message.agentSteps.map((step, idx) => {
+                            const config = AGENT_CONFIG[step.agent as keyof typeof AGENT_CONFIG];
+                            const Icon = config?.icon || Globe;
+                            
+                            return (
+                              <div key={idx} className="flex items-start space-x-2 text-xs">
+                                <Badge className={`${config?.color || 'bg-gray-500'} text-white`}>
+                                  <Icon className="h-3 w-3 mr-1" />
+                                  {config?.name || step.agent}
+                                </Badge>
+                                <span className="text-gray-600 dark:text-gray-400 flex-1">{step.message}</span>
+                                <span className="text-gray-400 dark:text-gray-500 ml-auto">{step.timestamp}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+
                   <span className="text-xs mt-2 block" style={{ color: message.role === "user" ? "white" : "#6B7280" }}>
                     <Clock className="h-3 w-3 inline mr-1" /> {message.timestamp}
                   </span>
                 </div>
               </motion.div>
             ))}
+
+            {/* Live Agent Status */}
             {loading && (
               <div className="flex justify-start mb-4">
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md">
-                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md max-w-[85%]">
+                  <div className="flex items-center space-x-3">
+                    <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
+                    <div className="flex-1">
+                      {currentAgent && AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG] ? (
+                        <div className="flex items-center space-x-2">
+                          <Badge className={`${AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].color} text-white`}>
+                            {(() => {
+                              const Icon = AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].icon;
+                              return <Icon className="h-3 w-3 mr-1" />;
+                            })()}
+                            {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].name}
+                          </Badge>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].label}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Processing your query...</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Agent Steps Progress */}
+                  {agentSteps.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {agentSteps.map((step, idx) => {
+                        const config = AGENT_CONFIG[step.agent as keyof typeof AGENT_CONFIG];
+                        return (
+                          <div key={idx} className="flex items-center space-x-2 text-xs text-gray-500">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            <span>{config?.name || step.agent}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 

@@ -312,26 +312,38 @@ async function finalResponseNode(state: typeof AgentState.State) {
   console.log(`[FinalResponse] Has sentiment data:`, !!data.sentiment);
   console.log(`[FinalResponse] Has research data:`, !!data.research);
   
-  const systemPrompt = `You are a professional Stock Analyst delivering concise, actionable insights.
+  const systemPrompt = `You are a professional Stock Analyst delivering insightful investment analysis.
 
 Available data from specialist agents:
 ${JSON.stringify(data, null, 2)}
 
-Task: Provide direct analysis without meta-commentary or thinking process.
+CRITICAL INSTRUCTIONS:
+1. Start IMMEDIATELY with your analysis - NO preamble, NO meta-commentary
+2. Include specific numbers and data points in your analysis
+3. Write naturally, synthesizing data into insights
+4. Tell a story about what's happening with the stock
 
-Style guidelines:
-- State facts directly without phrases like "let's look at", "looking at the data", "overall"
-- NO meta-commentary: Avoid "this suggests", "this indicates", "this could mean"
-- Instead of "The RSI at 25 suggests oversold", write "RSI at 25 shows oversold conditions"
-- Be authoritative and concise
-- Use natural paragraphs, avoid bullet points
-- Focus on actionable insights
-- Don't explain your analytical process
+STRICTLY FORBIDDEN - DO NOT include ANY of these:
+❌ "about analyzing AAPL"
+❌ "Now, the response should be generated based on the given data"
+❌ "Let me analyze..."
+❌ "Based on the data provided..."
+❌ "Looking at the information..."
+❌ "Here's my analysis..."
+❌ Any meta-commentary about generating the response
 
-Example (GOOD): "AAPL trades at $255.53, down 1.04%. RSI at 25 signals oversold territory while MACD shows bearish momentum..."
-Example (BAD): "Let's dive into AAPL. Looking at the technical indicators, the RSI suggests..."
+CORRECT APPROACH - Include numbers but with interpretation:
+✅ "Apple is showing mixed signals today. Trading at $255.41 (up 2.97%), the stock faces resistance at its 20-day EMA of $258.85. The ADX at 31.74 confirms a strong trend, but the RSI at 40.32 suggests neutral momentum. The bearish MACD histogram of -0.81 signals weakening momentum, while the stock trades below both its 20-day and 50-day moving averages."
 
-Keep it tight, direct, and professional.`;
+✅ "Despite gaining nearly 3% today, Apple's technical setup suggests caution. At $255.41, the stock remains below key resistance levels. The strong ADX reading of 31.74 indicates a defined trend, though the neutral RSI at 40.32 leaves room for movement in either direction."
+
+STRUCTURE:
+- Begin directly with market insight (NO introduction)
+- Weave in specific numbers naturally
+- Provide interpretation alongside data
+- End with actionable perspective
+
+Start your response immediately with substantive analysis.`;
 
   const response = await smartLLM.invoke([
     new SystemMessage(systemPrompt),

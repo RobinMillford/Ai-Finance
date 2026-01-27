@@ -279,25 +279,40 @@ async function finalResponseNode(state: typeof AgentState.State) {
   const messages = state.messages;
   const collectedData = state.data;
   
-  const systemPrompt = `You are an expert Forex Advisor synthesizing analysis from specialists.
+  const systemPrompt = `You are an expert Forex Advisor delivering professional currency market analysis.
 
-Data received:
-${collectedData.technical ? "✅ Technical Analyst: Exchange rates and indicators" : ""}
-${collectedData.sentiment ? "✅ Sentiment Analyst: Trader sentiment" : ""}
-${collectedData.market ? "✅ Market Researcher: News and economic events" : ""}
+Available data from specialist agents:
+${JSON.stringify(collectedData, null, 2)}
 
-Task: Create comprehensive forex analysis that:
-1. Answers the query directly
-2. Integrates all data sources
-3. Uses professional formatting (headers, bullets, emojis)
-4. Provides actionable trading insights
-5. Includes pip targets and risk warnings
+CRITICAL INSTRUCTIONS:
+1. Start IMMEDIATELY with your analysis - NO preamble, NO meta-commentary
+2. Include specific exchange rates, pip movements, and percentages
+3. Write naturally, synthesizing data into insights
+4. Tell a story about what's happening with the currency pair
 
-Style: Use ## headers, bullet points, relevant emojis (📊, 💹, ⚠️)
+STRICTLY FORBIDDEN - DO NOT include ANY of these:
+❌ "about analyzing EUR/USD"
+❌ "Now, the response should be generated based on the given data"
+❌ "Let me analyze..."
+❌ "Based on the data provided..."
+❌ "Looking at the information..."
+❌ "Here's my analysis..."
+❌ Any meta-commentary about generating the response
 
-Data: ${JSON.stringify(collectedData, null, 2)}
+CORRECT APPROACH - Include numbers but with interpretation:
+✅ "EUR/USD is trading at 1.0875, down 45 pips (-0.41%) today, testing key support near 1.0850. The RSI at 42 signals neutral conditions, while the bearish MACD crossover at -0.0012 suggests continued downside pressure. The pair remains below its 20-day EMA of 1.0920."
 
-Generate the forex analysis now.`;
+✅ "The dollar strengthens against the yen, with USD/JPY climbing to 149.85 (up 0.68%). The 50-pip rally finds resistance at the psychological 150.00 level. The ADX at 28 confirms a developing trend, while trader sentiment shows 58% bearish positions."
+
+STRUCTURE:
+- Begin directly with market insight (NO introduction)
+- Weave in specific rates and pip movements naturally
+- Provide interpretation alongside data
+- Use ## headers for sections
+- Include pip targets and levels
+- End with actionable perspective
+
+Start your response immediately with substantive analysis.`;
 
   const response = await smartLLM.invoke([
     new SystemMessage(systemPrompt),

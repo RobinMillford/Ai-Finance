@@ -282,6 +282,11 @@ export default function CryptoAdvisor() {
                 const data = JSON.parse(line.slice(6));
 
                 if (data.type === "agent") {
+                  // Skip unknown agents
+                  if (data.agent === "unknown") {
+                    continue;
+                  }
+                  
                   // Update current agent
                   setCurrentAgent(data.agent);
                   

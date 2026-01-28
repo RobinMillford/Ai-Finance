@@ -6,7 +6,8 @@ test.describe('Crypto Routes', () => {
     await page.goto('/crypto/888/USD');
     
     // Wait for the redirect to complete by waiting for the URL change
-    await page.waitForURL('**/crypto/888%2FUSD', { timeout: 5000 });
+    // Increased timeout for slower browsers (webkit, Mobile Safari)
+    await page.waitForURL('**/crypto/888%2FUSD', { timeout: 15000 });
     
     // Check that we were redirected to the correct URL format
     const url = page.url();

@@ -88,6 +88,8 @@ export default function StockAdvisor() {
   const [currentAgent, setCurrentAgent] = useState<string | null>(null);
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [streamingResponse, setStreamingResponse] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { data: session, status } = useSession();
@@ -243,126 +245,188 @@ export default function StockAdvisor() {
     setLoading(true);
     setAgentSteps([]);
     setCurrentAgent(null);
+    setStreamingResponse("");
 
-    try {
-      const response = await fetch("/api/stock-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-        }),
-      });
+    // Create abort controller for timeout/cancel
+    abortControllerRef.current = new AbortController();
+    const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 60000); // 60s timeout
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(
-          errorData.details 
-            ? `${errorData.error}: ${errorData.details}`
-            : `API error: ${response.status}`
-        );
-      }
+    let retries = 0;
+    const maxRetries = 2;
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let finalResponse = "";
-      const steps: AgentStep[] = [];
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch("/api/stock-chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: [...messages, userMessage].map((msg) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
+          }),
+          signal: abortControllerRef.current.signal,
+        });
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(
+            errorData.details 
+              ? `${errorData.error}: ${errorData.details}`
+              : `API error: ${response.status}`
+          );
+        }
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let finalResponse = "";
+        const steps: AgentStep[] = [];
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-                if (data.type === "agent") {
-                  // Skip unknown agents
-                  if (data.agent === "unknown") {
-                    continue;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+
+                  if (data.type === "agent") {
+                    if (data.agent === "unknown") continue;
+                    
+                    setCurrentAgent(data.agent);
+                    
+                    const step: AgentStep = {
+                      agent: data.agent,
+                      status: data.status,
+                      message: data.message,
+                      timestamp: new Date().toLocaleTimeString(),
+                    };
+                    steps.push(step);
+                    setAgentSteps([...steps]);
+                  } else if (data.type === "final") {
+                    finalResponse = data.message;
+                    setStreamingResponse(finalResponse);
+                    setCurrentAgent(null);
+                  } else if (data.type === "stream") {
+                    // Incremental streaming - show partial responses
+                    finalResponse += data.chunk;
+                    setStreamingResponse(finalResponse);
+                  } else if (data.type === "error") {
+                    throw new Error(data.error);
                   }
-                  
-                  // Update current agent
-                  setCurrentAgent(data.agent);
-                  
-                  // Add agent step
-                  const step: AgentStep = {
-                    agent: data.agent,
-                    status: data.status,
-                    message: data.message,
-                    timestamp: new Date().toLocaleTimeString(),
-                  };
-                  steps.push(step);
-                  setAgentSteps([...steps]);
-                } else if (data.type === "final") {
-                  // Final response received
-                  finalResponse = data.message;
-                  setCurrentAgent(null);
-                } else if (data.type === "error") {
-                  throw new Error(data.error);
+                } catch (parseError) {
+                  console.warn("Failed to parse SSE data:", line);
                 }
-              } catch (parseError) {
-                console.warn("Failed to parse SSE data:", line);
               }
             }
           }
         }
+
+        clearTimeout(timeoutId);
+
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: finalResponse || "Analysis complete.",
+          timestamp: new Date().toLocaleTimeString(),
+          agentSteps: steps,
+        };
+
+        setMessages((prev) => {
+          const updatedMessages = [...prev, assistantMessage];
+          setChatSessions((prevSessions) =>
+            prevSessions.map((session) =>
+              session.id === currentChatId
+                ? { ...session, messages: updatedMessages }
+                : session
+            )
+          );
+          return updatedMessages;
+        });
+
+        setAgentSteps([]);
+        setStreamingResponse("");
+        break; // Success - exit retry loop
+
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+
+        if (error.name === 'AbortError') {
+          const errorMessage: Message = {
+            role: "assistant",
+            content: `⏱️ **Request Timeout**: The analysis took too long. Please try a simpler query or try again.`,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          setMessages((prev) => {
+            const updatedMessages = [...prev, errorMessage];
+            setChatSessions((prevSessions) =>
+              prevSessions.map((session) =>
+                session.id === currentChatId
+                  ? { ...session, messages: updatedMessages }
+                  : session
+              )
+            );
+            return updatedMessages;
+          });
+          break;
+        }
+
+        retries++;
+        if (retries <= maxRetries) {
+          toast({
+            title: `Retrying... (${retries}/${maxRetries})`,
+            description: "Connection issue, retrying automatically.",
+          });
+          await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+          continue;
+        }
+
+        console.error("Error in chatbot:", error);
+        const errorMessage: Message = {
+          role: "assistant",
+          content: `🔧 **Error**: ${error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}`,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setMessages((prev) => {
+          const updatedMessages = [...prev, errorMessage];
+          setChatSessions((prevSessions) =>
+            prevSessions.map((session) =>
+              session.id === currentChatId
+                ? { ...session, messages: updatedMessages }
+                : session
+            )
+          );
+          return updatedMessages;
+        });
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "An error occurred",
+          variant: "destructive",
+        });
       }
+    }
 
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: finalResponse || "Analysis complete.",
-        timestamp: new Date().toLocaleTimeString(),
-        agentSteps: steps,
-      };
+    setLoading(false);
+    setStreamingResponse("");
+  };
 
-      setMessages((prev) => {
-        const updatedMessages = [...prev, assistantMessage];
-        setChatSessions((prevSessions) =>
-          prevSessions.map((session) =>
-            session.id === currentChatId
-              ? { ...session, messages: updatedMessages }
-              : session
-          )
-        );
-        return updatedMessages;
-      });
-
-      setAgentSteps([]);
-    } catch (error) {
-      console.error("Error in chatbot:", error);
-      const errorMessage: Message = {
-        role: "assistant",
-        content: `🔧 **Error**: ${error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setMessages((prev) => {
-        const updatedMessages = [...prev, errorMessage];
-        setChatSessions((prevSessions) =>
-          prevSessions.map((session) =>
-            session.id === currentChatId
-              ? { ...session, messages: updatedMessages }
-              : session
-          )
-        );
-        return updatedMessages;
-      });
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An error occurred",
-        variant: "destructive",
-      });
-    } finally {
+  const handleCancelRequest = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
       setLoading(false);
+      setStreamingResponse("");
+      setCurrentAgent(null);
+      setAgentSteps([]);
+      toast({
+        title: "Request Cancelled",
+        description: "The analysis was cancelled.",
+      });
     }
   };
 
@@ -525,31 +589,48 @@ export default function StockAdvisor() {
               </motion.div>
             ))}
 
-            {/* Live Agent Status */}
+            {/* Live Agent Status with Streaming Response */}
             {loading && (
               <div className="flex justify-start mb-4">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md max-w-[85%]">
-                  <div className="flex items-center space-x-3">
-                    <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
-                    <div className="flex-1">
-                      {currentAgent && AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG] ? (
-                        <div className="flex items-center space-x-2">
-                          <Badge className={`${AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].color} text-white`}>
-                            {(() => {
-                              const Icon = AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].icon;
-                              return <Icon className="h-3 w-3 mr-1" />;
-                            })()}
-                            {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].name}
-                          </Badge>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].label}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Processing your query...</span>
-                      )}
+                  <div className="flex items-center justify-between space-x-3 mb-2">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <Loader2 className="h-5 w-5 animate-spin" style={{ color: indigo600 }} />
+                      <div className="flex-1">
+                        {currentAgent && AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG] ? (
+                          <div className="flex items-center space-x-2">
+                            <Badge className={`${AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].color} text-white`}>
+                              {(() => {
+                                const Icon = AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].icon;
+                                return <Icon className="h-3 w-3 mr-1" />;
+                              })()}
+                              {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].name}
+                            </Badge>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              {AGENT_CONFIG[currentAgent as keyof typeof AGENT_CONFIG].label}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Processing your query...</span>
+                        )}
+                      </div>
                     </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleCancelRequest}
+                      className="text-red-500 border-red-500 hover:bg-red-50"
+                    >
+                      Cancel
+                    </Button>
                   </div>
+
+                  {/* Streaming Response Preview */}
+                  {streamingResponse && (
+                    <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded text-sm">
+                      <p className="text-gray-700 dark:text-gray-300 line-clamp-3">{streamingResponse}...</p>
+                    </div>
+                  )}
 
                   {/* Agent Steps Progress */}
                   {agentSteps.length > 0 && (

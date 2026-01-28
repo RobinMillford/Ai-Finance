@@ -88,6 +88,8 @@ export default function ForexAdvisor() {
   const [currentAgent, setCurrentAgent] = useState<string | null>(null);
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [streamingResponse, setStreamingResponse] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { data: session, status } = useSession();

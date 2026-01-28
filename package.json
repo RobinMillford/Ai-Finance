@@ -50,7 +50,7 @@
     "@types/node": "20.6.2",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
-    "ai": "^5.0.95",
+    "ai": "^6.0.57",
     "autoprefixer": "10.4.15",
     "axios": "^1.12.1",
     "bcryptjs": "^3.0.3",

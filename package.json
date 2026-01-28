@@ -81,7 +81,7 @@
     "postcss": "8.4.31",
     "react": "^19.2.1",
     "react-chartjs-2": "^5.3.0",
-    "react-day-picker": "^8.10.1",
+    "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.1",
     "react-hook-form": "^7.53.0",
     "react-hot-toast": "^2.5.2",

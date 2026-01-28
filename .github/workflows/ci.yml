@@ -32,7 +32,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          file: ./coverage/coverage-final.json
+          files: ./coverage/coverage-final.json
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
@@ -73,8 +73,6 @@ jobs:
           # Social APIs (Optional)
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID || 'dummy-id' }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET || 'dummy-secret' }}
-          # Base URL
-          NEXT_PUBLIC_BASE_URL: http://localhost:3000
           # Base URL
           NEXT_PUBLIC_BASE_URL: http://localhost:3000
 

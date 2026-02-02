@@ -62,7 +62,7 @@
     "d3": "^7.9.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
-    "eslint": "8.49.0",
+    "eslint": "9.39.2",
     "eslint-config-next": "16.1.6",
     "framer-motion": "^12.29.2",
     "fuse.js": "^7.1.0",

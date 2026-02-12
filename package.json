@@ -88,7 +88,7 @@
     "react-resizable-panels": "^2.1.3",
     "recharts": "^2.12.7",
     "sentiment": "^5.0.2",
-    "sonner": "^1.5.0",
+    "sonner": "^2.0.7",
     "swr": "^2.4.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",

@@ -25,27 +25,19 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       
-      - name: Auto-approve PR
+      - name: Auto-approve and Merge for minor/patch updates
         if: |
           steps.dependabot-metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.dependabot-metadata.outputs.update-type == 'version-update:semver-minor'
         run: |
           gh pr review "${{ github.event.pull_request.number }}" --approve
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Enable auto-merge for patch and minor updates
-        if: |
-          steps.dependabot-metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.dependabot-metadata.outputs.update-type == 'version-update:semver-minor'
-        run: |
           gh pr merge "${{ github.event.pull_request.number }}" --auto --squash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Comment on major updates
+      - name: Alert on major updates (Manual review required)
         if: steps.dependabot-metadata.outputs.update-type == 'version-update:semver-major'
         run: |
-          gh pr comment "${{ github.event.pull_request.number }}" --body "⚠️ This is a major version update. Please review manually before merging."
+          gh pr comment "${{ github.event.pull_request.number }}" --body "⚠️ This is a major version update. Please review manually before merging to avoid breaking changes."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

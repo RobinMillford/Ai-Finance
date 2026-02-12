@@ -35,7 +35,7 @@ interface CryptoPair {
   available_exchanges: string[];
 }
 
-const FeatureCard = ({ icon: Icon, title, description, link, delay }: any) => (
+const FeatureCard = ({ icon: Icon, title, description, link, delay, status }: any) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -62,12 +62,12 @@ const FeatureCard = ({ icon: Icon, title, description, link, delay }: any) => (
       }}
       className="w-full text-left"
     >
-      <Card className="relative p-6 bg-card/80 backdrop-blur-sm hover:bg-card/90 transition-all duration-300 border border-primary/10 shadow-lg">
+      <Card className="relative p-6 glass hover:bg-card/90 transition-all duration-300 border border-primary/10 shadow-lg">
         <div className="flex flex-col items-start gap-4">
           <div className="p-3 rounded-lg bg-primary/10 ring-1 ring-primary/20">
             <Icon className="h-6 w-6 text-primary" />
           </div>
-          <h3 className="text-xl font-semibold">{title}</h3>
+          <h3 className="text-xl font-semibold text-gradient">{title}</h3>
           <p className="text-muted-foreground">{description}</p>
           <div className="flex items-center text-primary group-hover:translate-x-1 transition-transform duration-300">
             Explore <ChevronRight className="ml-1 h-4 w-4" />
@@ -83,7 +83,7 @@ const StatCard = ({ value, label, icon: Icon }: any) => (
     initial={{ opacity: 0, scale: 0.9 }}
     animate={{ opacity: 1, scale: 1 }}
     transition={{ duration: 0.5 }}
-    className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-primary/10 shadow-md"
+    className="glass p-6 rounded-xl border border-primary/10 shadow-md"
   >
     <div className="flex items-center justify-between mb-2">
       <Icon className="h-5 w-5 text-primary" />
@@ -708,7 +708,7 @@ export default function Home() {
             </motion.div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {features.map((feature, index) => (
-                <FeatureCard key={index} {...feature} delay={index * 0.1} />
+                <FeatureCard key={index} {...feature} delay={index * 0.1} status={status} />
               ))}
             </div>
           </div>

@@ -227,7 +227,7 @@ NEXT_PUBLIC_NEWSAPI_KEY=your_news_api_key
 
 # AI - Multi-Agent System (Required)
 GROQ_API_KEY=your_groq_api_key
-NEXT_PUBLIC_GROK_API_KEY=your_groq_api_key
+NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key
 
 # Search & Intelligence
 TAVILY_API_KEY=your_tavily_api_key

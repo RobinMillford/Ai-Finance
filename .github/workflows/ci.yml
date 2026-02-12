@@ -56,7 +56,7 @@ jobs:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'dummy-secret-for-build-only-min-32-chars-long' }}
           NEXTAUTH_URL: http://localhost:3000
           # API Keys for Multi-Agent System
-          NEXT_PUBLIC_GROK_API_KEY: ${{ secrets.NEXT_PUBLIC_GROK_API_KEY || 'dummy-key' }}
+          NEXT_PUBLIC_GROQ_API_KEY: ${{ secrets.NEXT_PUBLIC_GROQ_API_KEY || 'dummy-key' }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || 'dummy-key' }}
           # Market Data APIs
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY || 'dummy-key' }}
@@ -100,7 +100,7 @@ jobs:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: http://localhost:3000
           # API Keys
-          NEXT_PUBLIC_GROK_API_KEY: ${{ secrets.NEXT_PUBLIC_GROK_API_KEY }}
+          NEXT_PUBLIC_GROQ_API_KEY: ${{ secrets.NEXT_PUBLIC_GROQ_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}

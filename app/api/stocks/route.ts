@@ -19,9 +19,9 @@ let cacheTimestamp: number | null = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export async function GET() {
-  const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
-  if (!TWELVE_DATA_API_KEY) {
-    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
+  const apiKey = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
+  if (!apiKey) {
+    console.error("NEXT_PUBLIC_TWELVEDATA_API_KEY is not set in environment variables");
     return NextResponse.json(
       { error: "Server configuration error: API key missing" },
       { status: 500 }
@@ -46,7 +46,7 @@ export async function GET() {
   const allStocks = new Map<string, Stock>(); // Use a Map to avoid duplicates (key: symbol)
 
   for (const exchange of exchanges) {
-    const url = `https://api.twelvedata.com/stocks?source=docs&exchange=${exchange}&apikey=${TWELVE_DATA_API_KEY}`;
+    const url = `https://api.twelvedata.com/stocks?source=docs&exchange=${exchange}&apikey=${apiKey}`;
 
     try {
       console.log(`Fetching stock listings for ${exchange} from Twelve Data...`);

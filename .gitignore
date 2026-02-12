@@ -36,3 +36,5 @@ next-env.d.ts
 docs
 test-results
 playwright-report
+scripts/
+scripts

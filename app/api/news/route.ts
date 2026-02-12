@@ -13,7 +13,7 @@ import { RATE_LIMITS } from "@/lib/rate-limiter";
  */
 async function handler(request: Request) {
   // Validate environment variables
-  const { valid, missing } = validateEnvVars(["NEXT_PUBLIC_NEWSAPI_KEY"]);
+  const { valid, missing } = validateEnvVars(["NEXT_PUBLIC_NEWS_API_KEY"]);
   if (!valid) {
     return errorResponse(`Missing environment variables: ${missing.join(", ")}`, 500);
   }
@@ -23,7 +23,7 @@ async function handler(request: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "10"), 100); // Cap at 100
 
-  const apiKey = process.env.NEXT_PUBLIC_NEWSAPI_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
 
   // Build the NewsAPI URL
   const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(

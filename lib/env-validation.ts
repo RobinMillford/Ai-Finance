@@ -10,10 +10,10 @@ const requiredEnvVars = [
 ] as const;
 
 const optionalEnvVars = [
-  'TWELVE_DATA_API_KEY',
-  'NEWS_API_KEY',
-  'GROQ_API_KEY',
-  'TAVILY_API_KEY',
+  'NEXT_PUBLIC_TWELVEDATA_API_KEY',
+  'NEXT_PUBLIC_NEWS_API_KEY',
+  'NEXT_PUBLIC_GROQ_API_KEY',
+  'NEXT_PUBLIC_TAVILY_API_KEY',
   'REDDIT_CLIENT_ID',
   'REDDIT_CLIENT_SECRET',
 ] as const;

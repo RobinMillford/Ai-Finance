@@ -20,11 +20,11 @@ export const maxDuration = 60; // 60 seconds for complex analysis
 export async function POST(req: NextRequest) {
   try {
     // Check for required environment variables
-    if (!process.env.NEXT_PUBLIC_GROK_API_KEY) {
+    if (!process.env.NEXT_PUBLIC_GROQ_API_KEY) {
       return NextResponse.json(
         { 
-          error: "Server configuration error: NEXT_PUBLIC_GROK_API_KEY not set",
-          details: "Please set the NEXT_PUBLIC_GROK_API_KEY environment variable in .env.local"
+          error: "Server configuration error: NEXT_PUBLIC_GROQ_API_KEY not set",
+          details: "Please set the NEXT_PUBLIC_GROQ_API_KEY environment variable in .env.local"
         },
         { status: 500 }
       );

@@ -12,7 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.0",
+    "@hookform/resolvers": "^5.2.2",
     "@langchain/community": "^1.1.14",
     "@langchain/core": "^1.1.19",
     "@langchain/groq": "^1.0.4",

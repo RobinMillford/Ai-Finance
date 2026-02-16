@@ -17,7 +17,7 @@
     "@langchain/core": "^1.1.19",
     "@langchain/groq": "^1.0.4",
     "@langchain/langgraph": "^1.1.4",
-    "@next/swc-wasm-nodejs": "13.5.1",
+    "@next/swc-wasm-nodejs": "16.1.6",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",

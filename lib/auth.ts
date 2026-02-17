@@ -5,14 +5,15 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import dbConnect from './mongodb';
 import User from '../models/User';
 import { verifyPassword, isValidEmailDomain } from './auth-utils';
+import { env } from './env';
 
 // Define the NextAuth options
 export const authOptions: NextAuthOptions = {
   // Configure authentication providers
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: env.google.clientId,
+      clientSecret: env.google.clientSecret,
       authorization: {
         params: {
           prompt: "consent",
@@ -22,8 +23,8 @@ export const authOptions: NextAuthOptions = {
       },
     }),
     GitHubProvider({
-      clientId: process.env.GITHUB_ID!,
-      clientSecret: process.env.GITHUB_SECRET!,
+      clientId: env.github.clientId,
+      clientSecret: env.github.clientSecret,
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -81,7 +82,7 @@ export const authOptions: NextAuthOptions = {
   
   // Configure JWT
   jwt: {
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: env.nextAuth.secret,
   },
   
   // Configure callbacks
@@ -170,7 +171,7 @@ export const authOptions: NextAuthOptions = {
   },
   
   // Enable debug messages in development
-  debug: process.env.NODE_ENV === 'development',
+  debug: env.nodeEnv === 'development',
 };
 
 export default NextAuth(authOptions);

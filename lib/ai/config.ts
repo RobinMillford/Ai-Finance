@@ -7,48 +7,14 @@
  */
 
 import { ChatGroq } from "@langchain/groq";
+import { env, hasValidGroqKey } from "@/lib/env";
 
-// Validate required environment variables
-const requiredEnvVars = {
-  GROQ_API_KEY: process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.NEXT_PUBLIC_GROK_API_KEY,
-  NEXT_PUBLIC_TWELVEDATA_API_KEY: process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY,
-  NEXT_PUBLIC_TAVILY_API_KEY: process.env.NEXT_PUBLIC_TAVILY_API_KEY,
-} as const;
-
-// Check for missing environment variables
-const missingVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
-  .map(([key]) => key);
-
-if (missingVars.length > 0) {
-  console.warn(
-    `⚠️  Missing environment variables: ${missingVars.join(", ")}\n` +
-    `Some AI features may not work correctly.`
+// Validate Groq API key
+if (!hasValidGroqKey() && env.nodeEnv === 'production') {
+  console.error(
+    '❌ Invalid Groq API key in production!\n' +
+    '   Set GROQ_API_KEY environment variable with a valid key.'
   );
-}
-
-// Get API key with fallback options (handles typo GROK vs GROQ)
-// Use a valid-format dummy key if none provided (for build purposes)
-const groqApiKey = process.env.GROQ_API_KEY || 
-                   process.env.NEXT_PUBLIC_GROQ_API_KEY || 
-                   process.env.NEXT_PUBLIC_GROK_API_KEY || 
-                   "gsk_dummy-key-for-build-and-development-only-will-fail-at-runtime";
-
-// Warn if no real API key is set
-const isRealKey = groqApiKey && 
-                  !groqApiKey.includes('dummy') && 
-                  groqApiKey.length > 20 &&
-                  groqApiKey.startsWith('gsk_');
-
-if (!isRealKey) {
-  const message = "⚠️  No valid Groq API key found. AI features will not work.\n" +
-                  "   Set GROQ_API_KEY environment variable in production.";
-  
-  if (process.env.NODE_ENV === 'production') {
-    console.error(message);
-  } else {
-    console.warn(message);
-  }
 }
 
 /**
@@ -56,7 +22,7 @@ if (!isRealKey) {
  * Used by: Supervisor, Final Response Generator
  */
 export const smartLLM = new ChatGroq({
-  apiKey: groqApiKey,
+  apiKey: env.groq.apiKey,
   model: "llama-3.3-70b-versatile",
   temperature: 0.7,
   maxTokens: 8192,
@@ -68,7 +34,7 @@ export const smartLLM = new ChatGroq({
  * Used by: All Worker Nodes (TechnicalAnalyst, SentimentAnalyst, MarketResearcher)
  */
 export const fastLLM = new ChatGroq({
-  apiKey: groqApiKey,
+  apiKey: env.groq.apiKey,
   model: "llama-3.1-8b-instant",
   temperature: 0.3,
   maxTokens: 2048,

@@ -10,7 +10,7 @@ import { ChatGroq } from "@langchain/groq";
 
 // Validate required environment variables
 const requiredEnvVars = {
-  NEXT_PUBLIC_GROQ_API_KEY: process.env.NEXT_PUBLIC_GROQ_API_KEY,
+  GROQ_API_KEY: process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.NEXT_PUBLIC_GROK_API_KEY,
   NEXT_PUBLIC_TWELVEDATA_API_KEY: process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY,
   NEXT_PUBLIC_TAVILY_API_KEY: process.env.NEXT_PUBLIC_TAVILY_API_KEY,
 } as const;
@@ -27,12 +27,36 @@ if (missingVars.length > 0) {
   );
 }
 
+// Get API key with fallback options (handles typo GROK vs GROQ)
+// Use a valid-format dummy key if none provided (for build purposes)
+const groqApiKey = process.env.GROQ_API_KEY || 
+                   process.env.NEXT_PUBLIC_GROQ_API_KEY || 
+                   process.env.NEXT_PUBLIC_GROK_API_KEY || 
+                   "gsk_dummy-key-for-build-and-development-only-will-fail-at-runtime";
+
+// Warn if no real API key is set
+const isRealKey = groqApiKey && 
+                  !groqApiKey.includes('dummy') && 
+                  groqApiKey.length > 20 &&
+                  groqApiKey.startsWith('gsk_');
+
+if (!isRealKey) {
+  const message = "⚠️  No valid Groq API key found. AI features will not work.\n" +
+                  "   Set GROQ_API_KEY environment variable in production.";
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.error(message);
+  } else {
+    console.warn(message);
+  }
+}
+
 /**
  * Smart Model: High-intelligence routing and final response generation
  * Used by: Supervisor, Final Response Generator
  */
 export const smartLLM = new ChatGroq({
-  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY || "",
+  apiKey: groqApiKey,
   model: "llama-3.3-70b-versatile",
   temperature: 0.7,
   maxTokens: 8192,
@@ -44,7 +68,7 @@ export const smartLLM = new ChatGroq({
  * Used by: All Worker Nodes (TechnicalAnalyst, SentimentAnalyst, MarketResearcher)
  */
 export const fastLLM = new ChatGroq({
-  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY || "",
+  apiKey: groqApiKey,
   model: "llama-3.1-8b-instant",
   temperature: 0.3,
   maxTokens: 2048,

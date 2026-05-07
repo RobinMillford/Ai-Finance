@@ -1,52 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ChartData,
-  ChartOptions,
-  BarController,
-} from "chart.js";
-import { Chart, Line } from "react-chartjs-2";
-import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { marketThemes } from "@/lib/themes";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  annotationPlugin,
-  BarController
-);
+import { TechnicalChart } from "@/components/charts/TechnicalChart";
 
 // Format large numbers with commas and appropriate precision for crypto
 const formatCryptoNumber = (num: number | string | undefined): string => {
   if (num === undefined || num === null) return "N/A";
   const number = typeof num === "string" ? parseFloat(num) : num;
   if (isNaN(number)) return "N/A";
-  
+
   if (number >= 1000000) {
     return `$${(number / 1000000).toFixed(2)}M`;
   } else if (number >= 1000) {
@@ -65,7 +36,7 @@ const getTrendInfo = (value: number | string | undefined) => {
   if (value === undefined || value === null) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
   const number = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(number)) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
-  
+
   if (number > 0) {
     return { icon: <TrendingUp className="w-4 h-4" />, color: "text-green-500" };
   } else if (number < 0) {
@@ -73,10 +44,6 @@ const getTrendInfo = (value: number | string | undefined) => {
   }
   return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
 };
-
-// Theme colors
-const orange500 = "#F97316"; // Tailwind from-orange-500
-const yellow600 = "#CA8A04"; // Tailwind to-yellow-600
 
 interface OverviewData {
   logo_base: string | null;
@@ -340,657 +307,6 @@ export default function CryptoDetails() {
   // Prepare chart data for time series
   const timeSeries = cryptoData.timeSeries.values || [];
   console.log("timeSeries:", timeSeries);
-  const labels = timeSeries.map((entry) => entry.datetime).reverse();
-  const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
-
-  // Prepare EMA, BBANDS, and Supertrend data for overlay
-  const ema20Data = technicalIndicators.ema.ema20
-    ? technicalIndicators.ema.ema20.map((entry) => parseFloat(entry.ema)).reverse()
-    : [];
-  const ema50Data = technicalIndicators.ema.ema50
-    ? technicalIndicators.ema.ema50.map((entry) => parseFloat(entry.ema)).reverse()
-    : [];
-  const bbandsUpper = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.upper_band)).reverse()
-    : [];
-  const bbandsMiddle = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.middle_band)).reverse()
-    : [];
-  const bbandsLower = technicalIndicators.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
-    : [];
-  const supertrendData = technicalIndicators.supertrend
-    ? technicalIndicators.supertrend.map((entry) => parseFloat(entry.supertrend)).reverse()
-    : [];
-
-  // Closing Price Chart with EMA, BBANDS, and Supertrend
-  const closingPriceData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Closing Price",
-        data: closingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "20-Day EMA",
-        data: ema20Data,
-        borderColor: "#00BFFF",
-        backgroundColor: "rgba(0, 191, 255, 0.2)",
-        fill: false,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        label: "50-Day EMA",
-        data: ema50Data,
-        borderColor: "#0000FF",
-        backgroundColor: "rgba(0, 0, 255, 0.2)",
-        fill: false,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        label: "Bollinger Upper Band",
-        data: bbandsUpper,
-        borderColor: "#800080",
-        backgroundColor: "rgba(128, 0, 128, 0.1)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Bollinger Middle Band",
-        data: bbandsMiddle,
-        borderColor: "#808080",
-        backgroundColor: "rgba(128, 128, 128, 0.1)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Bollinger Lower Band",
-        data: bbandsLower,
-        borderColor: "#800080",
-        backgroundColor: "rgba(128, 0, 128, 0.1)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Supertrend",
-        data: supertrendData,
-        borderColor: "#FF0000",
-        backgroundColor: "rgba(255, 0, 0, 0.2)",
-        fill: false,
-        pointRadius: 3,
-        pointStyle: "circle",
-      },
-    ],
-  };
-
-  const chartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: `${symbol} Price History`,
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          },
-          callback: function(value: any) {
-            return "$" + value;
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // RSI Chart
-  const rsiLabels = technicalIndicators.rsi
-    ? technicalIndicators.rsi.map((entry) => entry.datetime).reverse()
-    : [];
-  const rsiData = technicalIndicators.rsi
-    ? technicalIndicators.rsi.map((entry) => parseFloat(entry.rsi)).reverse()
-    : [];
-
-  const rsiChartData: ChartData<"line", number[], string> = {
-    labels: rsiLabels,
-    datasets: [
-      {
-        label: "RSI",
-        data: rsiData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const rsiChartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Relative Strength Index (RSI)",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line",
-            yMin: 70,
-            yMax: 70,
-            borderColor: "rgba(239, 68, 68, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: { 
-              content: "Overbought (70)", 
-              display: true, 
-              position: "end",
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-          {
-            type: "line",
-            yMin: 30,
-            yMax: 30,
-            borderColor: "rgba(34, 197, 94, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: { 
-              content: "Oversold (30)", 
-              display: true, 
-              position: "end",
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: { 
-      y: { 
-        min: 0, 
-        max: 100,
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // MACD Chart
-  const macdLabels = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => entry.datetime).reverse()
-    : [];
-  const macdData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd)).reverse()
-    : [];
-  const macdSignalData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd_signal)).reverse()
-    : [];
-  const macdHistData = technicalIndicators.macd
-    ? technicalIndicators.macd.map((entry) => parseFloat(entry.macd_hist)).reverse()
-    : [];
-
-  const macdChartData: ChartData<"bar" | "line", number[], string> = {
-    labels: macdLabels,
-    datasets: [
-      {
-        type: "line" as const,
-        label: "MACD",
-        data: macdData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        type: "line" as const,
-        label: "Signal Line",
-        data: macdSignalData,
-        borderColor: theme.secondary,
-        backgroundColor: `${theme.secondary}20`,
-        fill: false,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        type: "bar" as const,
-        label: "Histogram",
-        data: macdHistData,
-        backgroundColor: (context: any) => {
-          const value = context.dataset.data[context.dataIndex];
-          return value > 0 ? "rgba(34, 197, 94, 0.6)" : "rgba(239, 68, 68, 0.6)";
-        },
-      },
-    ],
-  };
-
-  const macdChartOptions: ChartOptions<"bar"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "MACD",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // ATR Chart
-  const atrLabels = technicalIndicators.atr
-    ? technicalIndicators.atr.map((entry) => entry.datetime).reverse()
-    : [];
-  const atrData = technicalIndicators.atr
-    ? technicalIndicators.atr.map((entry) => parseFloat(entry.atr)).reverse()
-    : [];
-
-  const atrChartData: ChartData<"line", number[], string> = {
-    labels: atrLabels,
-    datasets: [
-      {
-        label: "ATR",
-        data: atrData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const atrChartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Average True Range (ATR)",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // Supertrend Chart
-  const supertrendChartData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Closing Price",
-        data: closingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "Supertrend",
-        data: supertrendData,
-        borderColor: "#FF0000",
-        backgroundColor: "rgba(255, 0, 0, 0.2)",
-        fill: false,
-        pointRadius: 3,
-        pointStyle: "circle",
-      },
-    ],
-  };
-
-  const supertrendChartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Supertrend",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          },
-          callback: function(value: any) {
-            return "$" + value;
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // OBV Chart
-  const obvLabels = technicalIndicators.obv
-    ? technicalIndicators.obv.map((entry) => entry.datetime).reverse()
-    : [];
-  const obvData = technicalIndicators.obv
-    ? technicalIndicators.obv.map((entry) => parseFloat(entry.obv)).reverse()
-    : [];
-
-  const obvChartData: ChartData<"line", number[], string> = {
-    labels: obvLabels,
-    datasets: [
-      {
-        label: "OBV",
-        data: obvData,
-        borderColor: "#4682B4",
-        backgroundColor: "rgba(70, 130, 180, 0.2)",
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const obvChartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "On-Balance Volume (OBV)",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
 
   // Format the EOD date
   const eodDateFormatted = cryptoData.eod?.datetime
@@ -1111,6 +427,96 @@ export default function CryptoDetails() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Recharts data preparation (useMemo for performance)
+  // ---------------------------------------------------------------------------
+
+  // Price History + EMA + Bollinger Bands + Supertrend overlay
+  const priceChartData = useMemo(() => {
+    const reversedSeries = [...timeSeries].reverse();
+    const ema20Map = new Map(
+      (technicalIndicators.ema.ema20 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
+    );
+    const ema50Map = new Map(
+      (technicalIndicators.ema.ema50 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
+    );
+    const bbandsMap = new Map(
+      (technicalIndicators.bbands ?? []).map((e) => [
+        e.datetime,
+        {
+          upper: parseFloat(e.upper_band),
+          middle: parseFloat(e.middle_band),
+          lower: parseFloat(e.lower_band),
+        },
+      ])
+    );
+    const supertrendMap = new Map(
+      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
+    );
+
+    return reversedSeries.map((entry) => ({
+      date: entry.datetime,
+      close: parseFloat(entry.close),
+      ema20: ema20Map.get(entry.datetime) ?? null,
+      ema50: ema50Map.get(entry.datetime) ?? null,
+      bbUpper: bbandsMap.get(entry.datetime)?.upper ?? null,
+      bbMiddle: bbandsMap.get(entry.datetime)?.middle ?? null,
+      bbLower: bbandsMap.get(entry.datetime)?.lower ?? null,
+      supertrend: supertrendMap.get(entry.datetime) ?? null,
+    }));
+  }, [timeSeries, technicalIndicators]);
+
+  // Supertrend standalone chart (price + supertrend)
+  const supertrendChartData = useMemo(() => {
+    const reversedSeries = [...timeSeries].reverse();
+    const supertrendMap = new Map(
+      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
+    );
+    return reversedSeries.map((entry) => ({
+      date: entry.datetime,
+      close: parseFloat(entry.close),
+      supertrend: supertrendMap.get(entry.datetime) ?? null,
+    }));
+  }, [timeSeries, technicalIndicators]);
+
+  // RSI
+  const rsiChartData = useMemo(() => {
+    if (!technicalIndicators.rsi) return [];
+    return [...technicalIndicators.rsi].reverse().map((entry) => ({
+      date: entry.datetime,
+      rsi: parseFloat(entry.rsi),
+    }));
+  }, [technicalIndicators]);
+
+  // MACD
+  const macdChartData = useMemo(() => {
+    if (!technicalIndicators.macd) return [];
+    return [...technicalIndicators.macd].reverse().map((entry) => ({
+      date: entry.datetime,
+      macd: parseFloat(entry.macd),
+      signal: parseFloat(entry.macd_signal),
+      histogram: parseFloat(entry.macd_hist),
+    }));
+  }, [technicalIndicators]);
+
+  // ATR
+  const atrChartData = useMemo(() => {
+    if (!technicalIndicators.atr) return [];
+    return [...technicalIndicators.atr].reverse().map((entry) => ({
+      date: entry.datetime,
+      atr: parseFloat(entry.atr),
+    }));
+  }, [technicalIndicators]);
+
+  // OBV
+  const obvChartData = useMemo(() => {
+    if (!technicalIndicators.obv) return [];
+    return [...technicalIndicators.obv].reverse().map((entry) => ({
+      date: entry.datetime,
+      obv: parseFloat(entry.obv),
+    }));
+  }, [technicalIndicators]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -1205,7 +611,7 @@ export default function CryptoDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Cryptocurrency Pair Statistics</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Current Price</p>
@@ -1225,21 +631,21 @@ export default function CryptoDetails() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">24h Range</p>
                   <p className="text-xl font-bold text-foreground mt-1">
                     {formatCryptoNumber(parseFloat(cryptoData.quote.low || "0"))} - {formatCryptoNumber(parseFloat(cryptoData.quote.high || "0"))}
                   </p>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Volume (24h)</p>
                   <p className="text-xl font-bold text-foreground mt-1">
                     {cryptoData.quote.volume ? formatCryptoNumber(parseFloat(cryptoData.quote.volume)) : "N/A"}
                   </p>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Currencies</p>
                   <p className="text-xl font-bold text-foreground mt-1">
@@ -1247,7 +653,7 @@ export default function CryptoDetails() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
                 <div>
                   <p>
@@ -1317,7 +723,7 @@ export default function CryptoDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Technical Indicators Summary</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* EMA */}
                 <div className="bg-accent/10 p-4 rounded-lg">
@@ -1565,49 +971,89 @@ export default function CryptoDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Technical Indicator Charts</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Price History with Indicators</h3>
-                  <div className="h-80">
-                    <Line options={chartOptions} data={closingPriceData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Supertrend</h3>
-                  <div className="h-80">
-                    <Line options={supertrendChartOptions} data={supertrendChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Relative Strength Index (RSI)</h3>
-                  <div className="h-80">
-                    <Line options={rsiChartOptions} data={rsiChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">MACD</h3>
-                  <div className="h-80">
-                    <Chart
-                      type="bar"
-                      options={macdChartOptions}
-                      data={macdChartData as ChartData<"bar", number[], string>}
-                      datasetIdKey="id"
-                    />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Average True Range (ATR)</h3>
-                  <div className="h-80">
-                    <Line options={atrChartOptions} data={atrChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">On-Balance Volume (OBV)</h3>
-                  <div className="h-80">
-                    <Line options={obvChartOptions} data={obvChartData} />
-                  </div>
-                </div>
+                {/* Price History with EMA + Bollinger Bands + Supertrend */}
+                <TechnicalChart
+                  data={priceChartData}
+                  title="Price History with Indicators"
+                  height={320}
+                  yTickFormatter={(v) => `$${v}`}
+                  datasets={[
+                    { key: "close", label: "Closing Price", color: theme.primary },
+                    { key: "ema20", label: "20-Day EMA", color: "#f59e0b", dashed: true },
+                    { key: "ema50", label: "50-Day EMA", color: "#10b981", dashed: true },
+                    { key: "bbUpper", label: "BB Upper", color: "#6366f1", dashed: true },
+                    { key: "bbMiddle", label: "BB Middle", color: "#6366f1", dashed: true },
+                    { key: "bbLower", label: "BB Lower", color: "#6366f1", dashed: true },
+                    { key: "supertrend", label: "Supertrend", color: "#ef4444" },
+                  ]}
+                />
+
+                {/* Supertrend standalone */}
+                <TechnicalChart
+                  data={supertrendChartData}
+                  title="Supertrend"
+                  height={320}
+                  yTickFormatter={(v) => `$${v}`}
+                  datasets={[
+                    { key: "close", label: "Closing Price", color: theme.primary },
+                    {
+                      key: "supertrend",
+                      label: "Supertrend",
+                      color: "#ef4444",
+                      barColorFn: (value) =>
+                        latestClose !== null && value < latestClose ? "#22c55e" : "#ef4444",
+                    },
+                  ]}
+                />
+
+                {/* RSI */}
+                <TechnicalChart
+                  data={rsiChartData}
+                  title="Relative Strength Index (RSI)"
+                  height={320}
+                  yDomain={[0, 100]}
+                  datasets={[
+                    { key: "rsi", label: "RSI", color: "#f59e0b" },
+                  ]}
+                  referenceLines={[
+                    { y: 70, color: "#ef4444", label: "Overbought (70)" },
+                    { y: 30, color: "#22c55e", label: "Oversold (30)" },
+                  ]}
+                />
+
+                {/* MACD */}
+                <TechnicalChart
+                  data={macdChartData}
+                  title="MACD"
+                  height={320}
+                  datasets={[
+                    { key: "histogram", label: "Histogram", color: "#22c55e", type: "bar", barColorFn: (v) => (v >= 0 ? "#22c55e" : "#ef4444") },
+                    { key: "macd", label: "MACD", color: "#3b82f6" },
+                    { key: "signal", label: "Signal", color: "#f59e0b", dashed: true },
+                  ]}
+                />
+
+                {/* ATR */}
+                <TechnicalChart
+                  data={atrChartData}
+                  title="Average True Range (ATR)"
+                  height={320}
+                  datasets={[
+                    { key: "atr", label: "ATR", color: "#ec4899" },
+                  ]}
+                />
+
+                {/* OBV */}
+                <TechnicalChart
+                  data={obvChartData}
+                  title="On-Balance Volume (OBV)"
+                  height={320}
+                  datasets={[
+                    { key: "obv", label: "OBV", color: "#06b6d4" },
+                  ]}
+                />
               </div>
             </Card>
           </motion.div>

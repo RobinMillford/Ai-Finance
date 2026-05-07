@@ -130,9 +130,15 @@ export const RATE_LIMITS = {
     windowMs: 60 * 1000, // 1 minute
   },
   
-  // Authentication endpoints
+  // Authentication endpoints (signin, OAuth callbacks)
   AUTH: {
     limit: 5,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+  },
+
+  // Signup endpoint (tighter — prevents account enumeration)
+  AUTH_SIGNUP: {
+    limit: 3,
     windowMs: 15 * 60 * 1000, // 15 minutes
   },
   

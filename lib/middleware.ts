@@ -1,11 +1,11 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { rateLimit } from '@/lib/rate-limit';
+import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
 
 export async function requireAuth(request: Request) {
-  // Apply rate limiting
-  const ip = request.headers.get('x-forwarded-for') || 'unknown';
-  if (rateLimit(ip, 100, 60000)) { // 100 requests per minute
+  const ip = getClientIdentifier(request);
+  const { limit, windowMs } = RATE_LIMITS.API_DEFAULT;
+  if (rateLimiter.isRateLimited(ip, limit, windowMs)) {
     return {
       error: 'Too many requests. Please try again later.',
       status: 429

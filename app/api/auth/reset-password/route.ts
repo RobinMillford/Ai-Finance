@@ -2,37 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { hashPassword } from '@/lib/auth-utils';
+import { sendPasswordResetEmail } from '@/lib/email';
+import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
 import crypto from 'crypto';
 
-// Simple rate limiting using in-memory store (in production, use Redis)
-const resetAttempts = new Map<string, { count: number; timestamp: number }>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_ATTEMPTS = 5;
-
-// Check rate limit
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const attempts = resetAttempts.get(ip);
-
-  if (!attempts) {
-    resetAttempts.set(ip, { count: 1, timestamp: now });
-    return false;
-  }
-
-  // Reset count if window has passed
-  if (now - attempts.timestamp > RATE_LIMIT_WINDOW) {
-    resetAttempts.set(ip, { count: 1, timestamp: now });
-    return false;
-  }
-
-  // Increment count
-  const newCount = attempts.count + 1;
-  resetAttempts.set(ip, { count: newCount, timestamp: attempts.timestamp });
-
-  return newCount > MAX_ATTEMPTS;
-}
-
-// Generate reset token
 function generateResetToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -41,11 +14,10 @@ export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
     
-    // Get client IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    
-    // Check rate limit
-    if (isRateLimited(ip)) {
+    const ip = getClientIdentifier(request);
+    const rl = RATE_LIMITS.AUTH;
+
+    if (rateLimiter.isRateLimited(`auth:reset:${ip}`, rl.limit, rl.windowMs)) {
       return NextResponse.json(
         { error: 'Too many reset attempts. Please try again later.' },
         { status: 429 }
@@ -80,9 +52,8 @@ export async function POST(request: NextRequest) {
     user.resetPasswordTokenExpiry = resetTokenExpiry;
     await user.save();
     
-    // TODO: Send reset email (implement email service)
-    // For now, we'll log the token to the console
-    console.log(`Reset token for ${email}: ${resetToken}`);
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    await sendPasswordResetEmail(email, resetToken, baseUrl);
     
     return NextResponse.json({ 
       message: 'If an account exists with that email, a reset link has been sent.' 

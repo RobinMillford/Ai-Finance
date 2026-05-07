@@ -38,3 +38,4 @@ test-results
 playwright-report
 scripts/
 scripts
+test-api.http

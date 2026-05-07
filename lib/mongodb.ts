@@ -32,6 +32,12 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      // Fail fast if the cluster is unreachable (avoids silent hangs)
+      serverSelectionTimeoutMS: 5_000,
+      // Close sockets that have been idle longer than this
+      socketTimeoutMS: 45_000,
+      // Time to wait for an initial connection to be established
+      connectTimeoutMS: 10_000,
     };
 
     cached.promise = mongoose.connect(env.mongodb.uri, opts).then((mongoose) => {

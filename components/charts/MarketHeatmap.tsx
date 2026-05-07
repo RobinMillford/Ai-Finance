@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { useState } from "react";
+import { memo, useMemo } from "react";
 
 interface HeatmapCell {
   symbol: string;
@@ -10,8 +10,7 @@ interface HeatmapCell {
   sector: string;
 }
 
-export function MarketHeatmap() {
-  // Sample market data
+export const MarketHeatmap = memo(function MarketHeatmap() {
   const marketData: HeatmapCell[] = [
     // Technology
     { symbol: "AAPL", name: "Apple", change: 2.5, sector: "Technology" },
@@ -58,8 +57,10 @@ export function MarketHeatmap() {
     return Math.abs(change) > 1 ? "text-white" : "text-gray-900";
   };
 
-  // Group by sector
-  const sectors = Array.from(new Set(marketData.map(d => d.sector)));
+  const sectors = useMemo(
+    () => Array.from(new Set(marketData.map((d) => d.sector))),
+    [marketData]
+  );
 
   return (
     <Card className="p-6">
@@ -124,4 +125,4 @@ export function MarketHeatmap() {
       </div>
     </Card>
   );
-}
+});

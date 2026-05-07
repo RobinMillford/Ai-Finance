@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserAssets } from '@/hooks/useUserAssets';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BarChart3, ChevronLeft, LogOut, Plus, Trash } from "lucide-react";
+import { BarChart3, ChevronLeft, LogOut, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -87,7 +87,7 @@ export default function DashboardPage() {
                         onClick={() => removeFromWatchlist(symbol)}
                         className="border-primary/20 hover:bg-primary/10"
                       >
-                        <Trash className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
@@ -120,7 +120,7 @@ export default function DashboardPage() {
                         size="sm"
                         className="border-primary/20 hover:bg-primary/10"
                       >
-                        <Trash className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}

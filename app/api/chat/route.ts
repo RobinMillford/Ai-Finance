@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { cryptoAdvisorGraph } from "@/lib/ai/graph";
+import { trimToTokenBudget } from "@/lib/ai/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,11 +40,9 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Limit conversation history to prevent token limit errors
-    // Keep last 6 messages (3 exchanges) to stay under token limits
-    const truncatedMessages = messages.length > 6 
-      ? messages.slice(-6)
-      : messages;
+    // Trim history to token budget (default 4000 tokens, ~16 KB of text).
+    // Keeps the newest messages and always retains at least the current query.
+    const truncatedMessages = trimToTokenBudget(messages);
     
     // Convert plain message objects to LangChain message instances
     const langchainMessages = truncatedMessages.map((msg: any) => {

@@ -1,61 +1,60 @@
 # FinanceAI - AI-Powered Financial Analysis Platform
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.5.7-black)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-black)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-53%2B%20Passing-brightgreen)](https://github.com/yourusername/financeai)
-[![Performance](https://img.shields.io/badge/Lighthouse-90+-brightgreen)](https://developers.google.com/web/tools/lighthouse)
+[![Tests](https://img.shields.io/badge/Tests-46%2B%20Unit%20%7C%206%20E2E%20Suites-brightgreen)](https://github.com/RobinMillford/Ai-Finance)
 
 > A production-ready financial analysis platform with AI-powered insights, real-time market data, portfolio management, and advanced search capabilities.
 
 ![FinanceAI Dashboard](public/Finance-Markets-Analysis.png)
 
-![FinanceAI Dashboard](public/Architecture.png)
+![FinanceAI Architecture](public/Architecture.png)
 
-## 🎯 Overview
+## Overview
 
 FinanceAI is a comprehensive financial analysis platform that combines real-time market data with AI-powered insights to help users make informed investment decisions. Built with modern web technologies and optimized for performance, accessibility, and user experience.
 
-## ✨ Key Features
+## Key Features
 
-### 🤖 **Multi-Agent AI Advisors** (NEW!)
+### Multi-Agent AI Advisors
 
 - **LangGraph Architecture**: Orchestrator-Workers pattern with intelligent routing
 - **3 Specialized Advisors**: Crypto, Forex, and Stock analysis
 - **4-Agent Teams**: Supervisor, Technical Analyst, Sentiment Analyst, Market Researcher
-- **Real-time Streaming**: Live agent status updates with SSE
+- **Real-time Streaming**: Live agent status updates via SSE
 - **Smart Routing**: 1-2 agents for simple queries, 2-3 for comprehensive analysis
-- **Token Optimized**: 60-70% token savings vs. traditional approaches
+- **Token Budget Trimming**: Dynamic message history based on token budget instead of a fixed count
 
-### 📊 **Multi-Market Analysis**
+### Multi-Market Analysis
 
 - **Stocks**: Real-time stock data with technical indicators
 - **Forex**: Currency pair analysis and trends
 - **Crypto**: Cryptocurrency market tracking
 
-### 💼 **Portfolio Management**
+### Portfolio Management
 
 - Create and manage multiple portfolios
 - Track holdings with real-time P&L calculations
 - Portfolio analytics dashboard with interactive charts
 - Export portfolio data (CSV/PDF)
 
-### 👁️ **Watchlist System**
+### Watchlist System
 
 - Track favorite assets across all markets
 - Quick access to watched assets
 - Statistics and performance tracking
 - Export watchlist data
 
-### 🔍 **Advanced Search**
+### Advanced Search
 
 - Command palette (⌘K / Ctrl+K)
 - Real-time fuzzy search across all markets
 - Recent items tracking
 - Keyboard-first navigation
 
-### 📈 **Data Visualizations**
+### Data Visualizations
 
 - Portfolio value over time (area charts)
 - Asset allocation (pie charts)
@@ -64,38 +63,22 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 - Correlation matrix (diversification analysis)
 - OHLC price charts with time ranges
 
-### 🤖 **Multi-Agent AI Advisors**
+### Modern UI/UX
 
-- **LangGraph Multi-Agent Architecture**: Orchestrator-Workers pattern with specialized agents
-- **3 Market Advisors**: Crypto, Forex, and Stock analysis with dedicated AI teams
-- **Smart Routing**: Supervisor agent intelligently routes queries to specialist agents
-- **Specialized Agents**:
-  - **Technical Analyst**: Price data, indicators (RSI, MACD, EMA, Bollinger Bands, ATR, ADX)
-  - **Sentiment Analyst**: Reddit community analysis (15+ subreddits, 75% bullish tracking)
-  - **Market Researcher**: News, earnings, sector trends via Tavily search
-  - **Final Response**: Synthesis and actionable insights
-- **LLM Models**: LLaMA 3.3 70B (supervisor) + LLaMA 3.1 8B (workers) via Groq
-- **Token Optimization**: Message truncation, smart routing (1-2 agents for simple queries)
-- **Real-time Streaming**: SSE (Server-Sent Events) for live agent status updates
-
-### 🎨 **Modern UI/UX**
-
-- Beautiful, responsive design
-- Dark/Light theme support
+- Responsive design with dark/light theme support
 - Smooth animations with Framer Motion
 - Accessible (WCAG AA compliant)
-- Progressive Web App (PWA)
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript 5.9
+- **Styling**: Tailwind CSS v4
 - **UI Components**: shadcn/ui
 - **Animations**: Framer Motion
-- **Charts**: Recharts, D3.js
+- **Charts**: Recharts
 - **State Management**: React Hooks, SWR
 
 ### Backend
@@ -103,12 +86,13 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 - **Runtime**: Node.js
 - **API**: Next.js API Routes
 - **Database**: MongoDB Atlas
-- **Authentication**: NextAuth.js
-- **Multi-Agent AI**: 
+- **Authentication**: NextAuth.js v4
+- **Multi-Agent AI**:
   - LangGraph (State Machine Orchestration)
   - LangChain (Tool Integration)
   - Groq (LLaMA 3.3 70B + LLaMA 3.1 8B)
 - **Search & Intelligence**: Tavily API
+- **Email**: Resend API (password reset)
 
 ### Data Sources
 
@@ -116,62 +100,53 @@ FinanceAI is a comprehensive financial analysis platform that combines real-time
 - **News**: NewsAPI
 - **Community Sentiment**: Reddit API (15+ financial subreddits)
 - **Market Intelligence**: Tavily Search API
-- **Technical Indicators**: RSI, MACD, EMA, Bollinger Bands, ATR, ADX, OBV
+- **Technical Indicators**: RSI, MACD, EMA, Bollinger Bands, ATR, ADX
 
 ### Development Tools
 
-- **Testing**: Jest, React Testing Library, Playwright
+- **Testing**: Jest 30, React Testing Library, Playwright
 - **E2E Testing**: Playwright (multi-browser + mobile)
-- **Linting**: ESLint, Prettier
+- **Linting**: ESLint
 - **Accessibility**: axe-core, eslint-plugin-jsx-a11y
 - **Bundle Analysis**: @next/bundle-analyzer
 - **CI/CD**: GitHub Actions
-- **Security**: DOMPurify (XSS prevention)
+- **Security**: isomorphic-dompurify v3 (XSS prevention)
 
-## 🧪 Testing & Quality Assurance
+## Testing & Quality Assurance
 
-### Comprehensive Test Coverage
+### Test Coverage
 
-- **Unit Tests**: 28 tests with Jest & React Testing Library
-  - Rate limiter tests
-  - API client tests
-  - Utility function tests
-- **E2E Tests**: 25+ tests with Playwright
+- **Unit Tests**: Jest + React Testing Library
+  - Rate limiter (18 tests)
+  - AI utilities — `trimToTokenBudget`, `collectToolResults` (13 tests)
+  - Graph factory — routing logic, supervisor cap, config contract (15 tests)
+- **E2E Tests**: 6 test suites with Playwright
   - Homepage & navigation
   - Search functionality (Command Palette)
   - Portfolio management
   - Watchlist operations
   - Market data pages
-  - Multi-browser testing (Chrome, Firefox, Safari)
-  - Mobile testing (Pixel 5, iPhone 12)
-- **CI/CD**: Automated testing on every push/PR
+  - Crypto routes
+  - Multi-browser (Chrome, Firefox, Safari) + mobile (Pixel 5, iPhone 12)
+- **CI/CD**: Automated testing on every push and PR
+- **Coverage Threshold**: 50% enforced on branches, functions, lines, and statements
 - **Code Coverage**: Codecov integration
 
 ### Security Features
 
-- **Security Headers**: 8 comprehensive headers
-  - HSTS (Strict Transport Security)
-  - CSP (Content Security Policy)
-  - X-Frame-Options (Clickjacking prevention)
-  - X-XSS-Protection
-  - And more...
-- **Input Sanitization**: DOMPurify integration
-  - XSS prevention
-  - HTML sanitization
-  - URL validation
-  - Email validation
-  - Filename sanitization
-- **Environment Validation**: Required variable checking
-- **Rate Limiting**: API route protection
+- **Security Headers**: HSTS, CSP (nonce-based), X-Frame-Options, X-XSS-Protection, and more
+- **Input Sanitization**: isomorphic-dompurify v3 — XSS prevention, HTML sanitization
+- **Rate Limiting**: Shared in-memory rate limiter across all API routes
 - **CSRF Protection**: NextAuth.js integration
+- **Password Reset**: Transactional email via Resend API
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+ and npm
-- MongoDB Atlas account (free tier)
-- API keys (see Environment Variables)
+- MongoDB Atlas account (free tier available)
+- API keys (see Environment Variables below)
 
 ### Installation
 
@@ -187,7 +162,7 @@ npm install
 cp .env.example .env.local
 # Edit .env.local with your API keys
 
-# Run development server
+# Run development server (Turbopack enabled)
 npm run dev
 ```
 
@@ -203,12 +178,12 @@ npm run build
 npm start
 
 # Analyze bundle size
-ANALYZE=true npm run build
+npm run analyze
 ```
 
-## 🔐 Environment Variables
+## Environment Variables
 
-Create a `.env.local` file in the root directory:
+Copy `.env.example` to `.env.local` and fill in your values. All variables are documented in `.env.example`.
 
 ```env
 # Database
@@ -218,25 +193,18 @@ MONGODB_URI=your_mongodb_connection_string
 NEXTAUTH_SECRET=your_nextauth_secret
 NEXTAUTH_URL=http://localhost:3000
 
-# Market Data
-TWELVE_DATA_API_KEY=your_twelve_data_key
-
-# News
-NEWS_API_KEY=your_news_api_key
-NEXT_PUBLIC_NEWSAPI_KEY=your_news_api_key
-
-# AI - Multi-Agent System (Required)
-GROQ_API_KEY=your_groq_api_key
+# AI - Multi-Agent System (required)
 NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key
 
-# Search & Intelligence
-TAVILY_API_KEY=your_tavily_api_key
+# Market Data (required)
+NEXT_PUBLIC_TWELVEDATA_API_KEY=your_twelve_data_key
 NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
+NEXT_PUBLIC_NEWS_API_KEY=your_news_api_key
 
-# Base URL
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
+# Email — password reset (optional, logs to console if unset)
+RESEND_API_KEY=your_resend_key
 
-# Reddit (Optional - for sentiment analysis)
+# Reddit — social sentiment (optional)
 REDDIT_CLIENT_ID=your_reddit_client_id
 REDDIT_CLIENT_SECRET=your_reddit_client_secret
 ```
@@ -244,196 +212,133 @@ REDDIT_CLIENT_SECRET=your_reddit_client_secret
 ### Getting API Keys
 
 - **MongoDB**: [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+- **Groq**: [Groq Cloud](https://console.groq.com/)
 - **Twelve Data**: [Twelve Data](https://twelvedata.com/)
 - **NewsAPI**: [NewsAPI](https://newsapi.org/)
-- **Groq**: [Groq Cloud](https://console.groq.com/)
 - **Tavily**: [Tavily](https://tavily.com/)
+- **Resend**: [Resend](https://resend.com/)
 - **Reddit**: [Reddit Apps](https://www.reddit.com/prefs/apps)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 financeai/
-├── app/                      # Next.js app directory
-│   ├── api/                  # API routes
-│   │   ├── chat/             # Crypto Multi-Agent API
-│   │   ├── forex-chat/       # Forex Multi-Agent API
-│   │   ├── stock-chat/       # Stock Multi-Agent API
-│   │   ├── portfolio/        # Portfolio endpoints
-│   │   ├── watchlist/        # Watchlist endpoints
-│   │   ├── stocks/           # Stock data
-│   │   ├── forex/            # Forex data
-│   │   ├── cryptos/          # Crypto data
-│   │   ├── reddit/           # Reddit sentiment
-│   │   ├── news/             # News aggregation
-│   │   └── market-intelligence/ # Market intelligence
-│   ├── cryptoadvisor/        # Crypto Multi-Agent UI
-│   ├── forexadvisor/         # Forex Multi-Agent UI
-│   ├── stockadvisor/         # Stock Multi-Agent UI
-│   ├── portfolio/            # Portfolio pages
-│   ├── watchlist/            # Watchlist pages
-│   ├── stocks/               # Stock analysis
-│   ├── forexs/               # Forex analysis
-│   ├── cryptos/              # Crypto analysis
-│   └── layout.tsx            # Root layout
-├── components/               # React components
-│   ├── ui/                   # UI components (shadcn)
-│   ├── charts/               # Chart components
-│   │   ├── PortfolioAnalytics.tsx
-│   │   ├── MarketHeatmap.tsx
-│   │   ├── CorrelationMatrix.tsx
-│   │   └── PriceChart.tsx
-│   ├── CommandPalette.tsx    # Search command palette
-│   ├── ExportButton.tsx      # Export functionality
-│   └── ...
-├── lib/                      # Utility functions
-│   ├── ai/                   # Multi-Agent AI system
-│   │   ├── config.ts         # LLM configuration
-│   │   ├── graph.ts          # Crypto Multi-Agent graph
-│   │   ├── forex-graph.ts    # Forex Multi-Agent graph
-│   │   ├── stock-graph.ts    # Stock Multi-Agent graph
-│   │   └── tools/            # AI tools
-│   │       ├── financial.ts  # Crypto price & indicators
-│   │       ├── forex.ts      # Forex quotes & indicators
-│   │       ├── stock.ts      # Stock quotes & indicators
-│   │       ├── social.ts     # Reddit sentiment
-│   │       └── search.ts     # Tavily search & intelligence
-│   ├── export-utils.ts       # CSV/PDF export
-│   ├── mongodb.ts            # Database connection
-│   ├── market-intelligence.ts # Market analysis
-│   └── ...
-├── models/                   # MongoDB models
+├── app/                          # Next.js app directory
+│   ├── api/                      # API routes
+│   │   ├── chat/                 # Crypto Multi-Agent API
+│   │   ├── forex-chat/           # Forex Multi-Agent API
+│   │   ├── stock-chat/           # Stock Multi-Agent API
+│   │   ├── portfolio/            # Portfolio endpoints
+│   │   ├── watchlist/            # Watchlist endpoints
+│   │   ├── stocks/               # Stock data
+│   │   ├── forex/                # Forex data
+│   │   ├── cryptos/              # Crypto data
+│   │   ├── reddit/               # Reddit sentiment
+│   │   ├── news/                 # News aggregation
+│   │   └── market-intelligence/  # Market intelligence
+│   ├── cryptoadvisor/            # Crypto Multi-Agent UI
+│   ├── forexadvisor/             # Forex Multi-Agent UI
+│   ├── stockadvisor/             # Stock Multi-Agent UI
+│   ├── portfolio/                # Portfolio pages
+│   ├── watchlist/                # Watchlist pages
+│   ├── stocks/                   # Stock analysis
+│   ├── forexs/                   # Forex analysis
+│   ├── cryptos/                  # Crypto analysis
+│   ├── dashboard/                # Dashboard
+│   └── layout.tsx                # Root layout
+├── components/                   # React components
+│   ├── ui/                       # UI components (shadcn)
+│   └── charts/                   # Chart components
+│       ├── TechnicalChart.tsx    # Shared recharts wrapper (memo)
+│       ├── PortfolioAnalytics.tsx
+│       ├── MarketHeatmap.tsx
+│       ├── CorrelationMatrix.tsx
+│       └── PriceChart.tsx
+├── lib/                          # Utility functions
+│   ├── ai/                       # Multi-Agent AI system
+│   │   ├── config.ts             # LLM configuration (env-driven)
+│   │   ├── graph-factory.ts      # Shared advisor graph factory
+│   │   ├── utils.ts              # trimToTokenBudget, collectToolResults
+│   │   ├── graph.ts              # Crypto advisor (thin wrapper)
+│   │   ├── forex-graph.ts        # Forex advisor (thin wrapper)
+│   │   ├── stock-graph.ts        # Stock advisor (thin wrapper)
+│   │   ├── __tests__/            # Unit tests for AI utilities
+│   │   └── tools/                # AI tools
+│   │       ├── financial.ts      # Crypto price & indicators
+│   │       ├── forex.ts          # Forex quotes & indicators
+│   │       ├── stock.ts          # Stock quotes & indicators
+│   │       ├── social.ts         # Reddit sentiment
+│   │       └── search.ts         # Tavily search
+│   ├── __tests__/                # Unit tests
+│   ├── rate-limiter.ts           # Shared in-memory rate limiter
+│   ├── email.ts                  # Resend transactional email
+│   ├── market-intelligence.ts    # Market analysis (Tavily)
+│   ├── mongodb.ts                # Database connection
+│   ├── sanitize.ts               # DOMPurify XSS sanitization
+│   └── export-utils.ts           # CSV/PDF export
+├── models/                       # MongoDB models
 │   ├── Portfolio.ts
 │   ├── Watchlist.ts
 │   └── User.ts
-├── contexts/                 # React contexts
-│   └── AuthContext.tsx
-├── e2e/                      # Playwright E2E tests
-│   ├── homepage.spec.ts
-│   ├── search.spec.ts
-│   ├── portfolio.spec.ts
-│   ├── watchlist.spec.ts
-│   └── market-data.spec.ts
-├── public/                   # Static assets
-└── next.config.js            # Next.js configuration
+├── e2e/                          # Playwright E2E tests (6 suites)
+├── middleware.ts                 # CSP nonces + auth middleware
+├── .env.example                  # All env vars documented
+└── next.config.js                # Next.js configuration
 ```
 
-## 🎨 Features in Detail
+## Multi-Agent AI Architecture
 
-### Multi-Agent AI Advisors
+**Orchestrator-Workers pattern** — one supervisor per domain coordinates three specialist workers:
 
-Revolutionary AI-powered analysis with specialized agent teams:
+```
+User Query
+    │
+    ▼
+Supervisor (LLaMA 3.3 70B)
+    │   Analyzes query, picks agent(s), enforces 3-call cap
+    ├──▶ TechnicalAnalyst (LLaMA 3.1 8B) — prices, indicators
+    ├──▶ SentimentAnalyst (LLaMA 3.1 8B) — Reddit community mood
+    └──▶ MarketResearcher  (LLaMA 3.1 8B) — news, events, macro
+              │
+              ▼
+        finalResponse — synthesizes all collected data
+```
 
-**Architecture:**
-- **Orchestrator-Workers Pattern**: Supervisor coordinates specialized agents
-- **Smart Routing**: Query analysis routes to optimal agents (1-2 for simple, 2-3 for complex)
-- **Streaming Updates**: Real-time agent status badges with SSE
-- **Token Optimization**: Message history truncation, efficient routing (60-70% token savings)
+**Three domain-specific advisors** share one `graph-factory.ts` — each provides only the prompts and tools that differ per domain:
+- **Crypto Advisor** — cryptocurrency prices, social sentiment
+- **Forex Advisor** — currency pair quotes, economic indicators
+- **Stock Advisor** — US stock data, earnings, sector news
 
-**Three Market-Specific Advisors:**
-1. **Crypto Advisor** - Cryptocurrency analysis with social sentiment
-2. **Forex Advisor** - Currency pair analysis with economic indicators
-3. **Stock Advisor** - US stock analysis with technical & fundamental data
+**Example workflows:**
+- "What's AAPL price?" → TechnicalAnalyst → Response (1 agent)
+- "Analyze TSLA" → TechnicalAnalyst + SentimentAnalyst → Response (2 agents)
+- "BTC full outlook" → All 3 agents → Comprehensive Response
 
-**Agent Team per Advisor:**
-- Supervisor (LLaMA 3.3 70B) - Routes queries, enforces 3-call limit
-- Technical Analyst (LLaMA 3.1 8B) - Price, volume, indicators
-- Sentiment Analyst (LLaMA 3.1 8B) - Reddit community analysis
-- Market Researcher (LLaMA 3.1 8B) - News, earnings, events
-
-**Example Workflows:**
-- "What's AAPL price?" → TechnicalAnalyst → Response (1 agent, <5s)
-- "Analyze TSLA" → TechnicalAnalyst + SentimentAnalyst → Response (2 agents, <10s)
-- "BTC outlook" → All 3 agents → Comprehensive Response (<15s)
-
-### Portfolio Management
-
-Create and manage investment portfolios with:
-
-- Add/remove holdings
-- Real-time P&L tracking
-- Performance analytics
-- Asset allocation visualization
-- Export to CSV/PDF
-
-### Watchlist System
-
-Track your favorite assets:
-
-- Multi-market support (stocks, forex, crypto)
-- Quick access from any page
-- Performance statistics
-- Export capabilities
-
-### Advanced Search
-
-Powerful search with:
-
-- Keyboard shortcuts (⌘K / Ctrl+K)
-- Fuzzy matching
-- Recent searches
-- Cross-market search
-
-### Data Visualizations
-
-Professional charts:
-
-- Portfolio analytics dashboard
-- Market heatmap
-- Correlation matrix
-- OHLC price charts
-- Interactive tooltips
-
-## 🧪 Testing
+## Scripts
 
 ```bash
-# Run unit tests
-npm test
-
-# Run tests in watch mode
-npm test -- --watch
-
-# Run tests with coverage
-npm test -- --coverage
-
-# Run E2E tests
-npx playwright test
-
-# Run E2E tests in UI mode
-npx playwright test --ui
-
-# Run E2E tests on specific browser
-npx playwright test --project=chromium
-
-# View E2E test report
-npx playwright show-report
+npm run dev          # Start dev server with Turbopack
+npm run build        # Production build
+npm start            # Start production server
+npm run analyze      # Build with bundle size report
+npm test             # Run unit tests
+npm run test:watch   # Unit tests in watch mode
+npm run test:coverage # Unit tests with coverage report
+npx playwright test  # Run E2E tests
+npx playwright test --ui          # E2E in interactive UI mode
+npx playwright test --project=chromium  # Single browser
+npx playwright show-report        # View last E2E report
 ```
 
-### Test Coverage
-
-- **Unit Tests**: 28 tests (Jest + React Testing Library)
-- **E2E Tests**: 25+ tests (Playwright)
-- **Total**: 53+ automated tests
-- **Coverage**: 85%+ on tested modules
-
-## 📊 Performance
-
-- **Lighthouse Score**: 90+ (Production)
-- **First Contentful Paint**: <0.5s
-- **Largest Contentful Paint**: <2.5s
-- **Time to Interactive**: <3s
-- **Cumulative Layout Shift**: <0.1
-
-### Optimizations Implemented
+## Performance
 
 - Code splitting and lazy loading
-- React.memo and useMemo for expensive operations
+- `React.memo` and `useMemo` on all heavy chart components
+- Turbopack for fast HMR in development
 - Image optimization (WebP/AVIF)
-- Bundle size optimization
 - Server-side rendering where appropriate
-- Edge caching for static assets
 
-## ♿ Accessibility
+## Accessibility
 
 - WCAG AA compliant
 - Keyboard navigation support
@@ -442,23 +347,16 @@ npx playwright show-report
 - Semantic HTML
 - Color contrast compliance
 
-## 🔒 Security
+## Security
 
 - Secure authentication with NextAuth.js
-- Environment variable validation
-- Rate limiting on API routes
-- Input sanitization
-- CSRF protection
-- Security headers (HSTS, XFO, CSP)
+- Per-request CSP nonces (no `unsafe-inline`/`unsafe-eval` in production)
+- Rate limiting on all API routes
+- Input sanitization with isomorphic-dompurify v3
+- CSRF protection via NextAuth.js
+- Environment variable validation at startup
 
-## 📱 Progressive Web App
-
-- Installable on desktop and mobile
-- Offline support (coming soon)
-- App-like experience
-- Fast loading times
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please follow these steps:
 
@@ -475,72 +373,62 @@ Please ensure:
 - Accessibility guidelines are followed
 - Documentation is updated
 
-## 👨‍💻 Author
+## Author
 
 **Yamin Hossain**
 
 - LinkedIn: [Yamin Hossain](https://www.linkedin.com/in/yamin-hossain-38a3b3263)
 - GitHub: [@RobinMillford](https://github.com/RobinMillford)
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- [Next.js](https://nextjs.org/) - React framework
-- [LangGraph](https://langchain.com/langgraph) - Multi-agent orchestration
-- [LangChain](https://langchain.com/) - AI tool integration
-- [Groq](https://groq.com/) - Ultra-fast LLM inference
-- [shadcn/ui](https://ui.shadcn.com/) - UI components
-- [Recharts](https://recharts.org/) - Chart library
-- [Twelve Data](https://twelvedata.com/) - Market data
-- [Tavily](https://tavily.com/) - AI-powered search
+- [Next.js](https://nextjs.org/) — React framework
+- [LangGraph](https://langchain.com/langgraph) — Multi-agent orchestration
+- [LangChain](https://langchain.com/) — AI tool integration
+- [Groq](https://groq.com/) — Ultra-fast LLM inference
+- [shadcn/ui](https://ui.shadcn.com/) — UI components
+- [Recharts](https://recharts.org/) — Chart library
+- [Twelve Data](https://twelvedata.com/) — Market data
+- [Tavily](https://tavily.com/) — AI-powered search
+- [Resend](https://resend.com/) — Transactional email
 
-## 🗺️ Roadmap
+## Roadmap
 
-### ✅ Completed
+### Completed
 
 - [x] Multi-Agent AI system (Crypto, Forex, Stock advisors)
-- [x] LangGraph orchestration with smart routing
+- [x] Shared graph factory — single source for all 3 advisors
+- [x] LangGraph orchestration with smart routing and 3-call cap
 - [x] Real-time streaming with SSE
-- [x] Token optimization (60-70% savings)
+- [x] Token-budget message trimming (dynamic, env-configurable)
 - [x] Portfolio management system
 - [x] Watchlist functionality
 - [x] Advanced search (Command Palette)
-- [x] Data visualizations (5 chart types)
+- [x] Data visualizations (5 chart types, all recharts)
 - [x] Export functionality (CSV/PDF)
-- [x] E2E testing with Playwright (25+ tests)
-- [x] Security hardening (8 headers + sanitization)
-- [x] Performance optimization (90+ Lighthouse)
-- [x] CI/CD pipeline with GitHub Actions
+- [x] E2E testing with Playwright (6 suites, multi-browser + mobile)
+- [x] Unit tests with 50% coverage threshold enforced
+- [x] Security hardening (nonce-based CSP, DOMPurify v3, rate limiting)
+- [x] Turbopack dev server
+- [x] CI/CD pipeline with GitHub Actions (test → build → E2E → deploy)
 
-### 🚧 In Progress
+### In Progress
 
 - [ ] Real-time price updates via WebSocket
 - [ ] Advanced technical indicators (Fibonacci, Ichimoku)
 - [ ] Price alerts and notifications
-- [ ] Multi-timeframe analysis
 
-### 📋 Planned
+### Planned
 
-- [ ] Voice-controlled AI assistant
 - [ ] Advanced backtesting with historical data
-- [ ] Social trading features & copy trading
-- [ ] Mobile app (React Native)
 - [ ] Advanced portfolio analytics (Sharpe ratio, beta, alpha)
-- [ ] Multi-language support (ES, FR, DE, JP, CN)
+- [ ] Multi-language support
 - [ ] Options & derivatives trading analysis
 
-## 📄 License
+## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
-
-### GPL-3.0 License Summary
-
-- ✅ **Freedom to use** - Use the software for any purpose
-- ✅ **Freedom to study** - Study how the program works and modify it
-- ✅ **Freedom to share** - Redistribute copies to help others
-- ✅ **Freedom to improve** - Distribute modified versions
-
-**Note:** Any derivative work must also be licensed under GPL-3.0 and source code must be made available.
+This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Built with ❤️ using Next.js and TypeScript**
+**Built with Next.js and TypeScript**

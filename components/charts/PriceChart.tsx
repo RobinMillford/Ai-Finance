@@ -12,7 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 interface PriceChartProps {
   symbol: string;
@@ -21,12 +21,11 @@ interface PriceChartProps {
 
 type TimeRange = "1D" | "1W" | "1M" | "3M" | "1Y" | "ALL";
 
-export function PriceChart({ symbol, data }: PriceChartProps) {
+export const PriceChart = memo(function PriceChart({ symbol, data }: PriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>("1M");
 
-  // Generate sample OHLC data
-  const generateSampleData = () => {
-    const data = [];
+  const sampleData = useMemo(() => {
+    const result = [];
     const basePrice = 150;
     let currentPrice = basePrice;
     const now = new Date();
@@ -43,7 +42,7 @@ export function PriceChart({ symbol, data }: PriceChartProps) {
       const high = Math.max(open, close) + Math.random() * 2;
       const low = Math.min(open, close) - Math.random() * 2;
 
-      data.push({
+      result.push({
         date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         open: parseFloat(open.toFixed(2)),
         high: parseFloat(high.toFixed(2)),
@@ -53,10 +52,10 @@ export function PriceChart({ symbol, data }: PriceChartProps) {
       });
     }
 
-    return data;
-  };
+    return result;
+  }, []);
 
-  const chartData = data || generateSampleData();
+  const chartData = data ?? sampleData;
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -132,4 +131,4 @@ export function PriceChart({ symbol, data }: PriceChartProps) {
       </div>
     </Card>
   );
-}
+});

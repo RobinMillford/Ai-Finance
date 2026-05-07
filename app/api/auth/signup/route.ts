@@ -2,62 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { hashPassword } from '@/lib/auth-utils';
-
-// Enhanced rate limiting using in-memory store with improved cleanup
-class RateLimiter {
-  private attempts: Map<string, { count: number; timestamp: number }>;
-  private window: number;
-  private maxAttempts: number;
-  private lastCleanup: number;
-
-  constructor(window: number, maxAttempts: number) {
-    this.attempts = new Map();
-    this.window = window;
-    this.maxAttempts = maxAttempts;
-    this.lastCleanup = Date.now();
-  }
-
-  isRateLimited(ip: string): boolean {
-    const now = Date.now();
-    
-    // Clean up old entries periodically (every 5 minutes)
-    if (now - this.lastCleanup > 5 * 60 * 1000) {
-      this.cleanup(now);
-      this.lastCleanup = now;
-    }
-
-    const attempt = this.attempts.get(ip);
-
-    if (!attempt) {
-      this.attempts.set(ip, { count: 1, timestamp: now });
-      return false;
-    }
-
-    // Reset count if window has passed
-    if (now - attempt.timestamp > this.window) {
-      this.attempts.set(ip, { count: 1, timestamp: now });
-      return false;
-    }
-
-    // Increment count
-    const newCount = attempt.count + 1;
-    this.attempts.set(ip, { count: newCount, timestamp: attempt.timestamp });
-
-    return newCount > this.maxAttempts;
-  }
-
-  private cleanup(now: number): void {
-    // Convert Map to array for iteration to avoid TypeScript issues
-    const entries = Array.from(this.attempts.entries());
-    for (const [key, value] of entries) {
-      if (now - value.timestamp > this.window) {
-        this.attempts.delete(key);
-      }
-    }
-  }
-}
-
-const rateLimiter = new RateLimiter(15 * 60 * 1000, 3); // 15 minutes, 3 attempts
+import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // Enhanced email validation with domain checking
 function isValidEmail(email: string): boolean {
@@ -116,11 +61,11 @@ export async function POST(request: NextRequest) {
   try {
     const { name, email, password } = await request.json();
     
-    // Get client IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    
-    // Check rate limit
-    if (rateLimiter.isRateLimited(ip)) {
+    // Get client IP for rate limiting (namespaced to avoid collision with other endpoints)
+    const ip = getClientIdentifier(request);
+    const rl = RATE_LIMITS.AUTH_SIGNUP;
+
+    if (rateLimiter.isRateLimited(`auth:signup:${ip}`, rl.limit, rl.windowMs)) {
       return NextResponse.json(
         { error: 'Too many signup attempts. Please try again later.' },
         { status: 429 }

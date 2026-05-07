@@ -7,39 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  BarController,
-  Title,
-  Tooltip,
-  Legend,
-  ChartData,
-} from "chart.js";
-import { Chart, Line } from "react-chartjs-2";
-import annotationPlugin from "chartjs-plugin-annotation";
+import { useMemo } from "react";
 import Image from "next/image";
 import { BarChart3, ArrowRight, MessageCircle, MessageSquare, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { RedditSocialSentiment } from "@/components/reddit-social-sentiment";
 import { marketThemes } from "@/lib/themes";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  BarController,
-  Title,
-  Tooltip,
-  Legend,
-  annotationPlugin
-);
+import { TechnicalChart } from "@/components/charts/TechnicalChart";
 
 // Format large numbers with commas
 const formatNumber = (num: number | string | undefined): string => {
@@ -297,725 +270,131 @@ export default function StockDetails() {
     );
   }
 
-  // Prepare chart data (with fallbacks for missing data)
+  // ── Recharts data preparation ──────────────────────────────────────────────
   const timeSeries = stockData?.timeSeries?.values || [];
-  const labels = timeSeries.length ? timeSeries.map((entry) => entry.datetime).reverse() : [];
-  const closingPrices = timeSeries.length ? timeSeries.map((entry) => parseFloat(entry.close)).reverse() : [];
-  const adjustedClosingPrices = timeSeries.length
-    ? timeSeries.map((entry) => parseFloat(entry.adjusted_close || entry.close)).reverse()
-    : [];
+  const labels = useMemo(
+    () => (timeSeries.length ? timeSeries.map((e) => e.datetime).reverse() : []),
+    [timeSeries]
+  );
+  const closingPrices = useMemo(
+    () => (timeSeries.length ? timeSeries.map((e) => parseFloat(e.close)).reverse() : []),
+    [timeSeries]
+  );
+  const adjustedClosingPrices = useMemo(
+    () =>
+      timeSeries.length
+        ? timeSeries.map((e) => parseFloat(e.adjusted_close || e.close)).reverse()
+        : [],
+    [timeSeries]
+  );
 
-  const ema20Data = technicalIndicators?.ema?.ema20
-    ? technicalIndicators.ema.ema20.map((entry) => parseFloat(entry.ema)).reverse()
-    : [];
-  const ema50Data = technicalIndicators?.ema?.ema50
-    ? technicalIndicators.ema.ema50.map((entry) => parseFloat(entry.ema)).reverse()
-    : [];
-  const bbandsUpper = technicalIndicators?.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.upper_band)).reverse()
-    : [];
-  const bbandsMiddle = technicalIndicators?.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.middle_band)).reverse()
-    : [];
-  const bbandsLower = technicalIndicators?.bbands
-    ? technicalIndicators.bbands.map((entry) => parseFloat(entry.lower_band)).reverse()
-    : [];
+  const ema20Raw = useMemo(
+    () => technicalIndicators?.ema?.ema20?.map((e) => parseFloat(e.ema)).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const ema50Raw = useMemo(
+    () => technicalIndicators?.ema?.ema50?.map((e) => parseFloat(e.ema)).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const bbandsUpperRaw = useMemo(
+    () => technicalIndicators?.bbands?.map((e) => parseFloat(e.upper_band)).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const bbandsMiddleRaw = useMemo(
+    () => technicalIndicators?.bbands?.map((e) => parseFloat(e.middle_band)).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const bbandsLowerRaw = useMemo(
+    () => technicalIndicators?.bbands?.map((e) => parseFloat(e.lower_band)).reverse() ?? [],
+    [technicalIndicators]
+  );
 
-  const closingPriceData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Closing Price",
-        data: closingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      ...(ema20Data.length
-        ? [{ 
-            label: "20-Day EMA", 
-            data: ema20Data, 
-            borderColor: theme.secondary, 
-            backgroundColor: `${theme.secondary}20`, 
-            fill: false,
-            borderDash: [5, 5],
-            pointRadius: 0,
-          }]
-        : []),
-      ...(ema50Data.length
-        ? [{ 
-            label: "50-Day EMA", 
-            data: ema50Data, 
-            borderColor: "#8B5CF6", 
-            backgroundColor: "rgba(139, 92, 246, 0.2)", 
-            fill: false,
-            borderDash: [5, 5],
-            pointRadius: 0,
-          }]
-        : []),
-      ...(bbandsUpper.length
-        ? [{ 
-            label: "Bollinger Upper Band", 
-            data: bbandsUpper, 
-            borderColor: "#EC4899", 
-            backgroundColor: "rgba(236, 72, 153, 0.1)", 
-            fill: false,
-            pointRadius: 0,
-          }]
-        : []),
-      ...(bbandsMiddle.length
-        ? [{ 
-            label: "Bollinger Middle Band", 
-            data: bbandsMiddle, 
-            borderColor: "#9CA3AF", 
-            backgroundColor: "rgba(156, 163, 175, 0.1)", 
-            fill: false,
-            pointRadius: 0,
-          }]
-        : []),
-      ...(bbandsLower.length
-        ? [{ 
-            label: "Bollinger Lower Band", 
-            data: bbandsLower, 
-            borderColor: "#EC4899", 
-            backgroundColor: "rgba(236, 72, 153, 0.1)", 
-            fill: false,
-            pointRadius: 0,
-          }]
-        : []),
-    ],
-  };
+  const priceChartData = useMemo(
+    () =>
+      labels.map((date, i) => ({
+        date,
+        close: closingPrices[i] ?? null,
+        ema20: ema20Raw[i] ?? null,
+        ema50: ema50Raw[i] ?? null,
+        bbUpper: bbandsUpperRaw[i] ?? null,
+        bbMiddle: bbandsMiddleRaw[i] ?? null,
+        bbLower: bbandsLowerRaw[i] ?? null,
+      })),
+    [labels, closingPrices, ema20Raw, ema50Raw, bbandsUpperRaw, bbandsMiddleRaw, bbandsLowerRaw]
+  );
 
-  const adjustedClosingPriceData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Adjusted Closing Price",
-        data: adjustedClosingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
+  const adjustedChartData = useMemo(
+    () => labels.map((date, i) => ({ date, adjustedClose: adjustedClosingPrices[i] ?? null })),
+    [labels, adjustedClosingPrices]
+  );
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: `${symbol} Price History`,
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      y: {
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          },
-          callback: function(value: any) {
-            return "$" + value;
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-    barPercentage: 0.8,
-    categoryPercentage: 0.9
-  };
+  const rsiRaw = useMemo(
+    () => technicalIndicators?.rsi?.map((e) => parseFloat(e.rsi)).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const rsiLabels = useMemo(
+    () => technicalIndicators?.rsi?.map((e) => e.datetime).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const rsiChartData = useMemo(
+    () => rsiLabels.map((date, i) => ({ date, rsi: rsiRaw[i] ?? null })),
+    [rsiLabels, rsiRaw]
+  );
 
-  const rsiLabels = technicalIndicators?.rsi?.map((entry) => entry.datetime).reverse() || [];
-  const rsiData = technicalIndicators?.rsi?.map((entry) => parseFloat(entry.rsi)).reverse() || [];
-  const rsiChartData: ChartData<"line", number[], string> = {
-    labels: rsiLabels,
-    datasets: [
-      {
-        label: "RSI",
-        data: rsiData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-  const rsiChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Relative Strength Index (RSI)",
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          { 
-            type: "line" as const, 
-            yMin: 70, 
-            yMax: 70, 
-            borderColor: "rgba(239, 68, 68, 0.8)", 
-            borderWidth: 1, 
-            borderDash: [6, 6],
-            label: { 
-              content: "Overbought (70)", 
-              display: true, 
-              position: "end" as const, 
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            } 
-          },
-          { 
-            type: "line" as const, 
-            yMin: 30, 
-            yMax: 30, 
-            borderColor: "rgba(34, 197, 94, 0.8)", 
-            borderWidth: 1, 
-            borderDash: [6, 6],
-            label: { 
-              content: "Oversold (30)", 
-              display: true, 
-              position: "end" as const, 
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            } 
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: { 
-      y: { 
-        min: 0, 
-        max: 100,
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-    barPercentage: 0.8,
-    categoryPercentage: 0.9
-  };
+  const macdLabels = useMemo(
+    () => technicalIndicators?.macd?.map((e) => e.datetime).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const macdChartData = useMemo(
+    () =>
+      macdLabels.map((date, i) => ({
+        date,
+        macd: technicalIndicators?.macd ? parseFloat(technicalIndicators.macd[technicalIndicators.macd.length - 1 - i]?.macd) : null,
+        signal: technicalIndicators?.macd ? parseFloat(technicalIndicators.macd[technicalIndicators.macd.length - 1 - i]?.macd_signal) : null,
+        histogram: technicalIndicators?.macd ? parseFloat(technicalIndicators.macd[technicalIndicators.macd.length - 1 - i]?.macd_hist) : null,
+      })),
+    [macdLabels, technicalIndicators]
+  );
 
-  const macdLabels = technicalIndicators?.macd?.map((entry) => entry.datetime).reverse() || [];
-  const macdData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd)).reverse() || [];
-  const macdSignalData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd_signal)).reverse() || [];
-  const macdHistData = technicalIndicators?.macd?.map((entry) => parseFloat(entry.macd_hist)).reverse() || [];
-  const macdChartData: ChartData<"bar" | "line", number[], string> = {
-    labels: macdLabels,
-    datasets: [
-      ...(macdData.length
-        ? [{ 
-            label: "MACD", 
-            data: macdData, 
-            borderColor: theme.primary, 
-            backgroundColor: `${theme.primary}20`, 
-            fill: false, 
-            type: "line" as const,
-            tension: 0.4,
-            pointRadius: 0,
-          }]
-        : []),
-      ...(macdSignalData.length
-        ? [{ 
-            label: "Signal Line", 
-            data: macdSignalData, 
-            borderColor: theme.secondary, 
-            backgroundColor: `${theme.secondary}20`, 
-            fill: false, 
-            type: "line" as const,
-            borderDash: [5, 5],
-            pointRadius: 0,
-          }]
-        : []),
-      ...(macdHistData.length
-        ? [{ 
-            label: "Histogram", 
-            data: macdHistData, 
-            backgroundColor: (context: any) => {
-              const value = context.dataset.data[context.dataIndex];
-              return value > 0 ? "rgba(34, 197, 94, 0.6)" : "rgba(239, 68, 68, 0.6)";
-            },
-            type: "bar" as const,
-          }]
-        : []),
-    ],
-  };
-  const macdChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "MACD",
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      y: {
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-    barPercentage: 0.8,
-    categoryPercentage: 0.9
-  };
+  const adxLabels = useMemo(
+    () => technicalIndicators?.adx?.map((e) => e.datetime).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const adxChartData = useMemo(
+    () =>
+      adxLabels.map((date, i) => ({
+        date,
+        adx: technicalIndicators?.adx ? parseFloat(technicalIndicators.adx[technicalIndicators.adx.length - 1 - i]?.adx) : null,
+      })),
+    [adxLabels, technicalIndicators]
+  );
 
-  const adxLabels = technicalIndicators?.adx?.map((entry) => entry.datetime).reverse() || [];
-  const adxData = technicalIndicators?.adx?.map((entry) => parseFloat(entry.adx)).reverse() || [];
-  const adxChartData: ChartData<"line", number[], string> = {
-    labels: adxLabels,
-    datasets: [
-      {
-        label: "ADX",
-        data: adxData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-  const adxChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Average Directional Index (ADX)",
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          { 
-            type: "line" as const, 
-            yMin: 25, 
-            yMax: 25, 
-            borderColor: "rgba(59, 130, 246, 0.8)", 
-            borderWidth: 1, 
-            borderDash: [6, 6],
-            label: { 
-              content: "Strong Trend (25)", 
-              display: true, 
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            } 
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: { 
-      y: { 
-        min: 0, 
-        max: 100,
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
+  const atrLabels = useMemo(
+    () => technicalIndicators?.atr?.map((e) => e.datetime).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const atrChartData = useMemo(
+    () =>
+      atrLabels.map((date, i) => ({
+        date,
+        atr: technicalIndicators?.atr ? parseFloat(technicalIndicators.atr[technicalIndicators.atr.length - 1 - i]?.atr) : null,
+      })),
+    [atrLabels, technicalIndicators]
+  );
 
-  const atrLabels = technicalIndicators?.atr?.map((entry) => entry.datetime).reverse() || [];
-  const atrData = technicalIndicators?.atr?.map((entry) => parseFloat(entry.atr)).reverse() || [];
-  const atrChartData: ChartData<"line", number[], string> = {
-    labels: atrLabels,
-    datasets: [
-      {
-        label: "ATR",
-        data: atrData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-  const atrChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Average True Range (ATR)",
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      y: {
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  const aroonLabels = technicalIndicators?.aroon?.map((entry) => entry.datetime).reverse() || [];
-  const aroonUpData = technicalIndicators?.aroon?.map((entry) => parseFloat(entry.aroon_up)).reverse() || [];
-  const aroonDownData = technicalIndicators?.aroon?.map((entry) => parseFloat(entry.aroon_down)).reverse() || [];
-  const aroonChartData: ChartData<"line", number[], string> = {
-    labels: aroonLabels,
-    datasets: [
-      ...(aroonUpData.length
-        ? [{ 
-            label: "Aroon Up", 
-            data: aroonUpData, 
-            borderColor: "#10B981", 
-            backgroundColor: "rgba(16, 185, 129, 0.2)", 
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0,
-          }]
-        : []),
-      ...(aroonDownData.length
-        ? [{ 
-            label: "Aroon Down", 
-            data: aroonDownData, 
-            borderColor: "#EF4444", 
-            backgroundColor: "rgba(239, 68, 68, 0.2)", 
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0,
-          }]
-        : []),
-    ],
-  };
-  const aroonChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { 
-        position: "top" as const,
-        labels: {
-          color: "#e5e7eb",
-          font: {
-            size: 12,
-          },
-        }
-      },
-      title: { 
-        display: true, 
-        text: "Aroon Indicator",
-        color: "#f3f4f6",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          { 
-            type: "line" as const, 
-            yMin: 70, 
-            yMax: 70, 
-            borderColor: "rgba(59, 130, 246, 0.8)", 
-            borderWidth: 1, 
-            borderDash: [6, 6],
-            label: { 
-              content: "Strong Trend (70)", 
-              display: true, 
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            } 
-          },
-          { 
-            type: "line" as const, 
-            yMin: 30, 
-            yMax: 30, 
-            borderColor: "rgba(59, 130, 246, 0.8)", 
-            borderWidth: 1, 
-            borderDash: [6, 6],
-            label: { 
-              content: "Weak Trend (30)", 
-              display: true, 
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            } 
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: { 
-      y: { 
-        min: 0, 
-        max: 100,
-        grid: {
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(75, 85, 99, 0.2)"
-        },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45,
-          color: "#9ca3af",
-          font: {
-            size: 10,
-          }
-        }
-      }
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
+  const aroonLabels = useMemo(
+    () => technicalIndicators?.aroon?.map((e) => e.datetime).reverse() ?? [],
+    [technicalIndicators]
+  );
+  const aroonChartData = useMemo(
+    () =>
+      aroonLabels.map((date, i) => ({
+        date,
+        aroonUp: technicalIndicators?.aroon ? parseFloat(technicalIndicators.aroon[technicalIndicators.aroon.length - 1 - i]?.aroon_up) : null,
+        aroonDown: technicalIndicators?.aroon ? parseFloat(technicalIndicators.aroon[technicalIndicators.aroon.length - 1 - i]?.aroon_down) : null,
+      })),
+    [aroonLabels, technicalIndicators]
+  );
 
   const eodDateFormatted = stockData?.eod?.datetime
     ? new Date(stockData.eod.datetime).toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric" })
@@ -1452,19 +831,28 @@ export default function StockDetails() {
                   </div>
                   <h2 className="text-2xl font-semibold text-foreground">Price History & Technical Indicators</h2>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-96">
-                  <div className="h-full">
-                    <h3 className="text-lg font-medium mb-4 text-foreground">Daily Closing Prices with EMA and BBANDS</h3>
-                    <div className="h-80">
-                      <Line options={chartOptions} data={closingPriceData} />
-                    </div>
-                  </div>
-                  <div className="h-full">
-                    <h3 className="text-lg font-medium mb-4 text-foreground">Daily Adjusted Closing Prices</h3>
-                    <div className="h-80">
-                      <Line options={chartOptions} data={adjustedClosingPriceData} />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <TechnicalChart
+                    data={priceChartData}
+                    title="Daily Closing Prices with EMA & Bollinger Bands"
+                    datasets={[
+                      { key: "close", label: "Close", color: theme.primary },
+                      { key: "ema20", label: "EMA 20", color: "#f59e0b", dashed: true },
+                      { key: "ema50", label: "EMA 50", color: "#10b981", dashed: true },
+                      { key: "bbUpper", label: "BB Upper", color: "#6366f1", dashed: true },
+                      { key: "bbMiddle", label: "BB Mid", color: "#8b5cf6", dashed: true },
+                      { key: "bbLower", label: "BB Lower", color: "#6366f1", dashed: true },
+                    ]}
+                    yTickFormatter={(v) => `$${v}`}
+                  />
+                  <TechnicalChart
+                    data={adjustedChartData}
+                    title="Daily Adjusted Closing Prices"
+                    datasets={[
+                      { key: "adjustedClose", label: "Adj. Close", color: theme.secondary },
+                    ]}
+                    yTickFormatter={(v) => `$${v}`}
+                  />
                 </div>
               </Card>
             </motion.div>
@@ -1482,48 +870,63 @@ export default function StockDetails() {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {technicalIndicators.rsi && (
-                    <div className="h-96">
-                      <h3 className="text-lg font-medium mb-4 text-foreground">Relative Strength Index (RSI)</h3>
-                      <div className="h-80">
-                        <Line options={rsiChartOptions} data={rsiChartData} />
-                      </div>
-                    </div>
+                    <TechnicalChart
+                      data={rsiChartData}
+                      title="Relative Strength Index (RSI)"
+                      datasets={[{ key: "rsi", label: "RSI", color: "#f59e0b" }]}
+                      referenceLines={[
+                        { y: 70, color: "#ef4444", label: "Overbought" },
+                        { y: 30, color: "#22c55e", label: "Oversold" },
+                      ]}
+                      yDomain={[0, 100]}
+                    />
                   )}
                   {technicalIndicators.macd && (
-                    <div className="h-96">
-                      <h3 className="text-lg font-medium mb-4 text-foreground">MACD</h3>
-                      <div className="h-80">
-                        <Chart
-                          type="bar"
-                          options={macdChartOptions}
-                          data={macdChartData as ChartData<"bar", number[], string>}
-                        />
-                      </div>
-                    </div>
+                    <TechnicalChart
+                      data={macdChartData}
+                      title="MACD"
+                      datasets={[
+                        { key: "macd", label: "MACD", color: "#3b82f6" },
+                        { key: "signal", label: "Signal", color: "#f59e0b", dashed: true },
+                        {
+                          key: "histogram",
+                          label: "Histogram",
+                          color: "#22c55e",
+                          type: "bar",
+                          barColorFn: (v) => (v >= 0 ? "#22c55e" : "#ef4444"),
+                        },
+                      ]}
+                      referenceLines={[{ y: 0, color: "#9ca3af", label: "" }]}
+                    />
                   )}
                   {technicalIndicators.adx && (
-                    <div className="h-96">
-                      <h3 className="text-lg font-medium mb-4 text-foreground">Average Directional Index (ADX)</h3>
-                      <div className="h-80">
-                        <Line options={adxChartOptions} data={adxChartData} />
-                      </div>
-                    </div>
+                    <TechnicalChart
+                      data={adxChartData}
+                      title="Average Directional Index (ADX)"
+                      datasets={[{ key: "adx", label: "ADX", color: "#a855f7" }]}
+                      referenceLines={[
+                        { y: 25, color: "#f59e0b", label: "Strong Trend" },
+                        { y: 20, color: "#9ca3af", label: "Weak Trend" },
+                      ]}
+                    />
                   )}
                   {technicalIndicators.atr && (
-                    <div className="h-96">
-                      <h3 className="text-lg font-medium mb-4 text-foreground">Average True Range (ATR)</h3>
-                      <div className="h-80">
-                        <Line options={atrChartOptions} data={atrChartData} />
-                      </div>
-                    </div>
+                    <TechnicalChart
+                      data={atrChartData}
+                      title="Average True Range (ATR)"
+                      datasets={[{ key: "atr", label: "ATR", color: "#ec4899" }]}
+                    />
                   )}
                   {technicalIndicators.aroon && (
-                    <div className="h-96">
-                      <h3 className="text-lg font-medium mb-4 text-foreground">Aroon Indicator</h3>
-                      <div className="h-80">
-                        <Line options={aroonChartOptions} data={aroonChartData} />
-                      </div>
-                    </div>
+                    <TechnicalChart
+                      data={aroonChartData}
+                      title="Aroon Indicator"
+                      datasets={[
+                        { key: "aroonUp", label: "Aroon Up", color: "#22c55e" },
+                        { key: "aroonDown", label: "Aroon Down", color: "#ef4444" },
+                      ]}
+                      yDomain={[0, 100]}
+                    />
                   )}
                 </div>
               </Card>

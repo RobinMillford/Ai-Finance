@@ -1,92 +1,166 @@
-// Market Intelligence - Temporarily Disabled
-// TODO: Fix Tavily import path issues
-
-import { ChatGroq } from "@langchain/groq";
-
 /**
- * Market intelligence features are temporarily disabled
- * All functions return a disabled message
+ * Market Intelligence — powered by Tavily search API (@tavily/core)
+ *
+ * Each function builds a targeted query and returns structured results
+ * so callers (API routes, AI tools) get consistent, typed data.
+ *
+ * Env var required: NEXT_PUBLIC_TAVILY_API_KEY
  */
 
-const DISABLED_MESSAGE = {
-  error: "Market intelligence features are temporarily disabled. Please check back later.",
-  timestamp: new Date().toISOString()
+import { tavily } from "@tavily/core";
+
+type TavilyResult = {
+  url: string;
+  title: string;
+  content: string;
+  score?: number;
 };
 
-export async function getMarketIntelligence(symbol: string, queryType: string = "general") {
+type IntelligenceResult = {
+  symbol: string;
+  queryType: string;
+  answer?: string;
+  results: TavilyResult[];
+  timestamp: string;
+  error?: string;
+};
+
+function getClient() {
+  const apiKey = process.env.NEXT_PUBLIC_TAVILY_API_KEY;
+  if (!apiKey) {
+    throw new Error("NEXT_PUBLIC_TAVILY_API_KEY is not set");
+  }
+  return tavily({ apiKey });
+}
+
+async function search(
+  symbol: string,
+  queryType: string,
+  query: string,
+  includeDomains?: string[]
+): Promise<IntelligenceResult> {
+  const client = getClient();
+
+  const opts: Parameters<ReturnType<typeof tavily>["search"]>[1] = {
+    searchDepth: "advanced",
+    maxResults: 5,
+    includeAnswer: true,
+  };
+  if (includeDomains?.length) opts.includeDomains = includeDomains;
+
+  const data = await client.search(query, opts);
+
   return {
     symbol,
     queryType,
-    ...DISABLED_MESSAGE
+    answer: (data as any).answer ?? "",
+    results: ((data as any).results ?? []).map((r: any) => ({
+      url: r.url,
+      title: r.title,
+      content: r.content,
+      score: r.score,
+    })),
+    timestamp: new Date().toISOString(),
   };
 }
 
-export async function getComprehensiveMarketOverview(symbol: string) {
-  return {
+// ── Public functions ────────────────────────────────────────────────────────
+
+export async function getMarketIntelligence(
+  symbol: string,
+  queryType: string = "general"
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    ...DISABLED_MESSAGE
-  };
+    queryType,
+    `${symbol} market analysis ${queryType} ${new Date().getFullYear()}`
+  );
 }
 
-export async function getMarketSentiment(symbol: string) {
-  return {
+export async function getComprehensiveMarketOverview(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "sentiment",
-    ...DISABLED_MESSAGE
-  };
+    "comprehensive",
+    `${symbol} comprehensive market overview price analysis outlook`,
+    ["bloomberg.com", "reuters.com", "ft.com", "wsj.com", "marketwatch.com"]
+  );
 }
 
-export async function getLatestNews(symbol: string) {
-  return {
+export async function getLatestNews(symbol: string): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "news",
-    ...DISABLED_MESSAGE
-  };
+    "news",
+    `${symbol} latest news today`,
+    ["bloomberg.com", "reuters.com", "cnbc.com", "ft.com", "forbes.com"]
+  );
 }
 
-export async function getGeopoliticalAnalysis(symbol: string) {
-  return {
+export async function getMarketSentiment(symbol: string): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "geopolitical",
-    ...DISABLED_MESSAGE
-  };
+    "sentiment",
+    `${symbol} market sentiment investor outlook bullish bearish`
+  );
 }
 
-export async function getFundamentalAnalysis(symbol: string) {
-  return {
+export async function getFundamentalAnalysis(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "fundamental",
-    ...DISABLED_MESSAGE
-  };
+    "fundamental",
+    `${symbol} fundamental analysis earnings revenue valuation`,
+    ["bloomberg.com", "reuters.com", "seekingalpha.com", "marketwatch.com"]
+  );
 }
 
-export async function getTechnicalAnalysis(symbol: string) {
-  return {
+export async function getTechnicalAnalysis(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "technical",
-    ...DISABLED_MESSAGE
-  };
+    "technical",
+    `${symbol} technical analysis chart patterns support resistance`
+  );
 }
 
-export async function getMacroeconomicAnalysis(symbol: string) {
-  return {
+export async function getMacroeconomicAnalysis(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "macroeconomic",
-    ...DISABLED_MESSAGE
-  };
+    "macroeconomic",
+    `${symbol} macroeconomic impact interest rates inflation GDP`
+  );
 }
 
-export async function getRegulatoryAnalysis(symbol: string) {
-  return {
+export async function getRegulatoryAnalysis(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    queryType: "regulatory",
-    ...DISABLED_MESSAGE
-  };
+    "regulatory",
+    `${symbol} regulatory news SEC CFTC compliance legal`
+  );
 }
 
-export async function getMarketAlerts(symbol: string) {
-  return {
+export async function getGeopoliticalAnalysis(
+  symbol: string
+): Promise<IntelligenceResult> {
+  return search(
     symbol,
-    ...DISABLED_MESSAGE
-  };
+    "geopolitical",
+    `${symbol} geopolitical risk global events trade policy sanctions`
+  );
+}
+
+export async function getMarketAlerts(symbol: string): Promise<IntelligenceResult> {
+  return search(
+    symbol,
+    "alerts",
+    `${symbol} urgent market alert warning risk today`,
+    ["bloomberg.com", "reuters.com", "cnbc.com"]
+  );
 }

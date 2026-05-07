@@ -1,51 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ChartData,
-  BarController,
-} from "chart.js";
-import { Chart, Line } from "react-chartjs-2";
-import annotationPlugin from "chartjs-plugin-annotation";
 import Image from "next/image";
 import { BarChart3, MessageCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { marketThemes } from "@/lib/themes";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  annotationPlugin,
-  BarController
-);
+import { TechnicalChart } from "@/components/charts/TechnicalChart";
 
 // Format large numbers with commas
 const formatNumber = (num: number | string | undefined): string => {
   if (num === undefined || num === null) return "N/A";
   const number = typeof num === "string" ? parseFloat(num) : num;
   if (isNaN(number)) return "N/A";
-  
+
   if (number >= 1000000) {
     return `$${(number / 1000000).toFixed(2)}M`;
   } else if (number >= 1000) {
@@ -59,7 +31,7 @@ const getTrendInfo = (value: number | string | undefined) => {
   if (value === undefined || value === null) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
   const number = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(number)) return { icon: <Minus className="w-4 h-4" />, color: "text-gray-500" };
-  
+
   if (number > 0) {
     return { icon: <TrendingUp className="w-4 h-4" />, color: "text-green-500" };
   } else if (number < 0) {
@@ -265,701 +237,112 @@ export default function ForexDetails() {
     );
   }
 
-  // Prepare chart data for time series
+  // Prepare base time series arrays (reversed = chronological order)
   const timeSeries = forexData.timeSeries.values ?? [];
-  const labels = timeSeries.map((entry) => entry.datetime).reverse();
-  const closingPrices = timeSeries.map((entry) => parseFloat(entry.close)).reverse();
+  const reversedTimeSeries = [...timeSeries].reverse();
 
-  // Prepare SMA and Ichimoku data for overlay with null checks
-  const sma20Data = technicalIndicators.sma.sma20?.map((entry) => parseFloat(entry.sma)).reverse() ?? [];
-  const sma50Data = technicalIndicators.sma.sma50?.map((entry) => parseFloat(entry.sma)).reverse() ?? [];
-  const tenkanSenData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.tenkan_sen)).reverse() ?? [];
-  const kijunSenData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.kijun_sen)).reverse() ?? [];
-  const senkouSpanAData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.senkou_span_a)).reverse() ?? [];
-  const senkouSpanBData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.senkou_span_b)).reverse() ?? [];
-  const chikouSpanData = technicalIndicators.ichimoku?.map((entry) => parseFloat(entry.chikou_span)).reverse() ?? [];
+  // Build aligned lookup maps for indicator data keyed by datetime
+  const sma20Map = new Map(
+    (technicalIndicators.sma.sma20 ?? []).map((e) => [e.datetime, parseFloat(e.sma)])
+  );
+  const sma50Map = new Map(
+    (technicalIndicators.sma.sma50 ?? []).map((e) => [e.datetime, parseFloat(e.sma)])
+  );
+  const ichimokuMap = new Map(
+    (technicalIndicators.ichimoku ?? []).map((e) => [
+      e.datetime,
+      {
+        tenkan: parseFloat(e.tenkan_sen),
+        kijun: parseFloat(e.kijun_sen),
+        senkou_a: parseFloat(e.senkou_span_a),
+        senkou_b: parseFloat(e.senkou_span_b),
+        chikou: parseFloat(e.chikou_span),
+      },
+    ])
+  );
 
-  // Closing Price Chart with SMA and Ichimoku
-  const closingPriceData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Closing Price",
-        data: closingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "20-Day SMA",
-        data: sma20Data,
-        borderColor: "#FFA500",
-        backgroundColor: "rgba(255, 165, 0, 0.2)",
-        fill: false,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        label: "50-Day SMA",
-        data: sma50Data,
-        borderColor: "#FF4500",
-        backgroundColor: "rgba(255, 69, 0, 0.2)",
-        fill: false,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        label: "Tenkan-sen (Ichimoku)",
-        data: tenkanSenData,
-        borderColor: "#FF00FF",
-        backgroundColor: "rgba(255, 0, 255, 0.2)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Kijun-sen (Ichimoku)",
-        data: kijunSenData,
-        borderColor: "#00FFFF",
-        backgroundColor: "rgba(0, 255, 255, 0.2)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Senkou Span A (Ichimoku)",
-        data: senkouSpanAData,
-        borderColor: "#00FF00",
-        backgroundColor: "rgba(0, 255, 0, 0.1)",
-        fill: "+1",
-        pointRadius: 0,
-      },
-      {
-        label: "Senkou Span B (Ichimoku)",
-        data: senkouSpanBData,
-        borderColor: "#FF0000",
-        backgroundColor: "rgba(255, 0, 0, 0.1)",
-        fill: "-1",
-        pointRadius: 0,
-      },
-    ],
-  };
+  // --- useMemo chart data arrays ---
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: `${symbol} Price History`,
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          },
-          callback: function(value: any) {
-            return value;
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
+  // Closing Price + SMA + Ichimoku overlay chart
+  const priceChartData = useMemo(() => {
+    return reversedTimeSeries.map((entry) => {
+      const ichi = ichimokuMap.get(entry.datetime);
+      return {
+        date: entry.datetime,
+        close: parseFloat(entry.close),
+        sma20: sma20Map.get(entry.datetime) ?? null,
+        sma50: sma50Map.get(entry.datetime) ?? null,
+        tenkan: ichi?.tenkan ?? null,
+        kijun: ichi?.kijun ?? null,
+        senkou_a: ichi?.senkou_a ?? null,
+        senkou_b: ichi?.senkou_b ?? null,
+        chikou: ichi?.chikou ?? null,
+      };
+    });
+  }, [forexData, technicalIndicators]);
 
-  // RSI Chart
-  const rsiLabels = technicalIndicators.rsi?.map((entry) => entry.datetime).reverse() ?? [];
-  const rsiData = technicalIndicators.rsi?.map((entry) => parseFloat(entry.rsi)).reverse() ?? [];
+  // Ichimoku Cloud standalone chart (same underlying data)
+  const ichimokuChartData = useMemo(() => {
+    return reversedTimeSeries.map((entry) => {
+      const ichi = ichimokuMap.get(entry.datetime);
+      return {
+        date: entry.datetime,
+        close: parseFloat(entry.close),
+        tenkan: ichi?.tenkan ?? null,
+        kijun: ichi?.kijun ?? null,
+        senkou_a: ichi?.senkou_a ?? null,
+        senkou_b: ichi?.senkou_b ?? null,
+        chikou: ichi?.chikou ?? null,
+      };
+    });
+  }, [forexData, technicalIndicators]);
 
-  const rsiChartData: ChartData<"line", number[], string> = {
-    labels: rsiLabels,
-    datasets: [
-      {
-        label: "RSI",
-        data: rsiData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
+  // RSI chart data
+  const rsiChartData = useMemo(() => {
+    return (technicalIndicators.rsi ?? [])
+      .slice()
+      .reverse()
+      .map((entry) => ({
+        date: entry.datetime,
+        rsi: parseFloat(entry.rsi),
+      }));
+  }, [technicalIndicators]);
 
-  const rsiChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: "Relative Strength Index (RSI)",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line" as const,
-            yMin: 70,
-            yMax: 70,
-            borderColor: "rgba(239, 68, 68, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: {
-              content: "Overbought (70)",
-              display: true,
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-          {
-            type: "line" as const,
-            yMin: 30,
-            yMax: 30,
-            borderColor: "rgba(34, 197, 94, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: {
-              content: "Oversold (30)",
-              display: true,
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
+  // MACD chart data
+  const macdChartData = useMemo(() => {
+    return (technicalIndicators.macd ?? [])
+      .slice()
+      .reverse()
+      .map((entry) => ({
+        date: entry.datetime,
+        macd: parseFloat(entry.macd),
+        signal: parseFloat(entry.macd_signal),
+        histogram: parseFloat(entry.macd_hist),
+      }));
+  }, [technicalIndicators]);
 
-  // MACD Chart
-  const macdLabels = technicalIndicators.macd?.map((entry) => entry.datetime).reverse() ?? [];
-  const macdData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd)).reverse() ?? [];
-  const macdSignalData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_signal)).reverse() ?? [];
-  const macdHistData = technicalIndicators.macd?.map((entry) => parseFloat(entry.macd_hist)).reverse() ?? [];
+  // ATR chart data
+  const atrChartData = useMemo(() => {
+    return (technicalIndicators.atr ?? [])
+      .slice()
+      .reverse()
+      .map((entry) => ({
+        date: entry.datetime,
+        atr: parseFloat(entry.atr),
+      }));
+  }, [technicalIndicators]);
 
-  const macdChartData: ChartData<"bar" | "line", number[], string> = {
-    labels: macdLabels,
-    datasets: [
-      {
-        label: "MACD",
-        data: macdData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        type: "line" as const,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "Signal Line",
-        data: macdSignalData,
-        borderColor: theme.secondary,
-        backgroundColor: `${theme.secondary}20`,
-        fill: false,
-        type: "line" as const,
-        borderDash: [5, 5],
-        pointRadius: 0,
-      },
-      {
-        label: "Histogram",
-        data: macdHistData,
-        backgroundColor: (context: any) => {
-          const value = context.dataset.data[context.dataIndex];
-          return value > 0 ? "rgba(34, 197, 94, 0.6)" : "rgba(239, 68, 68, 0.6)";
-        },
-        type: "bar" as const,
-      },
-    ],
-  };
-
-  const macdChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: "MACD",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // ATR Chart
-  const atrLabels = technicalIndicators.atr?.map((entry) => entry.datetime).reverse() ?? [];
-  const atrData = technicalIndicators.atr?.map((entry) => parseFloat(entry.atr)).reverse() ?? [];
-
-  const atrChartData: ChartData<"line", number[], string> = {
-    labels: atrLabels,
-    datasets: [
-      {
-        label: "ATR",
-        data: atrData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const atrChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: "Average True Range (ATR)",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // Ichimoku Cloud Chart
-  const ichimokuChartData: ChartData<"line", number[], string> = {
-    labels,
-    datasets: [
-      {
-        label: "Closing Price",
-        data: closingPrices,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "Tenkan-sen",
-        data: tenkanSenData,
-        borderColor: "#FF00FF",
-        backgroundColor: "rgba(255, 0, 255, 0.2)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Kijun-sen",
-        data: kijunSenData,
-        borderColor: "#00FFFF",
-        backgroundColor: "rgba(0, 255, 255, 0.2)",
-        fill: false,
-        pointRadius: 0,
-      },
-      {
-        label: "Senkou Span A",
-        data: senkouSpanAData,
-        borderColor: "#00FF00",
-        backgroundColor: "rgba(0, 255, 0, 0.1)",
-        fill: "+1",
-        pointRadius: 0,
-      },
-      {
-        label: "Senkou Span B",
-        data: senkouSpanBData,
-        borderColor: "#FF0000",
-        backgroundColor: "rgba(255, 0, 0, 0.1)",
-        fill: "-1",
-        pointRadius: 0,
-      },
-      {
-        label: "Chikou Span",
-        data: chikouSpanData,
-        borderColor: "#808080",
-        backgroundColor: "rgba(128, 128, 128, 0.2)",
-        fill: false,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const ichimokuChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: "Ichimoku Cloud",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      y: {
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
-
-  // AROON Chart
-  const aroonLabels = technicalIndicators.aroon?.map((entry) => entry.datetime).reverse() ?? [];
-  const aroonUpData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_up)).reverse() ?? [];
-  const aroonDownData = technicalIndicators.aroon?.map((entry) => parseFloat(entry.aroon_down)).reverse() ?? [];
-
-  const aroonChartData: ChartData<"line", number[], string> = {
-    labels: aroonLabels,
-    datasets: [
-      {
-        label: "Aroon Up",
-        data: aroonUpData,
-        borderColor: theme.primary,
-        backgroundColor: `${theme.primary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-      {
-        label: "Aroon Down",
-        data: aroonDownData,
-        borderColor: theme.secondary,
-        backgroundColor: `${theme.secondary}20`,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-      },
-    ],
-  };
-
-  const aroonChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top" as const,
-        labels: {
-          color: "#6B7280",
-          font: {
-            size: 12,
-          },
-        },
-      },
-      title: {
-        display: true,
-        text: "Aroon Indicator",
-        color: "#6B7280",
-        font: {
-          size: 16,
-        }
-      },
-      annotation: {
-        annotations: [
-          {
-            type: "line" as const,
-            yMin: 70,
-            yMax: 70,
-            borderColor: "rgba(59, 130, 246, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: {
-              content: "Strong Trend (70)",
-              display: true,
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-          {
-            type: "line" as const,
-            yMin: 30,
-            yMax: 30,
-            borderColor: "rgba(59, 130, 246, 0.8)",
-            borderWidth: 1,
-            borderDash: [6, 6],
-            label: {
-              content: "Weak Trend (30)",
-              display: true,
-              position: "end" as const,
-              color: "#f3f4f6",
-              backgroundColor: "rgba(30, 41, 59, 0.8)",
-            },
-          },
-        ],
-      },
-      tooltip: {
-        mode: "index" as const,
-        intersect: false,
-        backgroundColor: "rgba(30, 41, 59, 0.9)",
-        titleColor: "#f3f4f6",
-        bodyColor: "#e5e7eb",
-        borderColor: "rgba(75, 85, 99, 0.5)",
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-        grid: {
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-          color: "rgba(107, 114, 128, 0.1)",
-        },
-        ticks: {
-          color: "#6B7280",
-          font: {
-            size: 10,
-          }
-        },
-      },
-    },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false
-    },
-  };
+  // Aroon chart data
+  const aroonChartData = useMemo(() => {
+    return (technicalIndicators.aroon ?? [])
+      .slice()
+      .reverse()
+      .map((entry) => ({
+        date: entry.datetime,
+        aroon_up: parseFloat(entry.aroon_up),
+        aroon_down: parseFloat(entry.aroon_down),
+      }));
+  }, [technicalIndicators]);
 
   // Format the EOD date
   const eodDateFormatted = forexData.eod?.datetime
@@ -1160,7 +543,7 @@ export default function ForexDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Forex Pair Statistics</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Current Price</p>
@@ -1180,21 +563,21 @@ export default function ForexDetails() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Daily Range</p>
                   <p className="text-xl font-bold text-foreground mt-1">
                     {parseFloat(forexData.quote.low || "0").toFixed(4)} - {parseFloat(forexData.quote.high || "0").toFixed(4)}
                   </p>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Previous Close</p>
                   <p className="text-xl font-bold text-foreground mt-1">
                     {parseFloat(forexData.quote.previous_close || "0").toFixed(4)}
                   </p>
                 </div>
-                
+
                 <div className="bg-accent/10 p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Currencies</p>
                   <p className="text-xl font-bold text-foreground mt-1">
@@ -1202,7 +585,7 @@ export default function ForexDetails() {
                   </p>
                 </div>
               </div>
-              
+
               {forexData.quote ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
                   <div>
@@ -1274,7 +657,7 @@ export default function ForexDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Technical Indicators Summary</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Moving Averages (SMA) */}
                 <div className="bg-accent/10 p-4 rounded-lg">
@@ -1482,48 +865,98 @@ export default function ForexDetails() {
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground">Technical Indicator Charts</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Price History with Indicators</h3>
-                  <div className="h-80">
-                    <Line options={chartOptions} data={closingPriceData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Ichimoku Cloud</h3>
-                  <div className="h-80">
-                    <Line options={ichimokuChartOptions} data={ichimokuChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Relative Strength Index (RSI)</h3>
-                  <div className="h-80">
-                    <Line options={rsiChartOptions} data={rsiChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">MACD</h3>
-                  <div className="h-80">
-                    <Chart
-                      type="bar"
-                      options={macdChartOptions}
-                      data={macdChartData as ChartData<"bar", number[], string>}
-                    />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Average True Range (ATR)</h3>
-                  <div className="h-80">
-                    <Line options={atrChartOptions} data={atrChartData} />
-                  </div>
-                </div>
-                <div className="h-96">
-                  <h3 className="text-lg font-medium mb-4 text-foreground">Aroon Indicator</h3>
-                  <div className="h-80">
-                    <Line options={aroonChartOptions} data={aroonChartData} />
-                  </div>
-                </div>
+                {/* Price History with SMA + Ichimoku overlay */}
+                <TechnicalChart
+                  data={priceChartData}
+                  title="Price History with Indicators"
+                  datasets={[
+                    { key: "close", label: "Closing Price", color: "#10B981" },
+                    { key: "sma20", label: "20-Day SMA", color: "#f59e0b", dashed: true },
+                    { key: "sma50", label: "50-Day SMA", color: "#10b981", dashed: true },
+                    { key: "tenkan", label: "Tenkan-sen", color: "#3b82f6" },
+                    { key: "kijun", label: "Kijun-sen", color: "#f59e0b" },
+                    { key: "senkou_a", label: "Senkou Span A", color: "#22c55e", dashed: true },
+                    { key: "senkou_b", label: "Senkou Span B", color: "#ef4444", dashed: true },
+                    { key: "chikou", label: "Chikou Span", color: "#a855f7", dashed: true },
+                  ]}
+                  height={320}
+                />
+
+                {/* Ichimoku Cloud standalone */}
+                <TechnicalChart
+                  data={ichimokuChartData}
+                  title="Ichimoku Cloud"
+                  datasets={[
+                    { key: "close", label: "Closing Price", color: "#10B981" },
+                    { key: "tenkan", label: "Tenkan-sen", color: "#3b82f6" },
+                    { key: "kijun", label: "Kijun-sen", color: "#f59e0b" },
+                    { key: "senkou_a", label: "Senkou Span A", color: "#22c55e", dashed: true },
+                    { key: "senkou_b", label: "Senkou Span B", color: "#ef4444", dashed: true },
+                    { key: "chikou", label: "Chikou Span", color: "#a855f7", dashed: true },
+                  ]}
+                  height={320}
+                />
+
+                {/* RSI */}
+                <TechnicalChart
+                  data={rsiChartData}
+                  title="Relative Strength Index (RSI)"
+                  datasets={[
+                    { key: "rsi", label: "RSI", color: "#f59e0b" },
+                  ]}
+                  yDomain={[0, 100]}
+                  referenceLines={[
+                    { y: 70, color: "#ef4444", label: "Overbought (70)" },
+                    { y: 30, color: "#22c55e", label: "Oversold (30)" },
+                  ]}
+                  height={320}
+                />
+
+                {/* MACD */}
+                <TechnicalChart
+                  data={macdChartData}
+                  title="MACD"
+                  datasets={[
+                    {
+                      key: "histogram",
+                      label: "Histogram",
+                      color: "#22c55e",
+                      type: "bar",
+                      barColorFn: (value: number) => (value >= 0 ? "#22c55e" : "#ef4444"),
+                    },
+                    { key: "macd", label: "MACD", color: "#3b82f6" },
+                    { key: "signal", label: "Signal Line", color: "#f59e0b", dashed: true },
+                  ]}
+                  height={320}
+                />
+
+                {/* ATR */}
+                <TechnicalChart
+                  data={atrChartData}
+                  title="Average True Range (ATR)"
+                  datasets={[
+                    { key: "atr", label: "ATR", color: "#ec4899" },
+                  ]}
+                  height={320}
+                />
+
+                {/* Aroon */}
+                <TechnicalChart
+                  data={aroonChartData}
+                  title="Aroon Indicator"
+                  datasets={[
+                    { key: "aroon_up", label: "Aroon Up", color: "#22c55e" },
+                    { key: "aroon_down", label: "Aroon Down", color: "#ef4444" },
+                  ]}
+                  yDomain={[0, 100]}
+                  referenceLines={[
+                    { y: 70, color: "#3b82f6", label: "Strong Trend (70)" },
+                    { y: 30, color: "#3b82f6", label: "Weak Trend (30)" },
+                  ]}
+                  height={320}
+                />
               </div>
             </Card>
           </motion.div>

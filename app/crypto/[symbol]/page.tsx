@@ -274,6 +274,90 @@ export default function CryptoDetails() {
     fetchData();
   }, [symbol, toast]);
 
+  // Hoist timeSeries + all useMemo above early returns to satisfy Rules of Hooks
+  const timeSeries = cryptoData?.timeSeries?.values ?? [];
+
+  const priceChartData = useMemo(() => {
+    if (!technicalIndicators || timeSeries.length === 0) return [];
+    const reversedSeries = [...timeSeries].reverse();
+    const ema20Map = new Map(
+      (technicalIndicators.ema.ema20 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
+    );
+    const ema50Map = new Map(
+      (technicalIndicators.ema.ema50 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
+    );
+    const bbandsMap = new Map(
+      (technicalIndicators.bbands ?? []).map((e) => [
+        e.datetime,
+        {
+          upper: parseFloat(e.upper_band),
+          middle: parseFloat(e.middle_band),
+          lower: parseFloat(e.lower_band),
+        },
+      ])
+    );
+    const supertrendMap = new Map(
+      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
+    );
+    return reversedSeries.map((entry) => ({
+      date: entry.datetime,
+      close: parseFloat(entry.close),
+      ema20: ema20Map.get(entry.datetime) ?? null,
+      ema50: ema50Map.get(entry.datetime) ?? null,
+      bbUpper: bbandsMap.get(entry.datetime)?.upper ?? null,
+      bbMiddle: bbandsMap.get(entry.datetime)?.middle ?? null,
+      bbLower: bbandsMap.get(entry.datetime)?.lower ?? null,
+      supertrend: supertrendMap.get(entry.datetime) ?? null,
+    }));
+  }, [timeSeries, technicalIndicators]);
+
+  const supertrendChartData = useMemo(() => {
+    if (!technicalIndicators || timeSeries.length === 0) return [];
+    const reversedSeries = [...timeSeries].reverse();
+    const supertrendMap = new Map(
+      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
+    );
+    return reversedSeries.map((entry) => ({
+      date: entry.datetime,
+      close: parseFloat(entry.close),
+      supertrend: supertrendMap.get(entry.datetime) ?? null,
+    }));
+  }, [timeSeries, technicalIndicators]);
+
+  const rsiChartData = useMemo(() => {
+    if (!technicalIndicators?.rsi) return [];
+    return [...technicalIndicators.rsi].reverse().map((entry) => ({
+      date: entry.datetime,
+      rsi: parseFloat(entry.rsi),
+    }));
+  }, [technicalIndicators]);
+
+  const macdChartData = useMemo(() => {
+    if (!technicalIndicators?.macd) return [];
+    return [...technicalIndicators.macd].reverse().map((entry) => ({
+      date: entry.datetime,
+      macd: parseFloat(entry.macd),
+      signal: parseFloat(entry.macd_signal),
+      histogram: parseFloat(entry.macd_hist),
+    }));
+  }, [technicalIndicators]);
+
+  const atrChartData = useMemo(() => {
+    if (!technicalIndicators?.atr) return [];
+    return [...technicalIndicators.atr].reverse().map((entry) => ({
+      date: entry.datetime,
+      atr: parseFloat(entry.atr),
+    }));
+  }, [technicalIndicators]);
+
+  const obvChartData = useMemo(() => {
+    if (!technicalIndicators?.obv) return [];
+    return [...technicalIndicators.obv].reverse().map((entry) => ({
+      date: entry.datetime,
+      obv: parseFloat(entry.obv),
+    }));
+  }, [technicalIndicators]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -303,10 +387,6 @@ export default function CryptoDetails() {
       </div>
     );
   }
-
-  // Prepare chart data for time series
-  const timeSeries = cryptoData.timeSeries.values || [];
-  console.log("timeSeries:", timeSeries);
 
   // Format the EOD date
   const eodDateFormatted = cryptoData.eod?.datetime
@@ -426,96 +506,6 @@ export default function CryptoDetails() {
       obvInterpretation = `Divergence (Price ${priceDirection}, OBV ${obvDirection})`;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Recharts data preparation (useMemo for performance)
-  // ---------------------------------------------------------------------------
-
-  // Price History + EMA + Bollinger Bands + Supertrend overlay
-  const priceChartData = useMemo(() => {
-    const reversedSeries = [...timeSeries].reverse();
-    const ema20Map = new Map(
-      (technicalIndicators.ema.ema20 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
-    );
-    const ema50Map = new Map(
-      (technicalIndicators.ema.ema50 ?? []).map((e) => [e.datetime, parseFloat(e.ema)])
-    );
-    const bbandsMap = new Map(
-      (technicalIndicators.bbands ?? []).map((e) => [
-        e.datetime,
-        {
-          upper: parseFloat(e.upper_band),
-          middle: parseFloat(e.middle_band),
-          lower: parseFloat(e.lower_band),
-        },
-      ])
-    );
-    const supertrendMap = new Map(
-      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
-    );
-
-    return reversedSeries.map((entry) => ({
-      date: entry.datetime,
-      close: parseFloat(entry.close),
-      ema20: ema20Map.get(entry.datetime) ?? null,
-      ema50: ema50Map.get(entry.datetime) ?? null,
-      bbUpper: bbandsMap.get(entry.datetime)?.upper ?? null,
-      bbMiddle: bbandsMap.get(entry.datetime)?.middle ?? null,
-      bbLower: bbandsMap.get(entry.datetime)?.lower ?? null,
-      supertrend: supertrendMap.get(entry.datetime) ?? null,
-    }));
-  }, [timeSeries, technicalIndicators]);
-
-  // Supertrend standalone chart (price + supertrend)
-  const supertrendChartData = useMemo(() => {
-    const reversedSeries = [...timeSeries].reverse();
-    const supertrendMap = new Map(
-      (technicalIndicators.supertrend ?? []).map((e) => [e.datetime, parseFloat(e.supertrend)])
-    );
-    return reversedSeries.map((entry) => ({
-      date: entry.datetime,
-      close: parseFloat(entry.close),
-      supertrend: supertrendMap.get(entry.datetime) ?? null,
-    }));
-  }, [timeSeries, technicalIndicators]);
-
-  // RSI
-  const rsiChartData = useMemo(() => {
-    if (!technicalIndicators.rsi) return [];
-    return [...technicalIndicators.rsi].reverse().map((entry) => ({
-      date: entry.datetime,
-      rsi: parseFloat(entry.rsi),
-    }));
-  }, [technicalIndicators]);
-
-  // MACD
-  const macdChartData = useMemo(() => {
-    if (!technicalIndicators.macd) return [];
-    return [...technicalIndicators.macd].reverse().map((entry) => ({
-      date: entry.datetime,
-      macd: parseFloat(entry.macd),
-      signal: parseFloat(entry.macd_signal),
-      histogram: parseFloat(entry.macd_hist),
-    }));
-  }, [technicalIndicators]);
-
-  // ATR
-  const atrChartData = useMemo(() => {
-    if (!technicalIndicators.atr) return [];
-    return [...technicalIndicators.atr].reverse().map((entry) => ({
-      date: entry.datetime,
-      atr: parseFloat(entry.atr),
-    }));
-  }, [technicalIndicators]);
-
-  // OBV
-  const obvChartData = useMemo(() => {
-    if (!technicalIndicators.obv) return [];
-    return [...technicalIndicators.obv].reverse().map((entry) => ({
-      date: entry.datetime,
-      obv: parseFloat(entry.obv),
-    }));
-  }, [technicalIndicators]);
 
   return (
     <div className="min-h-screen bg-background">

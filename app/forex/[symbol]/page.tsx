@@ -144,19 +144,6 @@ export default function ForexDetails() {
   const { toast } = useToast();
   const theme = marketThemes.forex;
 
-  if (!symbol) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="mb-4 text-muted-foreground">Forex pair symbol is missing.</p>
-          <Link href="/forexs">
-            <Button variant="outline">Back to Forex Listings</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
 
     if (!symbol) {
@@ -212,6 +199,109 @@ export default function ForexDetails() {
     fetchData();
   }, [symbol, toast]);
 
+  // Hoist derived state + all useMemo above early returns (Rules of Hooks)
+  const timeSeries = forexData?.timeSeries?.values ?? [];
+
+  const priceChartData = useMemo(() => {
+    if (!forexData?.timeSeries || !technicalIndicators) return [];
+    const reversed = [...(forexData.timeSeries.values ?? [])].reverse();
+    const sma20Map = new Map((technicalIndicators.sma?.sma20 ?? []).map((e) => [e.datetime, parseFloat(e.sma)]));
+    const sma50Map = new Map((technicalIndicators.sma?.sma50 ?? []).map((e) => [e.datetime, parseFloat(e.sma)]));
+    const ichimokuMap = new Map(
+      (technicalIndicators.ichimoku ?? []).map((e) => [e.datetime, {
+        tenkan: parseFloat(e.tenkan_sen),
+        kijun: parseFloat(e.kijun_sen),
+        senkou_a: parseFloat(e.senkou_span_a),
+        senkou_b: parseFloat(e.senkou_span_b),
+        chikou: parseFloat(e.chikou_span),
+      }])
+    );
+    return reversed.map((entry) => {
+      const ichi = ichimokuMap.get(entry.datetime);
+      return {
+        date: entry.datetime,
+        close: parseFloat(entry.close),
+        sma20: sma20Map.get(entry.datetime) ?? null,
+        sma50: sma50Map.get(entry.datetime) ?? null,
+        tenkan: ichi?.tenkan ?? null,
+        kijun: ichi?.kijun ?? null,
+        senkou_a: ichi?.senkou_a ?? null,
+        senkou_b: ichi?.senkou_b ?? null,
+        chikou: ichi?.chikou ?? null,
+      };
+    });
+  }, [forexData, technicalIndicators]);
+
+  const ichimokuChartData = useMemo(() => {
+    if (!forexData?.timeSeries || !technicalIndicators) return [];
+    const reversed = [...(forexData.timeSeries.values ?? [])].reverse();
+    const ichimokuMap = new Map(
+      (technicalIndicators.ichimoku ?? []).map((e) => [e.datetime, {
+        tenkan: parseFloat(e.tenkan_sen),
+        kijun: parseFloat(e.kijun_sen),
+        senkou_a: parseFloat(e.senkou_span_a),
+        senkou_b: parseFloat(e.senkou_span_b),
+        chikou: parseFloat(e.chikou_span),
+      }])
+    );
+    return reversed.map((entry) => {
+      const ichi = ichimokuMap.get(entry.datetime);
+      return {
+        date: entry.datetime,
+        close: parseFloat(entry.close),
+        tenkan: ichi?.tenkan ?? null,
+        kijun: ichi?.kijun ?? null,
+        senkou_a: ichi?.senkou_a ?? null,
+        senkou_b: ichi?.senkou_b ?? null,
+        chikou: ichi?.chikou ?? null,
+      };
+    });
+  }, [forexData, technicalIndicators]);
+
+  const rsiChartData = useMemo(() => {
+    return (technicalIndicators?.rsi ?? []).slice().reverse().map((entry) => ({
+      date: entry.datetime,
+      rsi: parseFloat(entry.rsi),
+    }));
+  }, [technicalIndicators]);
+
+  const macdChartData = useMemo(() => {
+    return (technicalIndicators?.macd ?? []).slice().reverse().map((entry) => ({
+      date: entry.datetime,
+      macd: parseFloat(entry.macd),
+      signal: parseFloat(entry.macd_signal),
+      histogram: parseFloat(entry.macd_hist),
+    }));
+  }, [technicalIndicators]);
+
+  const atrChartData = useMemo(() => {
+    return (technicalIndicators?.atr ?? []).slice().reverse().map((entry) => ({
+      date: entry.datetime,
+      atr: parseFloat(entry.atr),
+    }));
+  }, [technicalIndicators]);
+
+  const aroonChartData = useMemo(() => {
+    return (technicalIndicators?.aroon ?? []).slice().reverse().map((entry) => ({
+      date: entry.datetime,
+      aroon_up: parseFloat(entry.aroon_up),
+      aroon_down: parseFloat(entry.aroon_down),
+    }));
+  }, [technicalIndicators]);
+
+  if (!symbol) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="mb-4 text-muted-foreground">Forex pair symbol is missing.</p>
+          <Link href="/forexs">
+            <Button variant="outline">Back to Forex Listings</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -236,113 +326,6 @@ export default function ForexDetails() {
       </div>
     );
   }
-
-  // Prepare base time series arrays (reversed = chronological order)
-  const timeSeries = forexData.timeSeries.values ?? [];
-  const reversedTimeSeries = [...timeSeries].reverse();
-
-  // Build aligned lookup maps for indicator data keyed by datetime
-  const sma20Map = new Map(
-    (technicalIndicators.sma.sma20 ?? []).map((e) => [e.datetime, parseFloat(e.sma)])
-  );
-  const sma50Map = new Map(
-    (technicalIndicators.sma.sma50 ?? []).map((e) => [e.datetime, parseFloat(e.sma)])
-  );
-  const ichimokuMap = new Map(
-    (technicalIndicators.ichimoku ?? []).map((e) => [
-      e.datetime,
-      {
-        tenkan: parseFloat(e.tenkan_sen),
-        kijun: parseFloat(e.kijun_sen),
-        senkou_a: parseFloat(e.senkou_span_a),
-        senkou_b: parseFloat(e.senkou_span_b),
-        chikou: parseFloat(e.chikou_span),
-      },
-    ])
-  );
-
-  // --- useMemo chart data arrays ---
-
-  // Closing Price + SMA + Ichimoku overlay chart
-  const priceChartData = useMemo(() => {
-    return reversedTimeSeries.map((entry) => {
-      const ichi = ichimokuMap.get(entry.datetime);
-      return {
-        date: entry.datetime,
-        close: parseFloat(entry.close),
-        sma20: sma20Map.get(entry.datetime) ?? null,
-        sma50: sma50Map.get(entry.datetime) ?? null,
-        tenkan: ichi?.tenkan ?? null,
-        kijun: ichi?.kijun ?? null,
-        senkou_a: ichi?.senkou_a ?? null,
-        senkou_b: ichi?.senkou_b ?? null,
-        chikou: ichi?.chikou ?? null,
-      };
-    });
-  }, [forexData, technicalIndicators]);
-
-  // Ichimoku Cloud standalone chart (same underlying data)
-  const ichimokuChartData = useMemo(() => {
-    return reversedTimeSeries.map((entry) => {
-      const ichi = ichimokuMap.get(entry.datetime);
-      return {
-        date: entry.datetime,
-        close: parseFloat(entry.close),
-        tenkan: ichi?.tenkan ?? null,
-        kijun: ichi?.kijun ?? null,
-        senkou_a: ichi?.senkou_a ?? null,
-        senkou_b: ichi?.senkou_b ?? null,
-        chikou: ichi?.chikou ?? null,
-      };
-    });
-  }, [forexData, technicalIndicators]);
-
-  // RSI chart data
-  const rsiChartData = useMemo(() => {
-    return (technicalIndicators.rsi ?? [])
-      .slice()
-      .reverse()
-      .map((entry) => ({
-        date: entry.datetime,
-        rsi: parseFloat(entry.rsi),
-      }));
-  }, [technicalIndicators]);
-
-  // MACD chart data
-  const macdChartData = useMemo(() => {
-    return (technicalIndicators.macd ?? [])
-      .slice()
-      .reverse()
-      .map((entry) => ({
-        date: entry.datetime,
-        macd: parseFloat(entry.macd),
-        signal: parseFloat(entry.macd_signal),
-        histogram: parseFloat(entry.macd_hist),
-      }));
-  }, [technicalIndicators]);
-
-  // ATR chart data
-  const atrChartData = useMemo(() => {
-    return (technicalIndicators.atr ?? [])
-      .slice()
-      .reverse()
-      .map((entry) => ({
-        date: entry.datetime,
-        atr: parseFloat(entry.atr),
-      }));
-  }, [technicalIndicators]);
-
-  // Aroon chart data
-  const aroonChartData = useMemo(() => {
-    return (technicalIndicators.aroon ?? [])
-      .slice()
-      .reverse()
-      .map((entry) => ({
-        date: entry.datetime,
-        aroon_up: parseFloat(entry.aroon_up),
-        aroon_down: parseFloat(entry.aroon_down),
-      }));
-  }, [technicalIndicators]);
 
   // Format the EOD date
   const eodDateFormatted = forexData.eod?.datetime

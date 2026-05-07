@@ -246,45 +246,18 @@ export default function StockDetails() {
     }
   }, [symbol, toast]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">
-          Fetching data for {symbol}... This may take up to 2 minutes due to API rate limits.
-        </p>
-      </div>
-    );
-  }
-
-  if (!stockData && !technicalIndicators && errorMessage) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">
-          {errorMessage}{" "}
-          <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
-            Upgrade your plan
-          </a>{" "}
-          for broader market support.
-        </p>
-      </div>
-    );
-  }
-
-  // ── Recharts data preparation ──────────────────────────────────────────────
-  const timeSeries = stockData?.timeSeries?.values || [];
+  // ── Recharts data preparation (hoisted before early returns — Rules of Hooks) ─
+  const timeSeries = stockData?.timeSeries?.values ?? [];
   const labels = useMemo(
-    () => (timeSeries.length ? timeSeries.map((e) => e.datetime).reverse() : []),
+    () => timeSeries.map((e) => e.datetime).reverse(),
     [timeSeries]
   );
   const closingPrices = useMemo(
-    () => (timeSeries.length ? timeSeries.map((e) => parseFloat(e.close)).reverse() : []),
+    () => timeSeries.map((e) => parseFloat(e.close)).reverse(),
     [timeSeries]
   );
   const adjustedClosingPrices = useMemo(
-    () =>
-      timeSeries.length
-        ? timeSeries.map((e) => parseFloat(e.adjusted_close || e.close)).reverse()
-        : [],
+    () => timeSeries.map((e) => parseFloat(e.adjusted_close || e.close)).reverse(),
     [timeSeries]
   );
 
@@ -395,6 +368,30 @@ export default function StockDetails() {
       })),
     [aroonLabels, technicalIndicators]
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">
+          Fetching data for {symbol}... This may take up to 2 minutes due to API rate limits.
+        </p>
+      </div>
+    );
+  }
+
+  if (!stockData && !technicalIndicators && errorMessage) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">
+          {errorMessage}{" "}
+          <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+            Upgrade your plan
+          </a>{" "}
+          for broader market support.
+        </p>
+      </div>
+    );
+  }
 
   const eodDateFormatted = stockData?.eod?.datetime
     ? new Date(stockData.eod.datetime).toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric" })

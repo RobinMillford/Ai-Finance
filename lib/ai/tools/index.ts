@@ -6,7 +6,7 @@
 
 export { financialTools, getCryptoPriceTool, getTechnicalIndicatorsTool } from "./financial";
 export { socialTools, getRedditSentimentTool } from "./social";
-export { searchTools, tavilySearchTool, getMarketIntelligenceTool } from "./search";
+export { searchTools, createSearchTools, createTavilySearchTool, getMarketIntelligenceTool } from "./search";
 
 // Export all tools as a single array
 import { financialTools } from "./financial";

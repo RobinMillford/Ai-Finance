@@ -41,6 +41,15 @@ Focus on: Economic data releases, central bank decisions, geopolitical events, m
 
   researchDataKey: "market",
 
+  searchDomains: [
+    "reuters.com",
+    "bloomberg.com",
+    "fxstreet.com",
+    "dailyfx.com",
+    "investing.com",
+    "cnbc.com",
+  ],
+
   supervisorRouteHint: `Route to:
 - **TechnicalAnalyst**: Exchange rates, pip movements, RSI, MACD, EMA, support/resistance
 - **SentimentAnalyst**: Trader sentiment, community mood, social positioning

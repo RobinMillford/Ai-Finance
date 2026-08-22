@@ -42,6 +42,15 @@ Focus on: Recent news, earnings results, sector trends, analyst opinions, market
 
   researchDataKey: "research",
 
+  searchDomains: [
+    "bloomberg.com",
+    "reuters.com",
+    "cnbc.com",
+    "marketwatch.com",
+    "finance.yahoo.com",
+    "seekingalpha.com",
+  ],
+
   supervisorRouteHint: `Route to:
 - **TechnicalAnalyst**: Stock prices, volume, RSI, MACD, EMA, Bollinger Bands, chart patterns
 - **SentimentAnalyst**: Reddit sentiment, trader mood, social media trends

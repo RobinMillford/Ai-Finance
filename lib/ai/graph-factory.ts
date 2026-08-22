@@ -8,12 +8,16 @@
  *   - Domain-specific system prompts for every node
  *
  * Architecture (identical for every domain):
- *   supervisor → TechnicalAnalyst ─┐
- *             → SentimentAnalyst  ─┼→ supervisor → … → finalResponse → END
- *             → MarketResearcher  ─┘
+ *   supervisor (plan) ─┬→ TechnicalAnalyst ─┐
+ *                      ├→ SentimentAnalyst ─┼─(parallel via Send)→ finalResponse → END
+ *                      └→ MarketResearcher ─┘
  */
 
-import { StateGraph, END, Annotation } from "@langchain/langgraph";
+import {
+  StateGraph,
+  Annotation,
+  Send,
+} from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
   BaseMessage,
@@ -22,10 +26,23 @@ import {
 } from "@langchain/core/messages";
 import { z } from "zod";
 
-import { smartLLM, fastLLM } from "./config";
+import { smartLLM, fastLLM, routingLLM } from "./config";
 import { socialTools } from "./tools/social";
-import { searchTools } from "./tools/search";
-import { collectToolResults } from "./utils";
+import { createSearchTools } from "./tools/search";
+import { collectToolResults, withRetry } from "./utils";
+import {
+  normalizePlan,
+  planSchema,
+  selectPlanningMessages,
+  MAX_PLAN_SIZE,
+  type ValidAgent,
+} from "./plan";
+
+export {
+  VALID_AGENTS,
+  MAX_PLAN_SIZE,
+  normalizePlan,
+} from "./plan";
 
 // ── Config type ───────────────────────────────────────────────────────────────
 
@@ -52,6 +69,13 @@ export interface AdvisorGraphConfig {
   researchDataKey: string;
 
   /**
+   * Tavily `include_domains` allowlist for the MarketResearcher's web search.
+   * Keeps research results relevant to the advisor domain (crypto vs stock vs forex).
+   * Omit or pass empty array for unrestricted search.
+   */
+  searchDomains?: string[];
+
+  /**
    * Domain-specific routing hints injected into the supervisor's system prompt.
    * List what each worker is best for in this domain.
    */
@@ -72,33 +96,28 @@ function makeAgentState() {
     messages: Annotation<BaseMessage[]>({
       reducer: (x, y) => x.concat(y),
     }),
-    next: Annotation<string>({
-      reducer: (x, y) => y ?? x ?? "supervisor",
-      default: () => "supervisor",
+    /**
+     * Agent plan produced by the supervisor (max 3 agents).
+     * Dispatched in parallel via Send API.
+     */
+    plan: Annotation<string[]>({
+      reducer: (x, y) => y ?? x,
+      default: () => [],
     }),
     data: Annotation<Record<string, any>>({
       reducer: (x, y) => ({ ...x, ...y }),
       default: () => ({}),
     }),
+    /**
+     * Number of agents dispatched (set once by supervisor = plan length).
+     * Diagnostic only — the plan cap is enforced by planSchema.max(3).
+     */
     agentCalls: Annotation<number>({
-      reducer: (x, y) => (x || 0) + y,
+      reducer: (x, y) => y ?? x ?? 0,
       default: () => 0,
     }),
   });
 }
-
-const routeSchema = z.object({
-  next: z
-    .enum(["TechnicalAnalyst", "SentimentAnalyst", "MarketResearcher", "FINISH"])
-    .describe(
-      "The next agent to route to.\n" +
-      "- TechnicalAnalyst: prices, charts, technical indicators\n" +
-      "- SentimentAnalyst: social sentiment, community mood\n" +
-      "- MarketResearcher: news, macro, regulatory events\n" +
-      "- FINISH: sufficient data collected to answer the query"
-    ),
-  reasoning: z.string().describe("Brief explanation of why this agent was chosen"),
-});
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
@@ -107,53 +126,60 @@ export function createAdvisorGraph(cfg: AdvisorGraphConfig) {
   const log = (node: string, msg: string) =>
     console.log(`[${cfg.name} ${node}] ${msg}`);
 
-  // ── Supervisor ──────────────────────────────────────────────────────────────
+  // ── Supervisor (planner) ────────────────────────────────────────────────────
   async function supervisorNode(state: typeof AgentState.State) {
-    const agentCalls = state.agentCalls ?? 0;
-
-    if (agentCalls >= 3) {
-      log("Supervisor", `Max agent calls reached (${agentCalls}). Forcing FINISH.`);
-      return {
-        next: "FINISH",
-        messages: [
-          new AIMessage("[Routing to Final Response] All necessary data collected."),
-        ],
-      };
-    }
-
-    const systemPrompt = `You are a routing supervisor for a ${cfg.name.toLowerCase()} advisory system.
+    const systemPrompt = `You are a planning supervisor for a ${cfg.name.toLowerCase()} advisory system.
 
 ${cfg.supervisorRouteHint}
 
-**ROUTING RULES**:
-1. Simple price queries: Call TechnicalAnalyst ONCE, then FINISH.
-2. Indicator queries: Call TechnicalAnalyst ONCE, then FINISH.
-3. Full analysis requests: Call 2-3 relevant agents, then FINISH.
-4. ALWAYS choose FINISH once the collected data answers the user's query.
-5. **${agentCalls} agent calls made so far. Maximum is 3. If >= 2, strongly prefer FINISH.**
+**PLANNING RULES**:
+1. Simple price or indicator queries: plan ONLY TechnicalAnalyst.
+2. Full analysis requests: plan 2-3 relevant agents.
+3. Plan ONLY the agents actually needed — every agent costs latency.
+4. All planned agents run in parallel; they cannot see each other's results.
+5. Maximum ${MAX_PLAN_SIZE} agents.
 
-Current data collected:
-${JSON.stringify(state.data, null, 2)}
+User query is the last message in the conversation. Decide which specialists it needs.`;
 
-Last agent responses:
-${state.messages.slice(-2).map((m) => m.content).join("\n")}
+    const llmWithStructure = routingLLM.withStructuredOutput(planSchema);
+    let response;
+    try {
+      response = await withRetry(() =>
+        llmWithStructure.invoke([
+          new SystemMessage(systemPrompt),
+          // Lean planning input: no raw tool payloads, bounded history.
+          ...selectPlanningMessages(state.messages),
+        ])
+      );
+    } catch (error) {
+      log("Supervisor", `Planning failed: ${error instanceof Error ? error.message : error}. Falling back to full analysis.`);
+      return finalizePlan(["TechnicalAnalyst"], "fallback: planning failed");
+    }
 
-Does the collected data already answer the user's query? If YES, route to FINISH.`;
+    const plan = normalizePlan(response.agents);
+    log("Supervisor", `→ [${plan.join(", ")}] — ${response.reasoning}`);
 
-    const llmWithStructure = smartLLM.withStructuredOutput(routeSchema);
-    const response = await llmWithStructure.invoke([
-      new SystemMessage(systemPrompt),
-      ...state.messages,
-    ]);
+    return finalizePlan(plan, response.reasoning);
+  }
 
-    log("Supervisor", `→ ${response.next} — ${response.reasoning} (calls: ${agentCalls})`);
-
+  function finalizePlan(plan: ValidAgent[], reasoning: string) {
     return {
-      next: response.next,
+      plan,
+      agentCalls: plan.length,
       messages: [
-        new AIMessage(`[Routing to ${response.next}] ${response.reasoning}`),
+        new AIMessage(`[Plan: ${plan.join(", ") || "direct answer"}] ${reasoning}`),
       ],
     };
+  }
+
+  /**
+   * Conditional edge after supervisor.
+   * Dispatches all planned agents in parallel via Send API, or goes
+   * straight to finalResponse when the plan is empty.
+   */
+  function routeFromSupervisor(state: typeof AgentState.State) {
+    if (!state.plan?.length) return "finalResponse";
+    return state.plan.map((agent) => new Send(agent, state));
   }
 
   // ── Technical Analyst ───────────────────────────────────────────────────────
@@ -161,10 +187,10 @@ Does the collected data already answer the user's query? If YES, route to FINISH
     const llmWithTools = fastLLM.bindTools(cfg.technicalTools);
     log("TechnicalAnalyst", `Processing with ${state.messages.length} messages`);
 
-    const response = await llmWithTools.invoke([
+    const response = await withRetry(() => llmWithTools.invoke([
       new SystemMessage(cfg.technicalSystemPrompt),
       ...state.messages,
-    ]);
+    ]));
 
     if (response.tool_calls?.length) {
       log("TechnicalAnalyst", `Executing ${response.tool_calls.length} tool call(s)`);
@@ -175,8 +201,6 @@ Does the collected data already answer the user's query? If YES, route to FINISH
       return {
         messages: [response, ...toolResults.messages],
         data: { technical: technicalData },
-        next: "supervisor",
-        agentCalls: 1,
       };
     }
 
@@ -187,8 +211,6 @@ Does the collected data already answer the user's query? If YES, route to FINISH
 
     return {
       messages: [new AIMessage(cleanedContent)],
-      next: "supervisor",
-      agentCalls: 1,
     };
   }
 
@@ -196,10 +218,10 @@ Does the collected data already answer the user's query? If YES, route to FINISH
   async function sentimentAnalystNode(state: typeof AgentState.State) {
     const llmWithTools = fastLLM.bindTools(socialTools);
 
-    const response = await llmWithTools.invoke([
+    const response = await withRetry(() => llmWithTools.invoke([
       new SystemMessage(cfg.sentimentSystemPrompt),
       ...state.messages,
-    ]);
+    ]));
 
     if (response.tool_calls?.length) {
       const toolNode = new ToolNode(socialTools);
@@ -208,8 +230,6 @@ Does the collected data already answer the user's query? If YES, route to FINISH
       return {
         messages: [response, ...toolResults.messages],
         data: { sentiment: collectToolResults(toolResults.messages) },
-        next: "supervisor",
-        agentCalls: 1,
       };
     }
 
@@ -220,29 +240,27 @@ Does the collected data already answer the user's query? If YES, route to FINISH
 
     return {
       messages: [new AIMessage(cleanedContent)],
-      next: "supervisor",
-      agentCalls: 1,
     };
   }
 
   // ── Market Researcher ───────────────────────────────────────────────────────
-  async function marketResearcherNode(state: typeof AgentState.State) {
-    const llmWithTools = fastLLM.bindTools(searchTools);
+  const researchTools = createSearchTools(cfg.searchDomains);
 
-    const response = await llmWithTools.invoke([
+  async function marketResearcherNode(state: typeof AgentState.State) {
+    const llmWithTools = fastLLM.bindTools(researchTools);
+
+    const response = await withRetry(() => llmWithTools.invoke([
       new SystemMessage(cfg.researchSystemPrompt),
       ...state.messages,
-    ]);
+    ]));
 
     if (response.tool_calls?.length) {
-      const toolNode = new ToolNode(searchTools);
+      const toolNode = new ToolNode(researchTools);
       const toolResults = await toolNode.invoke({ messages: [response] });
 
       return {
         messages: [response, ...toolResults.messages],
         data: { [cfg.researchDataKey]: collectToolResults(toolResults.messages) },
-        next: "supervisor",
-        agentCalls: 1,
       };
     }
 
@@ -253,17 +271,29 @@ Does the collected data already answer the user's query? If YES, route to FINISH
 
     return {
       messages: [new AIMessage(cleanedContent)],
-      next: "supervisor",
-      agentCalls: 1,
     };
   }
 
   // ── Final Response ──────────────────────────────────────────────────────────
   async function finalResponseNode(state: typeof AgentState.State) {
-    const response = await smartLLM.invoke([
-      new SystemMessage(cfg.finalSystemPrompt(state.data)),
-      ...state.messages,
-    ]);
+    // All collected data is already serialized into the system prompt via
+    // cfg.finalSystemPrompt(state.data). Replaying the full message history
+    // (raw tool payloads, worker summaries, plan chatter) would double-count
+    // tokens for zero synthesis value — and blows small TPM budgets.
+    const lastUserMessage = [...state.messages]
+      .reverse()
+      .find((m: any) =>
+        typeof m?._getType === "function"
+          ? m._getType() === "human"
+          : m?.type === "human" || m?.role === "user" || m?.role === "human"
+      );
+
+    const response = await withRetry(() =>
+      smartLLM.invoke([
+        new SystemMessage(cfg.finalSystemPrompt(state.data)),
+        ...(lastUserMessage ? [lastUserMessage] : []),
+      ])
+    );
 
     const cleanedContent =
       typeof response.content === "string"
@@ -272,18 +302,12 @@ Does the collected data already answer the user's query? If YES, route to FINISH
 
     return {
       messages: [new AIMessage(cleanedContent)],
-      next: END,
     };
   }
 
-  // ── Routing ─────────────────────────────────────────────────────────────────
-  function routeAfterSupervisor(state: typeof AgentState.State): string {
-    const next = state.next;
-    if (next === "FINISH" || !next || next === "__end__") return "finalResponse";
-    return next;
-  }
-
   // ── Compile ─────────────────────────────────────────────────────────────────
+  // Supervisor plans once → all planned agents run in parallel (Send API)
+  // → results merge into state.data → finalResponse synthesizes.
   return new StateGraph(AgentState)
     .addNode("supervisor", supervisorNode)
     .addNode("TechnicalAnalyst", technicalAnalystNode)
@@ -291,10 +315,10 @@ Does the collected data already answer the user's query? If YES, route to FINISH
     .addNode("MarketResearcher", marketResearcherNode)
     .addNode("finalResponse", finalResponseNode)
     .addEdge("__start__", "supervisor")
-    .addConditionalEdges("supervisor", routeAfterSupervisor)
-    .addEdge("TechnicalAnalyst", "supervisor")
-    .addEdge("SentimentAnalyst", "supervisor")
-    .addEdge("MarketResearcher", "supervisor")
+    .addConditionalEdges("supervisor", routeFromSupervisor)
+    .addEdge("TechnicalAnalyst", "finalResponse")
+    .addEdge("SentimentAnalyst", "finalResponse")
+    .addEdge("MarketResearcher", "finalResponse")
     .addEdge("finalResponse", "__end__")
     .compile();
 }

@@ -10,71 +10,113 @@
  */
 
 import { AdvisorGraphConfig } from "../graph-factory";
+import {
+  normalizePlan,
+  MAX_PLAN_SIZE,
+  selectPlanningMessages,
+  MAX_PLANNING_MESSAGES,
+} from "../plan";
 
-// ── routeAfterSupervisor logic (extracted for unit testing) ──────────────────
-//
-// The factory closes over routeAfterSupervisor, so we test the same logic
-// by re-implementing it here to ensure any future refactor keeps the contract.
+// ── selectPlanningMessages logic ──────────────────────────────────────────────
 
-function routeAfterSupervisor(next: string | undefined): string {
-  if (next === "FINISH" || !next || next === "__end__") return "finalResponse";
-  return next;
+function msg(type: string, content: string) {
+  return { _getType: () => type, content } as any;
 }
 
-describe("routeAfterSupervisor", () => {
-  it("routes FINISH → finalResponse", () => {
-    expect(routeAfterSupervisor("FINISH")).toBe("finalResponse");
+describe("selectPlanningMessages", () => {
+  it("returns empty array for empty input", () => {
+    expect(selectPlanningMessages([])).toEqual([]);
   });
 
-  it("routes undefined → finalResponse", () => {
-    expect(routeAfterSupervisor(undefined)).toBe("finalResponse");
+  it("drops tool messages (raw payloads are planning noise)", () => {
+    const messages = [
+      msg("human", "analyze BTC"),
+      msg("tool", JSON.stringify({ huge: "payload" })),
+      msg("ai", "price is high"),
+    ];
+    const result = selectPlanningMessages(messages);
+    expect(result).toHaveLength(2);
+    expect(result.map((m) => m.content)).toEqual(["analyze BTC", "price is high"]);
   });
 
-  it("routes __end__ → finalResponse", () => {
-    expect(routeAfterSupervisor("__end__")).toBe("finalResponse");
+  it("keeps tool messages only when nothing else exists", () => {
+    const result = selectPlanningMessages([msg("tool", '{"a":1}')]);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("ai");
   });
 
-  it("routes TechnicalAnalyst → TechnicalAnalyst", () => {
-    expect(routeAfterSupervisor("TechnicalAnalyst")).toBe("TechnicalAnalyst");
+  it("caps output at MAX_PLANNING_MESSAGES, keeping most recent", () => {
+    const messages = Array.from({ length: 20 }, (_, i) =>
+      msg(i % 2 ? "ai" : "human", `msg ${i}`)
+    );
+    const result = selectPlanningMessages(messages);
+    expect(result.length).toBe(MAX_PLANNING_MESSAGES);
+    expect(result[result.length - 1].content).toBe("msg 19");
+    expect(result[0].content).toBe(`msg ${20 - MAX_PLANNING_MESSAGES}`);
   });
 
-  it("routes SentimentAnalyst → SentimentAnalyst", () => {
-    expect(routeAfterSupervisor("SentimentAnalyst")).toBe("SentimentAnalyst");
+  it("truncates long string content", () => {
+    const long = "x".repeat(5000);
+    const result = selectPlanningMessages([msg("human", long)]);
+    const content = result[0].content as string;
+    expect(content.length).toBeLessThan(long.length);
+    expect(content.endsWith("…[truncated]")).toBe(true);
   });
 
-  it("routes MarketResearcher → MarketResearcher", () => {
-    expect(routeAfterSupervisor("MarketResearcher")).toBe("MarketResearcher");
+  it("maps human → user and ai → assistant roles", () => {
+    const result = selectPlanningMessages([
+      msg("human", "q"),
+      msg("ai", "a"),
+    ]);
+    expect(result.map((m) => m.type)).toEqual(["human", "ai"]);
   });
 });
 
-// ── agentCalls cap logic ──────────────────────────────────────────────────────
+// ── normalizePlan logic ───────────────────────────────────────────────────────
 //
-// The supervisor forces FINISH at agentCalls >= 3. Test the threshold condition
-// independently so regressions are caught without an LLM.
+// The supervisor's raw LLM plan is normalized before dispatch:
+// invalid agents dropped, duplicates removed, capped at MAX_PLAN_SIZE.
 
-function shouldForceFINISH(agentCalls: number): boolean {
-  return agentCalls >= 3;
-}
-
-describe("supervisor agentCalls cap", () => {
-  it("does NOT force FINISH at 0 calls", () => {
-    expect(shouldForceFINISH(0)).toBe(false);
+describe("normalizePlan", () => {
+  it("returns empty array for non-array input", () => {
+    expect(normalizePlan(undefined)).toEqual([]);
+    expect(normalizePlan(null)).toEqual([]);
+    expect(normalizePlan("TechnicalAnalyst")).toEqual([]);
   });
 
-  it("does NOT force FINISH at 1 call", () => {
-    expect(shouldForceFINISH(1)).toBe(false);
+  it("keeps valid agents", () => {
+    expect(normalizePlan(["TechnicalAnalyst"])).toEqual(["TechnicalAnalyst"]);
+    expect(
+      normalizePlan(["TechnicalAnalyst", "SentimentAnalyst", "MarketResearcher"])
+    ).toEqual(["TechnicalAnalyst", "SentimentAnalyst", "MarketResearcher"]);
   });
 
-  it("does NOT force FINISH at 2 calls", () => {
-    expect(shouldForceFINISH(2)).toBe(false);
+  it("drops invalid agent names", () => {
+    expect(
+      normalizePlan(["TechnicalAnalyst", "FINISH", "bogus"])
+    ).toEqual(["TechnicalAnalyst"]);
   });
 
-  it("forces FINISH at exactly 3 calls", () => {
-    expect(shouldForceFINISH(3)).toBe(true);
+  it("removes duplicate agents", () => {
+    expect(
+      normalizePlan(["TechnicalAnalyst", "TechnicalAnalyst"])
+    ).toEqual(["TechnicalAnalyst"]);
   });
 
-  it("forces FINISH above 3 calls", () => {
-    expect(shouldForceFINISH(10)).toBe(true);
+  it("caps plan at MAX_PLAN_SIZE", () => {
+    const oversized = [
+      "TechnicalAnalyst",
+      "SentimentAnalyst",
+      "MarketResearcher",
+      // extra entries beyond the enum would be dropped, so simulate by
+      // verifying the constant contract instead
+    ];
+    expect(normalizePlan(oversized).length).toBeLessThanOrEqual(MAX_PLAN_SIZE);
+    expect(MAX_PLAN_SIZE).toBe(3);
+  });
+
+  it("returns empty array when all entries invalid", () => {
+    expect(normalizePlan(["FINISH", "", null])).toEqual([]);
   });
 });
 

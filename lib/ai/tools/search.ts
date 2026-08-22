@@ -9,70 +9,66 @@ import { z } from "zod";
 import { API_KEYS } from "../config";
 
 /**
- * Tool: Web Search for Crypto News
- * Simplified web search tool for market intelligence
+ * Tool: Web Search for Market News
+ * Simplified web search tool for market intelligence.
+ * Search domains are configurable per advisor domain (crypto/stock/forex).
  */
-export const tavilySearchTool = new DynamicStructuredTool({
-  name: "tavily_search_results_json",
-  description:
-    "Searches the web for cryptocurrency news, articles, and updates. " +
-    "Use this to find recent news, regulatory changes, or market events.",
-  schema: z.object({
-    query: z.string().describe("Search query for cryptocurrency news and updates"),
-  }),
-  func: async ({ query }) => {
-    try {
-      // Call Tavily API directly
-      const response = await fetch("https://api.tavily.com/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          api_key: API_KEYS.tavily,
-          query,
-          search_depth: "advanced",
-          max_results: 5,
-          include_answer: true,
-          include_raw_content: false,
-          include_domains: [
-            "coindesk.com",
-            "cointelegraph.com",
-            "decrypt.co",
-            "bloomberg.com",
-            "reuters.com",
-            "forbes.com",
-          ],
-        }),
-      });
+export function createTavilySearchTool(includeDomains?: string[]) {
+  return new DynamicStructuredTool({
+    name: "tavily_search_results_json",
+    description:
+      "Searches the web for market news, articles, and updates. " +
+      "Use this to find recent news, regulatory changes, or market events.",
+    schema: z.object({
+      query: z.string().describe("Search query for market news and updates"),
+    }),
+    func: async ({ query }) => {
+      try {
+        // Call Tavily API directly
+        const response = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            api_key: API_KEYS.tavily,
+            query,
+            search_depth: "advanced",
+            max_results: 5,
+            include_answer: true,
+            include_raw_content: false,
+            ...(includeDomains?.length ? { include_domains: includeDomains } : {}),
+          }),
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
+          return JSON.stringify({
+            error: "Failed to fetch search results",
+            query,
+          });
+        }
+
+        const data = await response.json();
+
+        // Format results
         return JSON.stringify({
-          error: "Failed to fetch search results",
+          query,
+          answer: data.answer || "",
+          results: data.results?.slice(0, 5).map((r: any) => ({
+            title: r.title,
+            url: r.url,
+            content: r.content?.slice(0, 200) + "...",
+          })) || [],
+        });
+      } catch (error) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : "Search failed",
           query,
         });
       }
-
-      const data = await response.json();
-      
-      // Format results
-      return JSON.stringify({
-        query,
-        answer: data.answer || "",
-        results: data.results?.slice(0, 5).map((r: any) => ({
-          title: r.title,
-          url: r.url,
-          content: r.content?.slice(0, 200) + "...",
-        })) || [],
-      });
-    } catch (error) {
-      return JSON.stringify({
-        error: error instanceof Error ? error.message : "Search failed",
-        query,
-      });
-    }
-  },
-});
+    },
+  });
+}
 
 /**
  * Tool: Get Market Intelligence
@@ -163,9 +159,20 @@ export const getMarketIntelligenceTool = new DynamicStructuredTool({
 });
 
 /**
- * Export all search and research tools
+ * Default search tools (no domain restriction) — kept for backward compatibility.
  */
 export const searchTools = [
-  tavilySearchTool,
-  getMarketIntelligenceTool,
+  ...createSearchTools(),
 ];
+
+/**
+ * Create a domain-specific search toolset.
+ *
+ * @param includeDomains Tavily `include_domains` allowlist. Omit/empty = no restriction.
+ */
+export function createSearchTools(includeDomains?: string[]) {
+  return [
+    createTavilySearchTool(includeDomains),
+    getMarketIntelligenceTool,
+  ];
+}

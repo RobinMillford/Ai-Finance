@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { cryptoAdvisorGraph } from "@/lib/ai/graph";
 import { trimToTokenBudget } from "@/lib/ai/utils";
+import { advisorStreamEvents } from "@/lib/ai/stream-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,83 +61,16 @@ export async function POST(req: NextRequest) {
         const encoder = new TextEncoder();
         
         try {
-          // Stream graph events as they occur
-          const eventStream = await cryptoAdvisorGraph.stream(
-            {
-              messages: langchainMessages,
-            },
-            {
-              streamMode: "values",
-            }
-          );
-          
-          // Process each event from the graph
-          for await (const event of eventStream) {
-            // Extract the current node being executed
-            const nodeData = event as any;
-            const messages = nodeData.messages || [];
-            const lastMessage = messages[messages.length - 1];
-            const next = nodeData.next;
-            
-            // Determine which agent is active
-            let agentStatus = null;
-            let messageContent = "";
-            
-            if (lastMessage) {
-              messageContent = typeof lastMessage.content === "string" 
-                ? lastMessage.content 
-                : JSON.stringify(lastMessage.content);
-              
-              // Parse routing messages
-              if (messageContent.includes("[Routing to")) {
-                const match = messageContent.match(/\[Routing to (\w+)\]/);
-                if (match) {
-                  agentStatus = {
-                    agent: match[1],
-                    status: "routing",
-                    message: messageContent.replace(/\[Routing to \w+\]\s*/, ""),
-                  };
-                }
-              } else if (messageContent.includes("Technical Analyst")) {
-                agentStatus = {
-                  agent: "TechnicalAnalyst",
-                  status: "working",
-                  message: "Analyzing price and technical indicators...",
-                };
-              } else if (messageContent.includes("Sentiment Analyst")) {
-                agentStatus = {
-                  agent: "SentimentAnalyst",
-                  status: "working",
-                  message: "Analyzing social sentiment...",
-                };
-              } else if (messageContent.includes("Market Researcher")) {
-                agentStatus = {
-                  agent: "MarketResearcher",
-                  status: "working",
-                  message: "Researching market intelligence...",
-                };
-              }
-            }
-            
-            // Check if this is the final response
-            const isFinalResponse = next === "__end__" || !next;
-            
-            // Send event to client
-            const eventData = {
-              type: isFinalResponse ? "final" : "agent",
-              agent: agentStatus?.agent || next || "unknown",
-              status: agentStatus?.status || "working",
-              message: isFinalResponse ? messageContent : (agentStatus?.message || "Processing..."),
-              data: nodeData.data || {},
-              timestamp: new Date().toISOString(),
-            };
-            
-            // Format as SSE
+          // Stream graph events (plan → parallel workers → synthesis)
+          for await (const ev of advisorStreamEvents(cryptoAdvisorGraph, {
+            messages: langchainMessages,
+          })) {
+            const eventData = ev;
             const sseMessage = `data: ${JSON.stringify(eventData)}\n\n`;
             controller.enqueue(encoder.encode(sseMessage));
-            
-            // If this is the final response, close the stream
-            if (isFinalResponse) {
+
+            // Close on final response
+            if (ev.type === "final") {
               controller.close();
               return;
             }

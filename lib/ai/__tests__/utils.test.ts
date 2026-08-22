@@ -1,4 +1,9 @@
-import { trimToTokenBudget, collectToolResults } from "../utils";
+import {
+  trimToTokenBudget,
+  collectToolResults,
+  withRetry,
+  isTransientError,
+} from "../utils";
 
 // ── trimToTokenBudget ─────────────────────────────────────────────────────────
 
@@ -22,18 +27,18 @@ describe("trimToTokenBudget", () => {
   });
 
   it("drops oldest messages when budget is tight", () => {
-    // Each message is 40 chars → ~10 tokens; budget = 15 → only last message fits
-    const a = msg("user", "a".repeat(40));
-    const b = msg("assistant", "b".repeat(40));
-    const c = msg("user", "c".repeat(40));
-    const result = trimToTokenBudget([a, b, c], 15);
-    expect(result).toEqual([c]);
+    // "hello world" = exactly 2 tokens; budget = 5 → only last 2 messages fit
+    const a = msg("user", "hello world");
+    const b = msg("assistant", "hello world");
+    const c = msg("user", "hello world");
+    const result = trimToTokenBudget([a, b, c], 5);
+    expect(result).toEqual([b, c]);
   });
 
   it("keeps newest N messages that fit within budget", () => {
-    // 8 chars → 2 tokens per message; budget 10 → last 5 messages fit
-    const messages = Array.from({ length: 10 }, (_, i) =>
-      msg("user", "12345678") // exactly 2 tokens each
+    // "hello world" = exactly 2 tokens per message; budget 10 → last 5 fit
+    const messages = Array.from({ length: 10 }, () =>
+      msg("user", "hello world")
     );
     const result = trimToTokenBudget(messages, 10);
     expect(result.length).toBe(5);
@@ -44,10 +49,10 @@ describe("trimToTokenBudget", () => {
     const original = process.env.AI_HISTORY_TOKEN_BUDGET;
     process.env.AI_HISTORY_TOKEN_BUDGET = "9999";
 
-    const a = msg("user", "a".repeat(40));  // ~10 tokens
-    const b = msg("user", "b".repeat(40));  // ~10 tokens
-    // explicit budget = 12 → only last message fits
-    const result = trimToTokenBudget([a, b], 12);
+    const a = msg("user", "hello world");  // 2 tokens
+    const b = msg("user", "hello world");  // 2 tokens
+    // explicit budget = 3 → only last message fits
+    const result = trimToTokenBudget([a, b], 3);
     expect(result).toEqual([b]);
 
     process.env.AI_HISTORY_TOKEN_BUDGET = original ?? "";
@@ -55,10 +60,10 @@ describe("trimToTokenBudget", () => {
 
   it("uses AI_HISTORY_TOKEN_BUDGET env var when no explicit budget given", () => {
     const original = process.env.AI_HISTORY_TOKEN_BUDGET;
-    process.env.AI_HISTORY_TOKEN_BUDGET = "12";
+    process.env.AI_HISTORY_TOKEN_BUDGET = "3";
 
-    const a = msg("user", "a".repeat(40));  // ~10 tokens
-    const b = msg("user", "b".repeat(40));  // ~10 tokens
+    const a = msg("user", "hello world");  // 2 tokens
+    const b = msg("user", "hello world");  // 2 tokens
     const result = trimToTokenBudget([a, b]);
     expect(result).toEqual([b]);
 
@@ -134,11 +139,100 @@ describe("collectToolResults", () => {
     expect(collectToolResults([msg])).toEqual({ unknown: { val: 1 } });
   });
 
-  it("last write wins when multiple tool messages share a name", () => {
+  it("aggregates repeated tool calls into an array (no data loss)", () => {
     const messages = [
       makeToolMessage("prices", JSON.stringify({ BTC: 50000 })),
       makeToolMessage("prices", JSON.stringify({ BTC: 60000 })),
     ];
-    expect(collectToolResults(messages)).toEqual({ prices: { BTC: 60000 } });
+    expect(collectToolResults(messages)).toEqual({
+      prices: [{ BTC: 50000 }, { BTC: 60000 }],
+    });
+  });
+
+  it("aggregates three or more repeated tool calls into an array", () => {
+    const messages = [
+      makeToolMessage("prices", JSON.stringify({ BTC: 50000 })),
+      makeToolMessage("prices", JSON.stringify({ BTC: 60000 })),
+      makeToolMessage("prices", "raw text"),
+    ];
+    expect(collectToolResults(messages)).toEqual({
+      prices: [{ BTC: 50000 }, { BTC: 60000 }, "raw text"],
+    });
+  });
+});
+
+// ── withRetry / isTransientError ──────────────────────────────────────────────
+
+describe("isTransientError", () => {
+  it.each([
+    ["429 Too Many Requests", true],
+    ["rate_limit_exceeded", true],
+    ["503 Service Unavailable", true],
+    ["Request timeout", true],
+    ["fetch failed", true],
+    ["model overloaded", true],
+    ["Invalid API Key", false],
+    ["invalid_request_error", false],
+    ["413 Request too large for model", false],
+    ["request too large: reduce message size", false],
+  ])("%s → %s", (message, expected) => {
+    expect(isTransientError(new Error(message))).toBe(expected);
+  });
+
+  it("returns false for non-Error values", () => {
+    expect(isTransientError("429")).toBe(false);
+    expect(isTransientError(null)).toBe(false);
+  });
+});
+
+describe("withRetry", () => {
+  it("returns value on first success", async () => {
+    const result = await withRetry(async () => "ok", 2, 1);
+    expect(result).toBe("ok");
+  });
+
+  it("retries transient errors and succeeds", async () => {
+    let attempts = 0;
+    const result = await withRetry(
+      async () => {
+        attempts++;
+        if (attempts < 3) throw new Error("429 rate_limit_exceeded");
+        return "recovered";
+      },
+      2,
+      1
+    );
+    expect(result).toBe("recovered");
+    expect(attempts).toBe(3);
+  });
+
+  it("throws immediately on non-transient error", async () => {
+    let attempts = 0;
+    await expect(
+      withRetry(
+        async () => {
+          attempts++;
+          throw new Error("Invalid API Key");
+        },
+        2,
+        1
+      )
+    ).rejects.toThrow("Invalid API Key");
+    expect(attempts).toBe(1);
+  });
+
+  it("throws after exhausting retries on persistent transient errors", async () => {
+    let attempts = 0;
+    await expect(
+      withRetry(
+        async () => {
+          attempts++;
+          throw new Error("503 overloaded");
+        },
+        2,
+        1
+      )
+    ).rejects.toThrow("503 overloaded");
+    expect(attempts).toBe(3); // initial + 2 retries
   });
 });

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { forexAdvisorGraph } from "@/lib/ai/forex-graph";
 import { trimToTokenBudget } from "@/lib/ai/utils";
+import { advisorStreamEvents } from "@/lib/ai/stream-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,63 +58,16 @@ export async function POST(req: NextRequest) {
         const encoder = new TextEncoder();
         
         try {
-          // Stream graph events
-          const eventStream = await forexAdvisorGraph.stream(
-            {
-              messages: langchainMessages,
-            },
-            {
-              streamMode: "values",
-            }
-          );
-          
-          // Process each event
-          for await (const event of eventStream) {
-            const nodeData = event as any;
-            const messages = nodeData.messages || [];
-            const lastMessage = messages[messages.length - 1];
-            const next = nodeData.next;
-            
-            let agentStatus = null;
-            let messageContent = "";
-            
-            if (lastMessage) {
-              messageContent = typeof lastMessage.content === "string" 
-                ? lastMessage.content 
-                : JSON.stringify(lastMessage.content);
-              
-              // Parse routing messages
-              if (messageContent.includes("[Routing to")) {
-                const match = messageContent.match(/\[Routing to (\w+)\]/);
-                if (match) {
-                  agentStatus = {
-                    agent: match[1],
-                    status: "routing",
-                    message: messageContent.replace(/\[Routing to \w+\]\s*/, ""),
-                  };
-                }
-              }
-            }
-            
-            // Check if final response
-            const isFinalResponse = next === "__end__" || !next;
-            
-            // Send event to client
-            const eventData = {
-              type: isFinalResponse ? "final" : "agent",
-              agent: agentStatus?.agent || next || "unknown",
-              status: agentStatus?.status || "working",
-              message: isFinalResponse ? messageContent : (agentStatus?.message || "Processing..."),
-              data: nodeData.data || {},
-              timestamp: new Date().toISOString(),
-            };
-            
-            // Format as SSE
+          // Stream graph events (plan → parallel workers → synthesis)
+          for await (const ev of advisorStreamEvents(forexAdvisorGraph, {
+            messages: langchainMessages,
+          })) {
+            const eventData = ev;
             const sseMessage = `data: ${JSON.stringify(eventData)}\n\n`;
             controller.enqueue(encoder.encode(sseMessage));
-            
+
             // Close on final response
-            if (isFinalResponse) {
+            if (ev.type === "final") {
               controller.close();
               return;
             }

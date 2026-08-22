@@ -42,6 +42,15 @@ Research market context and external factors. Summarise key news, regulatory cha
 
   researchDataKey: "market",
 
+  searchDomains: [
+    "coindesk.com",
+    "cointelegraph.com",
+    "decrypt.co",
+    "theblock.co",
+    "bloomberg.com",
+    "reuters.com",
+  ],
+
   supervisorRouteHint: `Route to:
 - **TechnicalAnalyst**: Price, charts, RSI, MACD, EMA, BBANDS, OBV, on-chain metrics
 - **SentimentAnalyst**: Reddit sentiment, FOMO/FUD, community mood

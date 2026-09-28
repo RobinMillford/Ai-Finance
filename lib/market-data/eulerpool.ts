@@ -14,13 +14,19 @@
  *   - Free-tier real-time equity fields may be delayed (15 min) — freshness
  *     metadata must never claim "live" from delayed plans.
  *
- * Endpoints used in Phase 1 (documented, not invented):
- *   GET /equity/candles/{identifier}?range=1y|2y|5y|max   → OHLCV (array of
- *     { timestamp(ms), open, high, low, close }) — volume often absent
- *   GET /equity/quotes/{identifier}                        → quote
- *   GET /equity/overview/{identifier}                      → profile + key ratios
- *   GET /equity/incomestatement/{identifier}               → income statements
- *   GET /balance sheet + cash flow follow the same {identifier} shape
+ * Endpoints used in Phase 1 (VERIFIED against the live API + its OpenAPI spec
+ * at GET /api/1/documentation/yaml — the live API is the arbiter, not prose docs):
+ *   GET /equity/candles/{identifier}?range=1m..max   → OHLCV array of
+ *     { timestamp(ms), open, high, low, close } — volume often absent
+ *   GET /equity/quotes/{identifier}                  → HISTORICAL {timestamp,
+ *     price} series (often empty for plain tickers) — NOT a current quote
+ *   GET /equity/overview/{identifier}                → profile + ratios,
+ *     including a current `price` field (corroborates the candle close)
+ *   GET /equity/incomestatement/{identifier}         → income statements
+ *   (balance sheet + cash flow follow the same {identifier} shape)
+ *
+ * The current quote for a symbol is therefore derived from the LATEST candle:
+ * real OHLC + a provider timestamp, so asOf/freshness stay honest.
  *
  * No SDK installed deliberately (§35): a thin internal adapter keeps control
  * of retries, timeouts, normalization, and caching in one place.
@@ -144,6 +150,23 @@ export async function eulerpoolFetch<T = any>(
         throw new ProviderError(message, 'unavailable', 502);
       }
 
+      // Some Eulerpool plans return Twelve-Data-shaped error bodies on HTTP 200
+      // ({ code, message, status: 'error' }) — notably when a per-minute quota
+      // is exhausted. Classify them like the Twelve Data client does (§12).
+      const errBody = data as { code?: number | string; message?: string; status?: unknown };
+      if (errBody && typeof errBody === 'object' && errBody.status === 'error') {
+        const message = String(errBody.message || 'Provider returned an error');
+        if (errBody.code === 429 || /limit/i.test(message)) {
+          lastError = new ProviderError(message, 'rate_limited', 429);
+          if (attempt < maxRetries) continue;
+          throw lastError;
+        }
+        if (errBody.code === 404 || /not found|invalid|unknown symbol/i.test(message)) {
+          throw new ProviderError(message, 'bad_symbol', 404);
+        }
+        throw new ProviderError(message, 'unavailable', 502);
+      }
+
       return data;
     } catch (error) {
       if (error instanceof ProviderError) throw error;
@@ -166,6 +189,12 @@ export async function eulerpoolFetch<T = any>(
   throw lastError ?? new ProviderError('Eulerpool request failed', 'unavailable', 502);
 }
 
+/** ISO string for a parseable date, else null — never throws (§18: no invention). */
+function safeIso(value: unknown): string | null {
+  const ms = typeof value === 'number' ? value : Date.parse(String(value));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 function num(value: unknown): number | null {
   if (value === undefined || value === null || value === '') return null;
   const parsed = typeof value === 'number' ? value : parseFloat(String(value));
@@ -179,10 +208,9 @@ export function normalizeEulerpoolQuote(
   retrievedAt: string
 ): Quote {
   const price = num(raw?.price ?? raw?.close ?? raw?.last);
-  const asOf =
-    raw?.timestamp
-      ? new Date(typeof raw.timestamp === 'number' ? raw.timestamp : Date.parse(raw.timestamp)).toISOString()
-      : null;
+  // Provider timestamps vary (epoch ms, ISO, date-only) and can be junk — an
+  // unparsable value means asOf is UNKNOWN, never a thrown error.
+  const asOf = raw?.timestamp !== undefined && raw?.timestamp !== null ? safeIso(raw.timestamp) : null;
   return {
     symbol: raw?.ticker || raw?.symbol || symbol,
     name: raw?.name,
@@ -275,7 +303,9 @@ export function normalizeEulerpoolStatements(
   const rows: any[] = Array.isArray(raw) ? raw : raw?.data ?? [];
   const metrics: FundamentalMetric[] = [];
   for (const row of rows) {
-    const period = row?.period ? new Date(row.period).toISOString() : null;
+    // Periods can arrive in unexpected formats on live data — null beats a
+    // thrown `Invalid time value` that would lose the WHOLE statement (§18).
+    const period = safeIso(row?.period);
     for (const [key, value] of Object.entries(row ?? {})) {
       if (TEXT_FIELDS.has(key)) continue;
       const numValue = num(value);
@@ -309,10 +339,39 @@ export async function eulerpoolGetCandles(
   return normalizeEulerpoolCandles(raw, identifier);
 }
 
-/** Fetch the normalized quote for a ticker/ISIN. */
+/**
+ * Fetch the normalized current quote for a ticker/ISIN.
+ *
+ * Verified against the live API (2026-09): `/equity/quotes/{id}` is a
+ * historical {timestamp, price} series (and frequently EMPTY for plain
+ * tickers), so the quote is derived from the latest daily candle — real
+ * OHLC, real provider timestamp, real previous close. `overview.price`
+ * independently corroborates this value.
+ */
 export async function eulerpoolGetQuote(symbol: string, retrievedAt = new Date().toISOString()) {
-  const raw = await eulerpoolFetch<any>(`/equity/quotes/${encodeURIComponent(symbol)}`);
-  return normalizeEulerpoolQuote(raw, symbol, retrievedAt);
+  const candles = await eulerpoolGetCandles(symbol, '1m');
+  const last = candles[candles.length - 1];
+  if (!last) {
+    throw new ProviderError(`No quote data for ${symbol}`, 'bad_symbol', 404);
+  }
+  const prev = candles.length >= 2 ? candles[candles.length - 2] : null;
+  return normalizeEulerpoolQuote(
+    {
+      ticker: symbol,
+      price: last.close,
+      open: last.open,
+      high: last.high,
+      low: last.low,
+      previousClose: prev?.close,
+      change: prev ? last.close - prev.close : undefined,
+      changePercent:
+        prev && prev.close > 0 ? ((last.close - prev.close) / prev.close) * 100 : undefined,
+      volume: last.volume,
+      timestamp: Date.parse(last.timestamp),
+    },
+    symbol,
+    retrievedAt
+  );
 }
 
 /** Fetch the normalized company overview/profile. */

@@ -11,7 +11,7 @@
  */
 
 import { cached, quoteCache, catalogCache, historyCache, TTL, freshnessOf, FreshnessClass } from './cache';
-import { twelveDataFetch, twelveDataUrl, quoteTtl } from './twelvedata';
+import { twelveDataFetch, twelveDataUrl, quoteTtl, ProviderError } from './twelvedata';
 
 export interface NormalizedQuote {
   symbol: string;
@@ -71,7 +71,8 @@ export async function getQuote(symbol: string): Promise<NormalizedQuote> {
   const quote = normalizeQuote(raw, symbol);
   if (quote.price === null && quote.change === null) {
     // Provider returned an empty/unknown-symbol-shaped body without an error code.
-    throw Object.assign(new Error(`No quote data available for ${symbol}`), { kind: 'bad_symbol' });
+    // Typed ProviderError so callers can branch without string matching (§12).
+    throw new ProviderError(`No quote data available for ${symbol}`, 'bad_symbol', 404);
   }
   return quote;
 }
@@ -88,7 +89,7 @@ export async function getDailyHistory(symbol: string, outputsize = 5000): Promis
         twelveDataUrl('time_series', { symbol, interval: '1day', outputsize })
       );
       if (!raw?.values) {
-        throw Object.assign(new Error(`No time series data for ${symbol}`), { kind: 'bad_symbol' });
+        throw new ProviderError(`No time series data for ${symbol}`, 'bad_symbol', 404);
       }
       return raw.values;
     },

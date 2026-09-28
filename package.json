@@ -9,6 +9,7 @@
     "lint": "next lint",
     "analyze": "ANALYZE=true next build",
     "test": "jest",
+    "verify:providers": "ts-node -P scripts/tsconfig.json scripts/verify-providers.ts",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

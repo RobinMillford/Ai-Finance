@@ -207,7 +207,10 @@ async function eulerpoolQuote(symbol: string): Promise<Quote> {
  * Cross-provider differences are NOT merged — provenance says who won.
  */
 export async function getQuoteFor(symbol: string): Promise<Quote> {
-  const key = `quote:${symbol.toUpperCase()}`;
+  // Registry-NAMESPACED key: service.getQuote caches raw provider payloads in
+  // the SAME quoteCache under `quote:SYMBOL` — a shared key would let each
+  // reader unwrap the other's shape (normalized Quote vs { __raw } wrapper).
+  const key = `registry:quote:${symbol.toUpperCase()}`;
   try {
     const quote = await withFallback(
       () => twelveDataQuote(symbol),

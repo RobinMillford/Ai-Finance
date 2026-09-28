@@ -132,10 +132,12 @@ describe('getQuoteFor — deterministic fallback (§8/§28)', () => {
   });
 
   it('falls back to Eulerpool when Twelve Data is unavailable (5xx)', async () => {
-    stubFetch(tdDown, epOkQuote);
+    // Eulerpool's current quote is derived from its latest daily candle
+    // (verified live: /equity/quotes is a historical series, not a quote).
+    stubFetch(tdDown, () => providerResponse(EP_CANDLES_FIXTURE));
     const quote = await getQuoteFor('AAPL');
     expect(quote.provider).toBe('eulerpool');
-    expect(quote.price).toBe(150.4);
+    expect(quote.price).toBe(183.5); // latest candle close (1705363200000)
   });
 
   it('returns an explicitly STALE cached quote when both providers fail', async () => {
@@ -167,7 +169,14 @@ describe('getQuoteFor — deterministic fallback (§8/§28)', () => {
 
 describe('getQuoteFor — provenance, no silent mixing (§9/§24/§29)', () => {
   it('reports exactly the provider that produced the data', async () => {
-    stubFetch(tdDown, () => providerResponse({ ...EP_QUOTE_FIXTURE, price: 999 }));
+    stubFetch(
+      tdDown,
+      () =>
+        providerResponse([
+          { timestamp: 1705276800000, open: 178.5, high: 182, low: 177.8, close: 998 },
+          { timestamp: 1705363200000, open: 181.2, high: 184.1, low: 180.9, close: 999 },
+        ])
+    );
     const quote = await getQuoteFor('AAPL');
     expect(quote.provider).toBe('eulerpool');
     expect(quote.price).toBe(999); // single-source value — never averaged/merged

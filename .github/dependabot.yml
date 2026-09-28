@@ -1,13 +1,28 @@
 version: 2
 updates:
+  # ── npm ────────────────────────────────────────────────────────────────────
+  # Policy (see README "Dependency Security & Maintenance"):
+  #   - minor/patch updates are grouped to keep PR noise low
+  #   - MAJOR updates are intentionally NOT auto-PR'd (ignored below) and are
+  #     reviewed manually — the weekly security-audit workflow reports any
+  #     advisory whose only fix is a major bump, so nothing is silently missed
+  #   - Dependabot security updates (repo setting) open PRs for vulnerable
+  #     dependencies as soon as a patched version exists
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     groups:
+      # Routine minor/patch updates, grouped by dependency type so one PR per
+      # risk class instead of one PR per package.
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
       development-dependencies:
         dependency-type: "development"
         update-types:
@@ -24,14 +39,24 @@ updates:
     allow:
       - dependency-type: "all"
     ignore:
+      # Major-version upgrades stay manual-review (compatibility risk).
+      # Advisory reporting is NOT suppressed: npm audit / the scheduled
+      # security workflow still surfaces any vulnerability regardless.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # ── GitHub Actions (supply chain: workflow actions are dependencies too) ──
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "ci"
+      include: "scope"
     labels:
       - "github-actions"
+    reviewers:
+      - "RobinMillford"

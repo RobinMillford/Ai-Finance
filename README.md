@@ -143,6 +143,38 @@ npm run build
 npm start
 ```
 
+## Dependency Security & Maintenance
+
+Dependency security is continuously monitored, not patched once:
+
+- **Dependabot** (`.github/dependabot.yml`) checks npm and GitHub Actions
+  dependencies weekly and opens grouped PRs for minor/patch updates.
+  Dependabot **security updates** open PRs for vulnerable dependencies as soon
+  as a patched version exists.
+- **Grouping**: production minor/patch and development minor/patch each form
+  one PR — fewer, meaningful review units. Major-version updates are never
+  auto-PR'd; they are handled manually (the weekly audit reports any advisory
+  whose only fix is a major bump, so nothing is silently missed).
+- **CI validation**: every PR (including dependency PRs) runs a severity-aware
+  security audit plus typecheck, tests, and production build. `npm ci` enforces
+  lockfile integrity.
+- **Audit policy**: production **critical/high** vulnerabilities fail CI;
+  moderate/low are reported without blocking. A scheduled weekly workflow
+  (`.github/workflows/security-audit.yml`) reports the full audit surface.
+- **Auto-merge**: Dependabot patch/minor PRs for non-framework packages are
+  auto-merged after all required CI checks pass. `next`, `react`, `react-dom`,
+  and any major-version update always require human review.
+- **Update policy**: security patches immediately · safe patch/minor via
+  grouped PRs · major updates scheduled and reviewed · unresolvable
+  vulnerabilities documented and tracked until an upstream fix exists.
+
+### Manual GitHub settings (owner)
+
+- Enable **Dependabot security updates** and **Dependabot alerts**
+  (Settings → Code security).
+- Protect `main`: require the CI checks (`security-audit`, `test`, `build`)
+  and require PRs before merging.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in your values:

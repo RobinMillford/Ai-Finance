@@ -2,11 +2,41 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+      # Security-maintenance branches get CI on push; Dependabot PRs are
+      # covered by the pull_request trigger because they target main.
+      - "security/**"
   pull_request:
     branches: [main, develop]
 
 jobs:
+  security-audit:
+    # Severity-aware dependency gate (policy in README):
+    #   CRITICAL / HIGH production vulnerabilities -> FAIL
+    #   MODERATE / LOW                              -> reported, non-blocking
+    # Runs on every PR so Dependabot dependency PRs are validated before merge.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies (lockfile integrity check)
+        run: npm ci
+
+      - name: Audit — fail on critical/high
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit — report moderate/low (non-blocking)
+        run: npm audit --omit=dev --audit-level=moderate
+        continue-on-error: true
+
   test:
     runs-on: ubuntu-latest
 
@@ -70,7 +100,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    needs: [test, build]
+    needs: [security-audit, test, build]
     # No branch gate — runs on every push and PR that passes test+build.
     # The workflow-level trigger already limits this to main/develop branches
     # and PRs targeting those branches, so deploy is still protected.

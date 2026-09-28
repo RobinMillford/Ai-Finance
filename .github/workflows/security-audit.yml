@@ -1,0 +1,81 @@
+name: Scheduled Security Audit
+
+# Weekly full dependency security review.
+#
+# Why a scheduled scan in addition to Dependabot:
+#   - Dependabot alerts + security PRs cover known-vulnerable resolved
+#     versions; this scan additionally reports the FULL audit surface
+#     (including dev dependencies and multi-instance findings) on a fixed
+#     cadence so drift is visible even when Dependabot has no patch to offer
+#     (e.g. an advisory whose only fix is a manually-reviewed major bump).
+#   - It deliberately does NOT duplicate Dependabot's PR automation.
+#
+# Policy (README "Dependency Security & Maintenance"):
+#   production critical/high  -> workflow fails (visible, actionable)
+#   everything else           -> reported in the job summary, non-blocking
+
+on:
+  schedule:
+    # Mondays 09:15 UTC — shortly after Dependabot's weekly run.
+    - cron: "15 9 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies (lockfile integrity check)
+        run: npm ci
+
+      - name: Production audit (critical/high fail the job)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Full audit report (all severities, non-blocking)
+        id: full_audit
+        continue-on-error: true
+        run: |
+          npm audit --json > audit-full.json || true
+          npm audit || true
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Weekly dependency security audit"
+            echo ""
+            if [ -f audit-full.json ]; then
+              node -e '
+                const fs = require("fs");
+                try {
+                  const d = JSON.parse(fs.readFileSync("audit-full.json", "utf8"));
+                  const m = d.metadata && d.metadata.vulnerabilities ? d.metadata.vulnerabilities : {};
+                  console.log("| severity | count |");
+                  console.log("|---|---|");
+                  for (const s of ["critical", "high", "moderate", "low", "info", "total"]) {
+                    console.log("| " + s + " | " + (m[s] ?? 0) + " |");
+                  }
+                } catch { console.log("audit-full.json not parseable"); }
+              '
+            else
+              echo "No audit output produced."
+            fi
+            echo ""
+            echo "Policy: production critical/high failures must be remediated"
+            echo "promptly (security PR or documented exception)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify registry signatures
+        # Provenance/integrity check — informational, not a merge gate.
+        continue-on-error: true
+        run: npm audit signatures

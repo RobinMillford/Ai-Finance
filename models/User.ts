@@ -8,6 +8,10 @@ export interface IUser extends Document {
   emailVerified?: Date;
   emailVerificationToken?: string;
   emailVerificationTokenExpiry?: Date;
+  /** SHA-256 hash of the password-reset token — the raw token is never stored. */
+  resetPasswordToken?: string;
+  /** Absolute expiry for the reset token (one-time use; cleared on success). */
+  resetPasswordTokenExpiry?: Date;
   watchlist: string[]; // Array of stock/crypto/forex symbols
   trackedAssets: {
     type: string; // 'stock', 'crypto', 'forex'
@@ -50,6 +54,14 @@ const UserSchema: Schema = new Schema(
       type: String,
     },
     emailVerificationTokenExpiry: {
+      type: Date,
+    },
+    // SHA-256 hash of the reset token — the raw token only ever exists in the
+    // reset email, never in the database.
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordTokenExpiry: {
       type: Date,
     },
     watchlist: [

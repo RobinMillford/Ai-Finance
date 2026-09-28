@@ -1,100 +1,56 @@
+/**
+ * Overview API (company/crypto logos)
+ *
+ * Phase 0: migrated to the shared provider client (server-only key, global
+ * pacing) and rate-limited. Response shape preserved.
+ */
+
 import { NextResponse } from 'next/server';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
+import { RATE_LIMITS } from '@/lib/rate-limiter';
+import { twelveDataFetch, twelveDataUrl, ProviderError } from '@/lib/market-data';
+import { cached, catalogCache, TTL } from '@/lib/market-data/cache';
+import { validateSymbol } from '@/lib/api-helpers';
 
-// Force dynamic rendering
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-// In-memory cache for overview data (symbol -> overview)
-const overviewCache = new Map();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-
-export async function GET(request: Request) {
-  const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
-  if (!TWELVE_DATA_API_KEY) {
-    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
-    return NextResponse.json(
-      { error: "Server configuration error: API key missing" },
-      { status: 500 }
-    );
-  }
-
+async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol");
+  const symbol = validateSymbol(searchParams.get('symbol'));
 
   if (!symbol) {
-    return NextResponse.json(
-      { error: "Symbol parameter is required" },
-      { status: 400 }
-    );
-  }
-
-  // Check cache
-  const cacheKey = symbol.toUpperCase();
-  const cachedData = overviewCache.get(cacheKey);
-  const now = Date.now();
-  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log(`Returning cached overview data for symbol: ${symbol}`);
-    return NextResponse.json(cachedData.data);
+    return errorResponse('Symbol parameter is required', 400);
   }
 
   try {
-    // Initialize response data with default values
-    let logoData = { url: null, logo_base: null, logo_quote: null };
-
-    // Fetch logo data from Twelve Data
-    try {
-      const logoUrl = `https://api.twelvedata.com/logo?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching logo data for symbol: ${symbol} from Twelve Data...`);
-      const logoResponse = await fetch(logoUrl);
-      
-      if (!logoResponse.ok) {
-        const errorData = await logoResponse.json();
-        console.warn(`Failed to fetch logo data for symbol ${symbol} from Twelve Data: ${logoResponse.status} - ${errorData.message || 'Unknown error'}`);
-        // Handle 404 or other errors gracefully by using default values
-        logoData = { url: null, logo_base: null, logo_quote: null };
-      } else {
-        const logoResponseData = await logoResponse.json();
-        console.log(`Successfully fetched logo data for symbol: ${symbol}`, logoResponseData);
-
-        // Handle both equity and crypto/forex logo responses
-        if (logoResponseData.url) {
-          // Equity symbol
-          logoData.url = logoResponseData.url;
-          console.log(`Set equity logo URL for ${symbol}: ${logoResponseData.url}`);
-        } else if (logoResponseData.logo_base && logoResponseData.logo_quote) {
-          // Crypto/forex symbol
-          logoData.logo_base = logoResponseData.logo_base;
-          logoData.logo_quote = logoResponseData.logo_quote;
-          console.log(`Set crypto/forex logos for ${symbol}: base=${logoResponseData.logo_base}, quote=${logoResponseData.logo_quote}`);
-        } else {
-          console.warn(`Unexpected logo response format for symbol ${symbol}. Response:`, logoResponseData);
-          logoData = { url: null, logo_base: null, logo_quote: null };
+    const { value } = await cached(catalogCache, `logo:${symbol}`, TTL.CATALOG, async () => {
+      let logoData = { url: null as string | null, logo_base: null as string | null, logo_quote: null as string | null };
+      try {
+        const raw = await twelveDataFetch<any>(twelveDataUrl('logo', { symbol }));
+        if (raw?.url) {
+          logoData.url = raw.url;
+        } else if (raw?.logo_base && raw?.logo_quote) {
+          logoData.logo_base = raw.logo_base;
+          logoData.logo_quote = raw.logo_quote;
         }
+      } catch {
+        // Logos are decorative — absence is not an error condition.
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching logo data for symbol ${symbol} from Twelve Data:`, errorMessage);
-      // Continue with default logo data (null values)
-      logoData = { url: null, logo_base: null, logo_quote: null };
+      return logoData;
+    });
+
+    return NextResponse.json({
+      logo: (value as any).url,
+      logo_base: (value as any).logo_base,
+      logo_quote: (value as any).logo_quote,
+    });
+  } catch (error) {
+    if (error instanceof ProviderError && error.kind === 'rate_limited') {
+      return errorResponse('Market data provider is rate limited. Please try again shortly.', 429);
     }
-
-    // Prepare the response data (only logo-related fields)
-    const overviewData = {
-      logo: logoData.url, // For equities
-      logo_base: logoData.logo_base, // For crypto/forex
-      logo_quote: logoData.logo_quote, // For crypto/forex
-    };
-
-    // Cache the result
-    overviewCache.set(cacheKey, { data: overviewData, timestamp: now });
-    console.log(`Successfully fetched and cached overview data for symbol: ${symbol}`);
-
-    return NextResponse.json(overviewData);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Error processing overview data for symbol ${symbol}:`, errorMessage);
-    return NextResponse.json(
-      { error: `Failed to process overview data: ${errorMessage}` },
-      { status: 500 }
-    );
+    console.error('[Overview] Error for', symbol, error);
+    return errorResponse('Failed to fetch overview data', 500);
   }
 }
+
+export const GET = withRateLimit(handler, RATE_LIMITS.MARKET_DATA);

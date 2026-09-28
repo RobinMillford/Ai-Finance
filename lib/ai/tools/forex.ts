@@ -1,40 +1,28 @@
 /**
  * Forex Trading Tools
- * 
- * Tools for fetching forex pair quotes and technical indicators
+ *
+ * Tools for fetching forex pair quotes and technical indicators.
+ *
+ * Phase 0: uses the shared provider client (server-only key, global pacing,
+ * typed errors) instead of a local fetch/retry implementation — the last of
+ * the four divergent fetch helpers. Indicators route through the indicator
+ * service (cached, bounded concurrency). Tool output is bounded before it
+ * enters the synthesis prompt.
  */
 
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { API_KEYS } from "../config";
+import { twelveDataFetch, twelveDataUrl } from "@/lib/market-data";
+import { getIndicators, type IndicatorName } from "@/lib/market-data/indicators";
+import { TTLCache } from "@/lib/market-data/cache";
 
-// Simple in-memory cache
-const cache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Cache for API responses (5 minutes)
+const cache = new TTLCache(500);
+const CACHE_DURATION = 5 * 60 * 1000;
 
-/**
- * Utility: Fetch with retry logic
- */
-async function fetchWithRetry(
-  url: string,
-  maxRetries: number = 3
-): Promise<any> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        if (response.status === 429 && attempt < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
-          continue;
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      return await response.json();
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
-    }
-  }
+/** Bound tool output so raw provider payloads cannot dominate the prompt. */
+function boundedJson(value: Record<string, unknown>): string {
+  return JSON.stringify(value).slice(0, 4000);
 }
 
 /**
@@ -53,24 +41,20 @@ export const getForexQuoteTool = new DynamicStructuredTool({
       .describe("Forex pair symbol (e.g., EUR/USD, GBP/JPY, USD/CHF)"),
   }),
   func: async ({ symbol }) => {
+    const cacheKey = `forex_quote_${symbol.toUpperCase()}`;
+    const cached = cache.get<Record<string, unknown>>(cacheKey);
+
+    if (cached) {
+      return JSON.stringify(cached.value);
+    }
+
     try {
-      // Check cache
-      const cacheKey = `forex_quote_${symbol}`;
-      const cached = cache.get(cacheKey);
-      const now = Date.now();
-
-      if (cached && now - cached.timestamp < CACHE_DURATION) {
-        return JSON.stringify(cached.data);
-      }
-
-      // Fetch from Twelve Data API
-      const url = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${API_KEYS.twelveData}`;
-      const data = await fetchWithRetry(url);
+      const data = await twelveDataFetch<any>(twelveDataUrl("quote", { symbol }));
 
       // Cache the result
-      cache.set(cacheKey, { data, timestamp: now });
+      cache.set(cacheKey, data, CACHE_DURATION);
 
-      return JSON.stringify({
+      return boundedJson({
         symbol: data.symbol,
         name: data.name,
         exchange_rate: data.close,
@@ -83,16 +67,27 @@ export const getForexQuoteTool = new DynamicStructuredTool({
         timestamp: data.datetime,
       });
     } catch (error) {
-      return JSON.stringify({
+      return boundedJson({
         error: `Failed to fetch forex quote: ${error instanceof Error ? error.message : "Unknown error"}`,
+        symbol,
       });
     }
   },
 });
 
+const FOREX_INDICATOR_MAP: Record<string, IndicatorName> = {
+  RSI: "rsi",
+  MACD: "macd",
+  EMA: "ema20",
+  BBANDS: "bbands",
+  ATR: "atr",
+  ADX: "adx",
+};
+
 /**
  * Tool: Get Forex Technical Indicators
- * Fetches technical indicators for forex pair analysis
+ * Fetches technical indicators for forex pair analysis via the shared
+ * indicator service (bounded concurrency + 1h cache + typed errors).
  */
 export const getForexIndicatorsTool = new DynamicStructuredTool({
   name: "get_forex_indicators",
@@ -111,52 +106,25 @@ export const getForexIndicatorsTool = new DynamicStructuredTool({
   }),
   func: async ({ symbol, indicators }) => {
     try {
-      const results: Record<string, any> = {};
+      const names = indicators
+        .map((i) => FOREX_INDICATOR_MAP[i])
+        .filter((n): n is IndicatorName => Boolean(n));
 
-      for (const indicator of indicators) {
-        const cacheKey = `forex_${indicator}_${symbol}`;
-        const cached = cache.get(cacheKey);
-        const now = Date.now();
+      const aggregate = await getIndicators(symbol, names);
 
-        if (cached && now - cached.timestamp < CACHE_DURATION) {
-          results[indicator] = cached.data;
-          continue;
-        }
-
-        let url = "";
-        switch (indicator) {
-          case "RSI":
-            url = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${API_KEYS.twelveData}`;
-            break;
-          case "MACD":
-            url = `https://api.twelvedata.com/macd?symbol=${symbol}&interval=1day&apikey=${API_KEYS.twelveData}`;
-            break;
-          case "EMA":
-            url = `https://api.twelvedata.com/ema?symbol=${symbol}&interval=1day&time_period=20&apikey=${API_KEYS.twelveData}`;
-            break;
-          case "BBANDS":
-            url = `https://api.twelvedata.com/bbands?symbol=${symbol}&interval=1day&time_period=20&apikey=${API_KEYS.twelveData}`;
-            break;
-          case "ATR":
-            url = `https://api.twelvedata.com/atr?symbol=${symbol}&interval=1day&time_period=14&apikey=${API_KEYS.twelveData}`;
-            break;
-          case "ADX":
-            url = `https://api.twelvedata.com/adx?symbol=${symbol}&interval=1day&time_period=14&apikey=${API_KEYS.twelveData}`;
-            break;
-        }
-
-        const data = await fetchWithRetry(url);
-        cache.set(cacheKey, { data, timestamp: now });
-        results[indicator] = data;
-
-        // Small delay between requests to respect rate limits
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      // Preserve the prior response shape (indicator name -> provider data),
+      // with per-indicator failures reported instead of silently missing.
+      const results: Record<string, unknown> = { ...aggregate.indicators };
+      for (const [name, message] of Object.entries(aggregate.errors)) {
+        results[name] = { error: message };
       }
 
-      return JSON.stringify(results);
+      return boundedJson(results);
     } catch (error) {
-      return JSON.stringify({
+      // getIndicators only throws when ALL requested indicators failed.
+      return boundedJson({
         error: `Failed to fetch indicators: ${error instanceof Error ? error.message : "Unknown error"}`,
+        symbol,
       });
     }
   },
@@ -165,4 +133,7 @@ export const getForexIndicatorsTool = new DynamicStructuredTool({
 /**
  * Export all forex tools
  */
-export const forexTools = [getForexQuoteTool, getForexIndicatorsTool];
+export const forexTools = [
+  getForexQuoteTool,
+  getForexIndicatorsTool,
+];

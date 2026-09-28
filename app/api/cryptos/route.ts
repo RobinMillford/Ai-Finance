@@ -1,170 +1,101 @@
-import { NextResponse } from "next/server";
+/**
+ * Crypto Catalog API
+ *
+ * Phase 0: migrated to the shared provider client (server-only key, global
+ * pacing, typed errors) with a 24h catalog cache; symbol lookup path reuses
+ * the domain quote service. Debug logging of full payloads removed.
+ * Response shape preserved.
+ */
 
-// Force dynamic rendering
-export const dynamic = "force-dynamic";
+import { NextResponse } from 'next/server';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
+import { RATE_LIMITS } from '@/lib/rate-limiter';
+import { twelveDataFetch, twelveDataUrl, ProviderError, getQuote, getStockCatalog } from '@/lib/market-data';
+import { cached, catalogCache, TTL } from '@/lib/market-data/cache';
+import { validateSymbol } from '@/lib/api-helpers';
 
-// In-memory cache for cryptocurrency pairs list
-const cryptoCache = new Map();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+export const dynamic = 'force-dynamic';
 
-// Utility function to fetch with retry on rate limit
-async function fetchWithRetry(url: string, maxRetries: number = 3, retryDelayMs: number = 10000) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 429) {
-          console.warn(`Rate limit hit for URL: ${url}. Retrying (${attempt}/${maxRetries}) after ${retryDelayMs}ms...`);
-          if (attempt === maxRetries) {
-            throw new Error("Rate limit exceeded after maximum retries");
-          }
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-          continue;
-        }
-        throw new Error(`API error: ${JSON.stringify(errorData)}`);
-      }
-      return await response.json();
-    } catch (error: unknown) {
-      if (attempt === maxRetries) {
-        throw error;
-      }
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.warn(`Fetch attempt ${attempt} failed for URL: ${url}. Retrying after ${retryDelayMs}ms...`, errorMessage);
-      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-    }
-  }
-  throw new Error("Unexpected error in fetchWithRetry");
+interface CryptoPair {
+  symbol: string;
+  available_exchanges: string[];
+  currency_base: string;
+  currency_quote: string;
 }
 
-export async function GET(request: Request) {
-  // Line 38
-  const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
-  if (!TWELVE_DATA_API_KEY) {
-    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
-    return NextResponse.json(
-      { error: "Server configuration error: API key missing" },
-      { status: 500 }
-    );
+/** Extract the pair array from any of the provider's response shapes. */
+function extractPairs(data: any): CryptoPair[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data.values)) return data.values;
+    const firstKey = Object.keys(data)[0];
+    if (firstKey && Array.isArray(data[firstKey]) && firstKey !== 'count' && firstKey !== 'status') {
+      return data[firstKey];
+    }
   }
+  throw new Error('Unexpected cryptocurrency catalog response shape');
+}
 
+async function loadCryptoCatalog(): Promise<CryptoPair[]> {
+  const { value } = await cached(catalogCache, 'crypto_list', TTL.CATALOG, async () => {
+    const raw = await twelveDataFetch<any>(twelveDataUrl('cryptocurrencies', {}));
+    const pairs = extractPairs(raw);
+    const seen = new Set<string>();
+    return pairs.filter((pair: CryptoPair) => {
+      if (seen.has(pair.symbol)) return false;
+      seen.add(pair.symbol);
+      return true;
+    });
+  });
+  return value as CryptoPair[];
+}
+
+async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol");
+  const symbol = searchParams.get('symbol');
 
-  // Check cache for the full list of cryptocurrencies
-  const cacheKey = "crypto_list";
-  const cachedData = cryptoCache.get(cacheKey);
-  const now = Date.now();
+  try {
+    const cryptoPairs = await loadCryptoCatalog();
 
-  let cryptoPairs: Array<{
-    symbol: string;
-    available_exchanges: string[];
-    currency_base: string;
-    currency_quote: string;
-  }> = [];
-
-  // Fetch the list if not in cache or cache is expired
-  if (!cachedData || now - cachedData.timestamp > CACHE_DURATION) {
-    try {
-      const url = `https://api.twelvedata.com/cryptocurrencies?apikey=${TWELVE_DATA_API_KEY}`;
-      console.log("Fetching cryptocurrency pairs from Twelve Data...");
-      const data = await fetchWithRetry(url);
-      console.log("API response from /cryptocurrencies:", JSON.stringify(data, null, 2)); // Debug log
-
-      // Check if the response is an object with an array of pairs
-      let pairsArray: Array<{
-        symbol: string;
-        available_exchanges: string[];
-        currency_base: string;
-        currency_quote: string;
-      }> = [];
-      if (Array.isArray(data)) {
-        pairsArray = data;
-      } else if (data && typeof data === "object") {
-        // Check for common property names or default array
-        if (Array.isArray(data.data)) {
-          pairsArray = data.data;
-        } else if (Array.isArray(data.values)) {
-          pairsArray = data.values;
-        } else {
-          // If the object has a default array as its first enumerable property
-          const firstKey = Object.keys(data)[0];
-          if (Array.isArray(data[firstKey]) && firstKey !== "count" && firstKey !== "status") {
-            pairsArray = data[firstKey];
-          } else {
-            throw new Error("Could not find an array of cryptocurrency pairs in the response: " + JSON.stringify(data));
-          }
-        }
-      } else {
-        throw new Error("Expected an array or object with an array of cryptocurrency pairs, but received: " + JSON.stringify(data));
+    // Symbol detail path: validate against the catalog, then live quote.
+    if (symbol) {
+      const trimmed = validateSymbol(symbol);
+      if (!trimmed) {
+        return errorResponse('Invalid symbol parameter', 400);
+      }
+      const pair = cryptoPairs.find((p) => p.symbol.toUpperCase() === trimmed);
+      if (!pair) {
+        return errorResponse(`Cryptocurrency pair ${symbol} is not supported`, 404);
       }
 
-      // Remove duplicates based on symbol
-      const seenSymbols = new Set<string>();
-      cryptoPairs = pairsArray.filter((pair) => {
-        if (seenSymbols.has(pair.symbol)) {
-          console.log(`Duplicate symbol found and removed: ${pair.symbol}`);
-          return false;
-        }
-        seenSymbols.add(pair.symbol);
-        return true;
-      });
-
-      // Cache the result
-      cryptoCache.set(cacheKey, { data: cryptoPairs, timestamp: now });
-      console.log("Successfully fetched and cached cryptocurrency pairs");
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Error fetching cryptocurrency pairs:", errorMessage);
-      return NextResponse.json(
-        { error: "Failed to fetch cryptocurrency pairs: " + errorMessage },
-        { status: 500 }
-      );
-    }
-  } else {
-    console.log("Returning cached cryptocurrency pairs");
-    cryptoPairs = cachedData.data;
-  }
-
-  // If a symbol is provided, validate it and return its details
-  if (symbol) {
-    const upperSymbol = symbol.toUpperCase();
-    const pair = cryptoPairs.find((p) => p.symbol.toUpperCase() === upperSymbol);
-    if (!pair) {
-      return NextResponse.json(
-        { error: `Cryptocurrency pair ${symbol} is not supported` },
-        { status: 404 }
-      );
-    }
-
-    // Fetch real-time price for the symbol
-    try {
-      const priceUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching real-time data for symbol: ${symbol} from Twelve Data...`);
-      const priceData = await fetchWithRetry(priceUrl);
-
-      if (priceData.status === "error") {
-        throw new Error(priceData.message || "Failed to fetch real-time data");
-      }
-
+      const quote = await getQuote(trimmed);
       return NextResponse.json({
         symbol: pair.symbol,
         currency_base: pair.currency_base,
         currency_quote: pair.currency_quote,
         available_exchanges: pair.available_exchanges,
-        price: parseFloat(priceData.close),
-        percent_change: parseFloat(priceData.percent_change),
+        price: quote.price,
+        percent_change: quote.percentChange,
+        asOf: quote.asOf,
+        freshness: quote.freshness,
       });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching real-time data for symbol ${symbol}:`, errorMessage);
-      return NextResponse.json(
-        { error: `Failed to fetch real-time data for ${symbol}: ${errorMessage}` },
-        { status: 500 }
-      );
     }
-  }
 
-  // If no symbol is provided, return the full list of cryptocurrency pairs
-  return NextResponse.json(cryptoPairs);
+    return NextResponse.json(cryptoPairs);
+  } catch (error) {
+    if (error instanceof ProviderError) {
+      if (error.kind === 'rate_limited') {
+        return errorResponse('Market data provider is rate limited. Please try again shortly.', 429);
+      }
+      if (error.kind === 'bad_symbol') {
+        return errorResponse('Symbol not found or unsupported', 404);
+      }
+      return errorResponse('Market data provider is unavailable. Please try again later.', 502);
+    }
+    console.error('[Cryptos] Error:', error);
+    return errorResponse('Failed to fetch cryptocurrency pairs', 502);
+  }
 }
+
+export const GET = withRateLimit(handler, RATE_LIMITS.MARKET_DATA);

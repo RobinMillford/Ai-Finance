@@ -24,11 +24,13 @@ import {
   AIMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { smartLLM, fastLLM, routingLLM } from "./config";
 import { socialTools } from "./tools/social";
 import { createSearchTools } from "./tools/search";
+import { boundDataPayload } from "./content-boundary";
 import { collectToolResults, withRetry } from "./utils";
 import {
   normalizePlan,
@@ -74,6 +76,14 @@ export interface AdvisorGraphConfig {
    * Omit or pass empty array for unrestricted search.
    */
   searchDomains?: string[];
+
+  /**
+   * Phase 0: optional pre-built research toolset. When provided it overrides
+   * `searchDomains` entirely, letting a domain control exactly which research
+   * tools exist (e.g. the stock advisor excludes the crypto-flavored
+   * market-intelligence tool).
+   */
+  researchTools?: StructuredToolInterface[];
 
   /**
    * Domain-specific routing hints injected into the supervisor's system prompt.
@@ -244,7 +254,7 @@ User query is the last message in the conversation. Decide which specialists it 
   }
 
   // ── Market Researcher ───────────────────────────────────────────────────────
-  const researchTools = createSearchTools(cfg.searchDomains);
+  const researchTools = cfg.researchTools ?? createSearchTools(cfg.searchDomains);
 
   async function marketResearcherNode(state: typeof AgentState.State) {
     const llmWithTools = fastLLM.bindTools(researchTools);
@@ -274,10 +284,16 @@ User query is the last message in the conversation. Decide which specialists it 
     };
   }
 
-  // ── Final Response ──────────────────────────────────────────────────────────
+  // ── Final Response ─────────────────────────────────────────────────────
   async function finalResponseNode(state: typeof AgentState.State) {
+    // Phase 0: bound the collected data before it enters the synthesis
+    // prompt. Raw tool payloads could previously grow without limit (413 /
+    // TPM failures). boundDataPayload truncates long strings and caps the
+    // serialized size while preserving the most useful entries.
+    const { data: boundedData } = boundDataPayload(state.data);
+
     // All collected data is already serialized into the system prompt via
-    // cfg.finalSystemPrompt(state.data). Replaying the full message history
+    // cfg.finalSystemPrompt(boundedData). Replaying the full message history
     // (raw tool payloads, worker summaries, plan chatter) would double-count
     // tokens for zero synthesis value — and blows small TPM budgets.
     const lastUserMessage = [...state.messages]
@@ -290,7 +306,7 @@ User query is the last message in the conversation. Decide which specialists it 
 
     const response = await withRetry(() =>
       smartLLM.invoke([
-        new SystemMessage(cfg.finalSystemPrompt(state.data)),
+        new SystemMessage(cfg.finalSystemPrompt(boundedData)),
         ...(lastUserMessage ? [lastUserMessage] : []),
       ])
     );

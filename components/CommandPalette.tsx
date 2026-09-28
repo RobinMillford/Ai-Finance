@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
-import Fuse from "fuse.js";
 
 interface Portfolio {
   _id: string;

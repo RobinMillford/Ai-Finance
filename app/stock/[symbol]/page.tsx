@@ -151,50 +151,43 @@ export default function StockDetails() {
           console.warn("Overview fetch failed:", error);
         }
 
-        // Fetch stock data from primary endpoint
-        let stockResponse = await fetch(`/api/stock?symbol=${symbol}`);
-        if (!stockResponse.ok) {
-          const errorData = await stockResponse.json();
-          console.warn("Primary stock fetch failed:", errorData.error || "Unknown error");
-
-          // Fallback: Try Twelve Data API for US stocks
-          const twelveDataUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=30&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
-          const twelveResponse = await fetch(twelveDataUrl);
-          if (twelveResponse.ok) {
-            const twelveData = await twelveResponse.json();
-            console.log("Twelve Data Response:", twelveData);
-            if (twelveData.status === "ok" && twelveData.values) {
-              setStockData({
-                timeSeries: {
-                  meta: {
-                    symbol: twelveData.meta.symbol,
-                    interval: twelveData.meta.interval,
-                    currency: twelveData.meta.currency || "USD",
-                    exchange_timezone: twelveData.meta.exchange_timezone || "America/New_York",
-                    exchange: twelveData.meta.exchange || "NASDAQ",
-                    mic_code: twelveData.meta.mic_code || "XNAS",
-                    type: twelveData.meta.type || "Common Stock",
-                  },
-                  values: twelveData.values,
-                  status: twelveData.status,
-                },
-              });
-              partialDataAvailable = true;
-            } else {
+        // Fetch stock data through the FinanceAI API only — the browser never
+        // talks to Twelve Data directly (provider keys are server-only).
+        const loadStockData = async (): Promise<boolean> => {
+          try {
+            const stockResponse = await fetch(`/api/stock?symbol=${symbol}`);
+            if (!stockResponse.ok) {
+              const errorData = await stockResponse.json().catch(() => ({} as { error?: string }));
               setErrorMessage(
-                twelveData.message || "This symbol is not supported by the free Twelve Data plan, which only includes US stocks (e.g., AAPL, MSFT)."
+                stockResponse.status === 404
+                  ? errorData.error ||
+                      `Symbol "${symbol}" is not supported. This service only includes US stocks on the free Twelve Data plan (e.g., AAPL, MSFT).`
+                  : errorData.error || "Market data provider is unavailable. Please try again later."
               );
+              return false;
             }
-          } else {
-            setErrorMessage("Failed to fetch data from Twelve Data. Ensure the symbol is a valid US stock.");
+            const stockData = await stockResponse.json();
+            setStockData(stockData);
+            return true;
+          } catch (error) {
+            console.warn("Stock fetch failed:", error);
+            return false;
           }
-        } else {
-          const stockData = await stockResponse.json();
-          setStockData(stockData);
+        };
+
+        // One client retry covers transient network hiccups; the server retries
+        // rate-limited provider calls internally.
+        if (await loadStockData()) {
           partialDataAvailable = true;
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          if (await loadStockData()) {
+            partialDataAvailable = true;
+          }
         }
 
-        // Fetch technical indicators
+        // Fetch technical indicators (optional — the page renders without
+        // them; failures are surfaced by the stock-data error path above).
         try {
           const indicatorsResponse = await fetch(`/api/technical-indicators?symbol=${symbol}`);
           if (indicatorsResponse.ok) {
@@ -204,24 +197,6 @@ export default function StockDetails() {
           }
         } catch (error) {
           console.warn("Technical indicators fetch failed:", error);
-          // Fallback: Fetch RSI from Twelve Data for US stocks
-          const rsiUrl = `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1day&time_period=14&apikey=${process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY}`;
-          const rsiResponse = await fetch(rsiUrl);
-          if (rsiResponse.ok) {
-            const rsiData = await rsiResponse.json();
-            if (rsiData.status === "ok" && rsiData.values) {
-              setTechnicalIndicators({
-                ema: { ema20: null, ema50: null },
-                rsi: rsiData.values,
-                macd: null,
-                bbands: null,
-                adx: null,
-                atr: null,
-                aroon: null,
-              });
-              partialDataAvailable = true;
-            }
-          }
         }
 
         if (!partialDataAvailable && !errorMessage) {

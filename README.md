@@ -155,13 +155,15 @@ MONGODB_URI=your_mongodb_connection_string
 NEXTAUTH_SECRET=your_nextauth_secret
 NEXTAUTH_URL=http://localhost:3000
 
-# AI — Multi-Agent System (required)
-NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key
+# AI — Multi-Agent System (required, server-only)
+# All provider keys are SERVER-ONLY — never use the NEXT_PUBLIC_ prefix for
+# provider secrets, or they will be compiled into the public browser bundle.
+GROQ_API_KEY=your_groq_api_key
 
-# Market Data (required)
-NEXT_PUBLIC_TWELVEDATA_API_KEY=your_twelve_data_key
-NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
-NEXT_PUBLIC_NEWS_API_KEY=your_news_api_key
+# Market Data (required, server-only)
+TWELVE_DATA_API_KEY=your_twelve_data_key
+TAVILY_API_KEY=your_tavily_api_key
+NEWS_API_KEY=your_news_api_key
 
 # Email — password reset (optional, logs to console if unset)
 RESEND_API_KEY=your_resend_key

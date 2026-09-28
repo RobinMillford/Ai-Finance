@@ -4,10 +4,11 @@
  * Each function builds a targeted query and returns structured results
  * so callers (API routes, AI tools) get consistent, typed data.
  *
- * Env var required: NEXT_PUBLIC_TAVILY_API_KEY
+ * Env var required: TAVILY_API_KEY (server-only)
  */
 
 import { tavily } from "@tavily/core";
+import { env } from "@/lib/env";
 
 type TavilyResult = {
   url: string;
@@ -26,9 +27,9 @@ type IntelligenceResult = {
 };
 
 function getClient() {
-  const apiKey = process.env.NEXT_PUBLIC_TAVILY_API_KEY;
+  const apiKey = env.tavily.apiKey;
   if (!apiKey) {
-    throw new Error("NEXT_PUBLIC_TAVILY_API_KEY is not set");
+    throw new Error("TAVILY_API_KEY is not set");
   }
   return tavily({ apiKey });
 }

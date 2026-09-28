@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
-import { hashPassword } from '@/lib/auth-utils';
+import { hashPassword, hashResetToken } from '@/lib/auth-utils';
 import { sendPasswordResetEmail } from '@/lib/email';
 import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
 import crypto from 'crypto';
@@ -43,12 +43,14 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    // Generate reset token
+    // Generate reset token. Only the SHA-256 HASH is stored; the raw token
+    // goes to the user by email and never touches the database (Phase 0).
     const resetToken = generateResetToken();
+    const resetTokenHash = hashResetToken(resetToken);
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     
-    // Update user with reset token
-    user.resetPasswordToken = resetToken;
+    // Update user with the token hash
+    user.resetPasswordToken = resetTokenHash;
     user.resetPasswordTokenExpiry = resetTokenExpiry;
     await user.save();
     
@@ -59,7 +61,8 @@ export async function POST(request: NextRequest) {
       message: 'If an account exists with that email, a reset link has been sent.' 
     });
   } catch (error) {
-    console.error('Error requesting password reset:', error);
+    // Structured context only — no raw error (may embed request body/token data).
+    console.error('[Auth:reset-request] Failed:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -90,9 +93,11 @@ export async function PUT(request: NextRequest) {
     // Connect to database
     await dbConnect();
     
-    // Find user with this reset token
+    // Hash the submitted token and match against the stored hash — the raw
+    // token is never persisted, so lookup must go through hash(token).
+    const tokenHash = hashResetToken(token);
     const user = await User.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: tokenHash,
       resetPasswordTokenExpiry: { $gt: new Date() }
     });
     
@@ -114,7 +119,8 @@ export async function PUT(request: NextRequest) {
     
     return NextResponse.json({ message: 'Password reset successfully' });
   } catch (error) {
-    console.error('Error resetting password:', error);
+    // Structured context only — no raw error (may embed submitted token data).
+    console.error('[Auth:reset-confirm] Failed:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

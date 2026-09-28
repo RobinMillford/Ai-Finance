@@ -7,6 +7,7 @@
 
 import { createAdvisorGraph } from "./graph-factory";
 import { stockTools } from "./tools/stock";
+import { createSearchTools } from "./tools/search";
 
 export const stockAdvisorGraph = createAdvisorGraph({
   name: "Stock",
@@ -42,14 +43,22 @@ Focus on: Recent news, earnings results, sector trends, analyst opinions, market
 
   researchDataKey: "research",
 
-  searchDomains: [
-    "bloomberg.com",
-    "reuters.com",
-    "cnbc.com",
-    "marketwatch.com",
-    "finance.yahoo.com",
-    "seekingalpha.com",
-  ],
+  /**
+   * Phase 0: stock research uses the Tavily tool only. The stock domain
+   * previously inherited the crypto-flavored get_market_intelligence tool
+   * (whose description and data target crypto symbols).
+   */
+  researchTools: createSearchTools(
+    [
+      "bloomberg.com",
+      "reuters.com",
+      "cnbc.com",
+      "marketwatch.com",
+      "finance.yahoo.com",
+      "seekingalpha.com",
+    ],
+    false
+  ),
 
   supervisorRouteHint: `Route to:
 - **TechnicalAnalyst**: Stock prices, volume, RSI, MACD, EMA, Bollinger Bands, chart patterns

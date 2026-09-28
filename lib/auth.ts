@@ -106,7 +106,13 @@ export const authOptions: NextAuthOptions = {
     },
     
     async signIn({ user, account, profile }) {
-      console.log('SignIn callback triggered', { user, account, profile });
+      // Log only non-identifying fields — `account` carries OAuth access/
+      // refresh tokens and `profile` carries raw provider data, neither of
+      // which may end up in logs (Phase 0 logging hygiene).
+      console.log('SignIn callback triggered', {
+        provider: account?.provider,
+        hasEmail: Boolean(user?.email),
+      });
       
       // For OAuth providers, create user if they don't exist
       if (account?.provider) {
@@ -158,8 +164,10 @@ export const authOptions: NextAuthOptions = {
   
   // Add error handling
   events: {
-    async signOut(message) {
-      console.log('User signed out:', message);
+    async signOut() {
+      // Deliberately no payload logging: the signOut message contains the
+      // session JWT for the jwt strategy.
+      console.log('User signed out');
     }
   },
   

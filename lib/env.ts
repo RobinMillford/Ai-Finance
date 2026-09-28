@@ -1,13 +1,19 @@
 /**
  * Environment Variables Configuration
- * 
+ *
  * Centralized environment variable management with validation and type safety.
- * Handles both server-side and client-side (NEXT_PUBLIC_*) variables.
+ *
+ * SECURITY (Phase 0): all third-party provider credentials are SERVER-ONLY.
+ * They must NOT use the NEXT_PUBLIC_ prefix — that prefix inlines values into
+ * the client bundle, exposing secrets to anyone who views page source.
+ * Legacy NEXT_PUBLIC_* names are still read server-side for migration
+ * convenience, but the values never reach the browser because every consumer
+ * of this module runs on the server.
  */
 
 /**
  * Get environment variable with fallback options
- * Tries multiple possible names (handles typos, different conventions)
+ * Tries multiple possible names (handles legacy naming during migration)
  */
 function getEnvVar(...keys: string[]): string | undefined {
   for (const key of keys) {
@@ -21,28 +27,29 @@ function getEnvVar(...keys: string[]): string | undefined {
  * Environment variable configuration
  */
 export const env = {
-  // AI / LLM
+  // AI / LLM (server-only)
   groq: {
     apiKey: getEnvVar(
       'GROQ_API_KEY',
+      // Legacy names — server-side only; never expose to the client bundle.
       'NEXT_PUBLIC_GROQ_API_KEY',
       'NEXT_PUBLIC_GROK_API_KEY' // Legacy typo support
-    ) || (process.env.NODE_ENV === 'production' 
-      ? '' 
+    ) || (process.env.NODE_ENV === 'production'
+      ? ''
       : 'gsk_dummy-key-for-build-and-development-only'),
   },
 
-  // Market Data APIs
+  // Market Data APIs (server-only)
   twelveData: {
     apiKey: getEnvVar('TWELVE_DATA_API_KEY', 'NEXT_PUBLIC_TWELVEDATA_API_KEY') || '',
   },
-  
+
   tavily: {
     apiKey: getEnvVar('TAVILY_API_KEY', 'NEXT_PUBLIC_TAVILY_API_KEY') || '',
   },
-  
+
   newsApi: {
-    apiKey: getEnvVar('NEWS_API_KEY', 'NEXT_PUBLIC_NEWSAPI_KEY') || '',
+    apiKey: getEnvVar('NEWS_API_KEY', 'NEXT_PUBLIC_NEWS_API_KEY', 'NEXT_PUBLIC_NEWSAPI_KEY') || '',
   },
 
   // Database
@@ -74,8 +81,22 @@ export const env = {
     userAgent: getEnvVar('REDDIT_USER_AGENT') || '',
   },
 
-  // Other
-  contactFormUrl: getEnvVar('NEXT_PUBLIC_CONTACT_FORM_API_URL') || '',
+  // Email
+  resend: {
+    apiKey: getEnvVar('RESEND_API_KEY') || '',
+    from: getEnvVar('EMAIL_FROM') || '',
+  },
+
+  // Public (safe for the browser — non-secret configuration only)
+  public: {
+    /**
+     * Server-side base URL used by server code to call its own routes.
+     * NOT a secret; only used from server contexts.
+     */
+    baseUrl: getEnvVar('NEXT_PUBLIC_BASE_URL') || 'http://localhost:3000',
+    contactFormUrl: getEnvVar('NEXT_PUBLIC_CONTACT_FORM_URL') || '',
+  },
+
   nodeEnv: getEnvVar('NODE_ENV') || 'development',
   port: parseInt(getEnvVar('PORT') || '3000', 10),
 } as const;
@@ -96,7 +117,7 @@ export function validateEnv() {
 
   if (missing.length > 0) {
     const message = `⚠️  Missing required environment variables:\n   ${missing.join(', ')}`;
-    
+
     if (env.nodeEnv === 'production') {
       console.error(message);
       console.error('   Application may not work correctly!');

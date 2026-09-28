@@ -44,6 +44,10 @@ export const env = {
     apiKey: getEnvVar('TWELVE_DATA_API_KEY', 'NEXT_PUBLIC_TWELVEDATA_API_KEY') || '',
   },
 
+  eulerpool: {
+    apiKey: getEnvVar('EULERPOOL_API_KEY') || '',
+  },
+
   tavily: {
     apiKey: getEnvVar('TAVILY_API_KEY', 'NEXT_PUBLIC_TAVILY_API_KEY') || '',
   },

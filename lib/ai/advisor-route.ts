@@ -110,18 +110,51 @@ export function createAdvisorChatHandler(
       msg.role === 'assistant' ? new AIMessage(msg.content) : new HumanMessage(msg.content)
     );
 
-    // 6. Stream graph events as SSE.
+    // 6. Stream graph events as SSE (Phase 1: + true token streaming).
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
+        let controllerClosed = false;
+        let tokenQueue: Promise<void> = Promise.resolve();
         try {
-          for await (const ev of advisorStreamEvents(graph, { messages: langchainMessages })) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
+          for await (const ev of advisorStreamEvents(
+            graph,
+            { messages: langchainMessages },
+            {
+              // True token streaming (§37): synthesis tokens are forwarded to
+              // the client as they are generated. Emission is synchronized via
+              // a promise chain so SSE frame order is preserved under
+              // backpressure. `final` still carries the complete message, so
+              // older clients stay correct.
+              onFinalToken: (token) => {
+                tokenQueue = tokenQueue.then(() =>
+                  Promise.resolve().then(() => {
+                    if (controllerClosed) return;
+                    try {
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)
+                      );
+                    } catch {
+                      controllerClosed = true; // stream already errored/closed
+                    }
+                  })
+                );
+              },
+            }
+          )) {
+            if (controllerClosed) break;
+            tokenQueue = tokenQueue.then(() => {
+              if (controllerClosed) return;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
+            });
+            await tokenQueue;
             if (ev.type === 'final') {
+              controllerClosed = true;
               controller.close();
               return;
             }
           }
+          controllerClosed = true;
           controller.close();
         } catch (error) {
           console.error(`[${logPrefix}] Error in graph stream:`, error);

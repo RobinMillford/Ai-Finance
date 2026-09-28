@@ -306,6 +306,11 @@ export default function ForexAdvisor() {
                   };
                   steps.push(step);
                   setAgentSteps([...steps]);
+                } else if (data.type === "token") {
+                  // Phase 1: true token streaming — show tokens as they arrive;
+                  // `final` still delivers the full authoritative message.
+                  finalResponse += data.token;
+                  setStreamingResponse(finalResponse);
                 } else if (data.type === "final") {
                   // Final response received
                   finalResponse = data.message;

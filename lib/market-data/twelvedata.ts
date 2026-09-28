@@ -13,7 +13,11 @@
 
 import { env } from '@/lib/env';
 
-/** Twelve Data free tier is ~8 requests/minute; default pacing ≈ 7.6s. */
+/**
+ * Pacing default for the free tier (~8 req/min → ≈7.6s between requests).
+ * NOT hard-coded as truth (spec §4): the plan is configurable via env so a
+ * higher-tier plan removes the throttle without a code change.
+ */
 const DEFAULT_MIN_INTERVAL_MS = 7600;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 10_000;
@@ -66,7 +70,9 @@ export async function twelveDataFetch<T = any>(
   const {
     maxRetries = DEFAULT_MAX_RETRIES,
     retryDelayMs = DEFAULT_RETRY_DELAY_MS,
-    minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
+    // Plan-aware pacing (spec §4/§11): configure the real plan's interval via
+    // TWELVEDATA_MIN_INTERVAL_MS; 0 disables pacing for higher tiers.
+    minIntervalMs = Number(process.env.TWELVEDATA_MIN_INTERVAL_MS ?? DEFAULT_MIN_INTERVAL_MS),
   } = opts;
 
   if (!env.twelveData.apiKey) {

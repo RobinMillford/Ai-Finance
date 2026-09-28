@@ -58,6 +58,35 @@ interface Portfolio {
   updatedAt: string;
 }
 
+/** Real valuation from /api/portfolio/[id]/valuation (live quotes + P&L). */
+interface ValuationHolding {
+  symbol: string;
+  currentPrice: number | null;
+  dayChange: number | null;
+  dayChangePercent: number | null;
+  marketValue: number | null;
+  unrealizedPL: number | null;
+  unrealizedPLPercent: number | null;
+  freshness: string;
+  provider: string;
+}
+
+interface ValuationTotals {
+  marketValue: number | null;
+  costBasis: number;
+  unrealizedPL: number | null;
+  unrealizedPLPercent: number | null;
+  dayChange: number | null;
+  dayChangePercent: number | null;
+}
+
+interface Valuation {
+  holdings: ValuationHolding[];
+  totals: ValuationTotals;
+  symbolErrors: { symbol: string; reason: string }[];
+  partial: boolean;
+}
+
 export default function PortfolioDetailPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -65,6 +94,7 @@ export default function PortfolioDetailPage() {
   const { toast } = useToast();
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [valuation, setValuation] = useState<Valuation | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -81,6 +111,7 @@ export default function PortfolioDetailPage() {
       router.push("/");
     } else if (status === "authenticated" && params.id) {
       fetchPortfolio();
+      fetchValuation();
     }
   }, [status, params.id, router]);
 
@@ -102,6 +133,17 @@ export default function PortfolioDetailPage() {
       console.error("Error fetching portfolio:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchValuation = async () => {
+    try {
+      const res = await fetch(`/api/portfolio/${params.id}/valuation`);
+      if (res.ok) {
+        setValuation(await res.json());
+      }
+    } catch (error) {
+      console.error("Error fetching valuation:", error);
     }
   };
 
@@ -139,6 +181,7 @@ export default function PortfolioDetailPage() {
           title: "Success",
           description: "Holding added successfully",
         });
+        fetchValuation(); // re-value with the new holding
       } else {
         const error = await res.json();
         toast({
@@ -175,6 +218,7 @@ export default function PortfolioDetailPage() {
           title: "Success",
           description: "Holding deleted successfully",
         });
+        fetchValuation(); // re-value after deletion
       } else {
         toast({
           title: "Error",
@@ -196,20 +240,17 @@ export default function PortfolioDetailPage() {
   };
 
   const calculateTotals = () => {
-    if (!portfolio) return { totalValue: 0, totalCost: 0, totalPL: 0, totalPLPercent: 0 };
-
-    const totalCost = portfolio.holdings.reduce(
-      (sum: number, h: Holding) => sum + h.quantity * h.purchasePrice,
-      0
-    );
-
-    // For now, use purchase price as current price
-    // In next iteration, we'll fetch live prices
-    const totalValue = totalCost;
-    const totalPL = totalValue - totalCost;
-    const totalPLPercent = totalCost > 0 ? (totalPL / totalCost) * 100 : 0;
-
-    return { totalValue, totalCost, totalPL, totalPLPercent };
+    // Real valuation from live quotes (§21–§23). Cost basis is always known;
+    // market value / P&L are null until quotes arrive (shown as “—”).
+    const totals = valuation?.totals;
+    return {
+      totalCost: totals?.costBasis ?? 0,
+      totalValue: totals?.marketValue ?? null,
+      totalPL: totals?.unrealizedPL ?? null,
+      totalPLPercent: totals?.unrealizedPLPercent ?? null,
+      dayChange: totals?.dayChange ?? null,
+      dayChangePercent: totals?.dayChangePercent ?? null,
+    };
   };
 
   if (status === "loading" || loading) {
@@ -224,7 +265,20 @@ export default function PortfolioDetailPage() {
     return null;
   }
 
-  const { totalValue, totalCost, totalPL, totalPLPercent } = calculateTotals();
+  const { totalValue, totalCost, totalPL, totalPLPercent, dayChange, dayChangePercent } =
+    calculateTotals();
+
+  const fmtMoney = (v: number | null) =>
+    v === null
+      ? "—"
+      : `$${Math.abs(v).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
+  const valuationBySymbol = new Map(
+    (valuation?.holdings ?? []).map((vh) => [vh.symbol, vh])
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
@@ -420,12 +474,7 @@ export default function PortfolioDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold">
-                  ${totalValue.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </p>
+                <p className="text-2xl font-bold">{fmtMoney(totalValue)}</p>
               </div>
             </div>
           </Card>
@@ -437,32 +486,42 @@ export default function PortfolioDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Cost</p>
-                <p className="text-2xl font-bold">
-                  ${totalCost.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </p>
+                <p className="text-2xl font-bold">{fmtMoney(totalCost)}</p>
               </div>
             </div>
           </Card>
 
           <Card className="p-6">
             <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-lg ${totalPL >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                {totalPL >= 0 ? (
+              <div
+                className={`p-3 rounded-lg ${
+                  totalPL === null ? "bg-muted/10" : totalPL >= 0 ? "bg-green-500/10" : "bg-red-500/10"
+                }`}
+              >
+                {totalPL === null ? (
+                  <DollarSign className="w-6 h-6 text-muted-foreground" />
+                ) : totalPL >= 0 ? (
                   <TrendingUp className="w-6 h-6 text-green-500" />
                 ) : (
                   <TrendingDown className="w-6 h-6 text-red-500" />
                 )}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total P&L</p>
-                <p className={`text-2xl font-bold ${totalPL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  ${Math.abs(totalPL).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                <p className="text-sm text-muted-foreground">
+                  Total P&amp;L
+                  {dayChangePercent !== null && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      today {dayChangePercent >= 0 ? "+" : ""}
+                      {dayChangePercent.toFixed(2)}%
+                    </span>
+                  )}
+                </p>
+                <p
+                  className={`text-2xl font-bold ${
+                    totalPL === null ? "" : totalPL >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {totalPL === null ? "—" : `${totalPL >= 0 ? "+" : "−"}${fmtMoney(totalPL)}`}
                 </p>
               </div>
             </div>
@@ -470,13 +529,37 @@ export default function PortfolioDetailPage() {
 
           <Card className="p-6">
             <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-lg ${totalPLPercent >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                <Percent className={`w-6 h-6 ${totalPLPercent >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+              <div
+                className={`p-3 rounded-lg ${
+                  totalPLPercent === null
+                    ? "bg-muted/10"
+                    : totalPLPercent >= 0
+                      ? "bg-green-500/10"
+                      : "bg-red-500/10"
+                }`}
+              >
+                <Percent
+                  className={`w-6 h-6 ${
+                    totalPLPercent === null
+                      ? "text-muted-foreground"
+                      : totalPLPercent >= 0
+                        ? "text-green-500"
+                        : "text-red-500"
+                  }`}
+                />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Return %</p>
-                <p className={`text-2xl font-bold ${totalPLPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {totalPLPercent.toFixed(2)}%
+                <p
+                  className={`text-2xl font-bold ${
+                    totalPLPercent === null
+                      ? ""
+                      : totalPLPercent >= 0
+                        ? "text-green-500"
+                        : "text-red-500"
+                  }`}
+                >
+                  {totalPLPercent === null ? "—" : `${totalPLPercent.toFixed(2)}%`}
                 </p>
               </div>
             </div>
@@ -505,40 +588,79 @@ export default function PortfolioDetailPage() {
                   <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Purchase Price</TableHead>
                   <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Current Price</TableHead>
+                  <TableHead className="text-right">Market Value</TableHead>
+                  <TableHead className="text-right">P&amp;L</TableHead>
                   <TableHead>Purchase Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {portfolio.holdings.map((holding, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-bold">{holding.symbol}</TableCell>
-                    <TableCell>
-                      <span className="px-2 py-1 bg-muted rounded text-xs">
-                        {holding.assetType}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">{holding.quantity}</TableCell>
-                    <TableCell className="text-right">
-                      ${holding.purchasePrice.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      ${(holding.quantity * holding.purchasePrice).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(holding.purchaseDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteHolding(index)}
+                {portfolio.holdings.map((holding, index) => {
+                  const vh = valuationBySymbol.get(holding.symbol);
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-bold">{holding.symbol}</TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 bg-muted rounded text-xs">
+                          {holding.assetType}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">{holding.quantity}</TableCell>
+                      <TableCell className="text-right">
+                        ${holding.purchasePrice.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        ${(holding.quantity * holding.purchasePrice).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {vh?.currentPrice === null || vh === undefined ? (
+                          <span title={vh ? undefined : "Quote unavailable"}>—</span>
+                        ) : (
+                          <span>
+                            ${vh.currentPrice!.toFixed(2)}
+                            {vh.dayChangePercent !== null && (
+                              <span
+                                className={`ml-1 text-xs ${
+                                  vh.dayChangePercent >= 0 ? "text-green-500" : "text-red-500"
+                                }`}
+                              >
+                                {vh.dayChangePercent >= 0 ? "▲" : "▼"}
+                                {Math.abs(vh.dayChangePercent).toFixed(2)}%
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">{fmtMoney(vh?.marketValue ?? null)}</TableCell>
+                      <TableCell
+                        className={`text-right ${
+                          vh?.unrealizedPL == null
+                            ? ""
+                            : vh.unrealizedPL >= 0
+                              ? "text-green-500"
+                              : "text-red-500"
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        {vh?.unrealizedPL == null
+                          ? "—"
+                          : `${vh.unrealizedPL >= 0 ? "+" : "−"}${fmtMoney(vh.unrealizedPL)}`}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(holding.purchaseDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteHolding(index)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

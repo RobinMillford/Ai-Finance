@@ -99,7 +99,7 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 
 ### Data Sources
 
-- **Market Data**: Twelve Data API (stocks, forex, crypto)
+- **Market Data**: Dual-provider architecture — Twelve Data (quotes, indicators, crypto/forex) + Eulerpool (equity candles, company profiles, fundamentals). Canonical-source policy, deterministic fallback, and candle persistence are documented in [PROVIDER_POLICY.md](./PROVIDER_POLICY.md).
 - **News**: NewsAPI
 - **Community Sentiment**: Reddit API (15+ financial subreddits)
 - **Market Intelligence**: Tavily Search API
@@ -194,6 +194,9 @@ GROQ_API_KEY=your_groq_api_key
 
 # Market Data (required, server-only)
 TWELVE_DATA_API_KEY=your_twelve_data_key
+# Eulerpool (Phase 1: canonical equity candles/company/fundamentals) — optional
+# but strongly recommended; without it equity candles fall back to Twelve Data
+EULERPOOL_API_KEY=your_eulerpool_key
 TAVILY_API_KEY=your_tavily_api_key
 NEWS_API_KEY=your_news_api_key
 
@@ -389,7 +392,8 @@ Please ensure tests pass (`npm test`) and documentation stays up to date.
 - [Groq](https://groq.com/) — Ultra-fast LLM inference
 - [shadcn/ui](https://ui.shadcn.com/) — UI components
 - [Recharts](https://recharts.org/) — Chart library
-- [Twelve Data](https://twelvedata.com/) — Market data
+- [Twelve Data](https://twelvedata.com/) — Market data (quotes, indicators, crypto/forex)
+- [Eulerpool](https://www.eulerpool.com/) — Equity candles, company profiles, fundamentals
 - [Tavily](https://tavily.com/) — AI-powered search
 
 ## License

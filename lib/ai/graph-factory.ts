@@ -17,6 +17,7 @@ import {
   StateGraph,
   Annotation,
   Send,
+  type LangGraphRunnableConfig,
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
@@ -285,7 +286,10 @@ User query is the last message in the conversation. Decide which specialists it 
   }
 
   // ── Final Response ─────────────────────────────────────────────────────
-  async function finalResponseNode(state: typeof AgentState.State) {
+  async function finalResponseNode(
+    state: typeof AgentState.State,
+    config?: LangGraphRunnableConfig
+  ) {
     // Phase 0: bound the collected data before it enters the synthesis
     // prompt. Raw tool payloads could previously grow without limit (413 /
     // TPM failures). boundDataPayload truncates long strings and caps the
@@ -304,17 +308,42 @@ User query is the last message in the conversation. Decide which specialists it 
           : m?.type === "human" || m?.role === "user" || m?.role === "human"
       );
 
-    const response = await withRetry(() =>
-      smartLLM.invoke([
-        new SystemMessage(cfg.finalSystemPrompt(boundedData)),
-        ...(lastUserMessage ? [lastUserMessage] : []),
-      ])
-    );
+    const messages = [
+      new SystemMessage(cfg.finalSystemPrompt(boundedData)),
+      ...(lastUserMessage ? [lastUserMessage] : []),
+    ];
 
-    const cleanedContent =
-      typeof response.content === "string"
-        ? response.content.trim()
-        : response.content;
+    // Phase 1: TRUE token streaming (§37). The per-request callback arrives
+    // via LangGraph `configurable` (thread-safe — the graph itself is a
+    // singleton and must never hold per-request state). When no callback is
+    // provided the original invoke path is used unchanged.
+    const onToken = config?.configurable?.onFinalToken as
+      | ((token: string) => void)
+      | undefined;
+
+    let cleanedContent: string;
+    if (typeof onToken === "function") {
+      const parts: string[] = [];
+      const tokenStream = await smartLLM.stream(messages);
+      for await (const chunk of tokenStream) {
+        const token = typeof chunk.content === "string" ? chunk.content : "";
+        if (!token) continue;
+        parts.push(token);
+        try {
+          onToken(token);
+        } catch {
+          // A failing consumer must never abort synthesis — the final
+          // event still carries the complete message.
+        }
+      }
+      cleanedContent = parts.join("").trim();
+    } else {
+      const response = await withRetry(() => smartLLM.invoke(messages));
+      cleanedContent =
+        typeof response.content === "string"
+          ? response.content.trim()
+          : (response.content as any);
+    }
 
     return {
       messages: [new AIMessage(cleanedContent)],

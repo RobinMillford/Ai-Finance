@@ -4,7 +4,7 @@
  */
 
 const requiredEnvVars = [
-  'MONGODB_URI',
+  'DATABASE_URL',
   'NEXTAUTH_SECRET',
   'NEXTAUTH_URL',
 ] as const;

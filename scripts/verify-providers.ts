@@ -142,9 +142,13 @@ async function main(): Promise<number> {
   const { getIndicators } = await import('@/lib/market-data/indicators');
   const { valuePortfolio } = await import('@/lib/portfolio/valuation');
   const { correlationBetweenPrices } = await import('@/lib/analytics/engine');
-  const Candle = (await import('@/models/Candle')).default;
-  const mongooseMod = await import('mongoose');
-  const mongoose = ((mongooseMod as any).default ?? mongooseMod) as typeof mongooseMod;
+  const {
+    deleteCandlesForSymbol,
+    countCandles,
+    readCandles,
+    upsertCandle,
+  } = await import('@/lib/db/repositories/candles');
+  const { getPool } = await import('@/lib/db/client');
 
   const isFail = (e: unknown, kind: string) =>
     e instanceof ProviderError && e.kind === kind;
@@ -441,52 +445,76 @@ async function main(): Promise<number> {
     return { detail: `freshness=${quote.freshness} (asOf=${quote.asOf})` };
   });
 
-  // ═════════════════ CANDLE PERSISTENCE (Mongo + real data, §15) ════════════
+  // ═══════════════ CANDLE PERSISTENCE (PostgreSQL + real data, §15) ═════════
   console.log('\nCandle Persistence');
 
-  let mongoReady = false;
-  await step('Persistence', 'Mongo connect', async () => {
-    if (!env.mongodb.uri) throw new Error('MONGODB_URI not set');
+  let dbReady = false;
+  await step('Persistence', 'Postgres connect', async () => {
+    if (!env.database.url) throw new Error('DATABASE_URL not set');
     try {
-      // `as any` on options: mongoose ConnectOptions type drift under ts-node.
-      await mongoose.connect(env.mongodb.uri, { serverSelectionTimeoutMS: 10_000 } as any);
-      mongoReady = true;
+      // The pool is lazy — issue one real round-trip to prove reachability.
+      // Connection details are never logged (the URL carries credentials).
+      const pool = getPool();
+      const res = await pool.query('select 1 as ok');
+      if (res.rows[0]?.ok !== 1) throw new Error('unexpected probe result');
+      dbReady = true;
       return { detail: 'connected' };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `MongoDB unreachable: ${redact(reason)} — infrastructure/environment blocker, NOT a code-path failure. ` +
-        'Re-run this gate once MONGODB_URI points to a reachable cluster.'
+        `PostgreSQL unreachable: ${redact(reason)} — infrastructure/environment blocker, NOT a code-path failure. ` +
+        'Re-run this gate once DATABASE_URL points to a reachable database.'
       );
     }
   });
 
   await step('Persistence', 'Candles stored from live provider', async () => {
-    if (!mongoReady) throw new SkipError('MongoDB unreachable — persistence gate cannot run');
-    await Candle.deleteMany({ symbol: 'AAPL' }).catch(() => null); // clean slate
+    if (!dbReady) throw new SkipError('PostgreSQL unreachable — persistence gate cannot run');
+    await deleteCandlesForSymbol('AAPL').catch(() => null); // clean slate
     const { candles, provider, source } = await getCandles('AAPL', 'stock', { days: 45 });
     if (!candles.length) throw new Error('no candles after live fetch');
-    const stored = await Candle.countDocuments({ symbol: 'AAPL', interval: '1day' });
+    const stored = await countCandles('AAPL');
     if (stored === 0) throw new Error('provider data did not persist');
-    const sample = (await Candle.findOne({ symbol: 'AAPL' }).lean()) as any;
-    // Provenance is persisted in `sourceProvider` (models/Candle.ts, §13).
-    if (sample.sourceProvider !== 'eulerpool' && sample.sourceProvider !== 'twelvedata') {
-      throw new Error(`stored provenance invalid: ${String(sample.sourceProvider)}`);
+    const sample = (await readCandles({ symbol: 'AAPL', from: new Date(0) }))[0];
+    // Provenance is persisted in `source_provider` (lib/db/schema.ts, §13).
+    if (sample.provider !== 'eulerpool' && sample.provider !== 'twelvedata') {
+      throw new Error(`stored provenance invalid: ${String(sample.provider)}`);
     }
     return {
-      detail: `source=${source}, provider=${provider}, ${stored} docs, sample close=${sample.close} prov=${sample.sourceProvider}`,
+      detail: `source=${source}, provider=${provider}, ${stored} rows, sample close=${sample.close} prov=${sample.provider}`,
       meta: { provider, stored, source },
     };
   });
 
   await step('Persistence', 'Second read served from storage (coverage policy)', async () => {
-    if (!mongoReady) throw new SkipError('MongoDB unreachable — persistence gate cannot run');
+    if (!dbReady) throw new SkipError('PostgreSQL unreachable — persistence gate cannot run');
+    // Coverage is asserted on a CONTROLLED gap-free weekday series for a
+    // throwaway symbol: real calendars are holiday-pocked, so a live window
+    // can legitimately score below minCoverage — and `hybrid` is then the
+    // CORRECT policy outcome. The read path itself must be deterministic.
+    const sym = 'VGAC';
+    await deleteCandlesForSymbol(sym).catch(() => null);
+    let seeded = 0;
+    for (let offset = 44; offset >= 0; offset--) {
+      const d = new Date();
+      d.setUTCHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - offset);
+      const dow = d.getUTCDay();
+      if (dow === 0 || dow === 6) continue;
+      const close = 100 + (44 - offset);
+      await upsertCandle(
+        { symbol: sym, timestamp: d, interval: '1day', open: close - 1, high: close + 1, low: close - 2, close, volume: 1000, adjustmentMode: 'unknown', sourceProvider: 'eulerpool' },
+        true
+      );
+      seeded += 1;
+    }
     const before = providerHealth.eulerpool.success;
-    const { source } = await getCandles('AAPL', 'stock', { days: 45 });
+    const { source } = await getCandles(sym, 'stock', { days: 45 });
     const after = providerHealth.eulerpool.success;
+    await deleteCandlesForSymbol(sym).catch(() => null);
     if (source !== 'storage') throw new Error(`second read source=${source}, expected storage`);
     if (before !== after) throw new Error(`provider was hit on a storage read (${before}→${after})`);
-    return { detail: `source=storage, EP success calls unchanged (${before}→${after})` };
+    return { detail: `source=storage, ${seeded} seeded weekdays, EP success calls unchanged (${before}→${after})` };
   });
 
   // ═══════════════════ PORTFOLIO VALUATION (real quotes, §16) ═══════════════
@@ -518,13 +546,13 @@ async function main(): Promise<number> {
     // Real data through the storage path when available; otherwise live
     // provider candles (the ENGINE under test is pure — same input, same
     // output — and the storage read is gated separately above).
-    const a = mongoReady
+    const a = dbReady
       ? await getCandles('AAPL', 'stock', { days: 180 })
       : { candles: await getCandlesFromProviders('AAPL', { range: '6m' }) };
-    const b = mongoReady
+    const b = dbReady
       ? await getCandles('MSFT', 'stock', { days: 180 })
       : { candles: await getCandlesFromProviders('MSFT', { range: '6m' }) };
-    const sourceLabel = mongoReady ? 'stored candles' : 'live provider candles (Mongo blocked)';
+    const sourceLabel = dbReady ? 'stored candles' : 'live provider candles (DB blocked)';
     if (a.candles.length < 25 || b.candles.length < 25) {
       throw new Error(`insufficient candles: AAPL=${a.candles.length} MSFT=${b.candles.length}`);
     }
@@ -566,7 +594,8 @@ async function main(): Promise<number> {
     `Eulerpool rate-limit headers (last captured): limit=${eulerpoolRateLimitState.limit}, remaining=${eulerpoolRateLimitState.remaining}, reset=${eulerpoolRateLimitState.reset}`
   );
 
-  if (mongoose.connection.readyState === 1) await mongoose.disconnect();
+  const { closePool } = await import('@/lib/db/client');
+  await closePool().catch(() => null);
 
   if (JSON_MODE) {
     console.log(`__VERIFY_RESULTS__${JSON.stringify(results)}`);

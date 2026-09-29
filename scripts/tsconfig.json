@@ -13,5 +13,5 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["verify-providers.ts"]
+  "include": ["verify-providers.ts", "verify-postgres.ts"]
 }

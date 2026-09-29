@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Portfolio from '@/models/Portfolio';
-import { withRateLimit, errorResponse, successResponse } from '@/lib/api-middleware';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getUserPortfolios,
+  createPortfolio,
+} from '@/lib/db/repositories/portfolios';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
 /**
@@ -11,17 +13,13 @@ import { RATE_LIMITS } from '@/lib/rate-limiter';
  */
 async function getPortfolios(request: Request) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
-    await dbConnect();
-    
-    const portfolios = await Portfolio.find({ userId: session.user.email })
-      .sort({ createdAt: -1 })
-      .lean();
+    const portfolios = await getUserPortfolios(userId);
 
     return NextResponse.json(portfolios);
   } catch (error) {
@@ -34,11 +32,11 @@ async function getPortfolios(request: Request) {
  * POST /api/portfolio
  * Create a new portfolio
  */
-async function createPortfolio(request: Request) {
+async function createNewPortfolio(request: Request) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -49,13 +47,9 @@ async function createPortfolio(request: Request) {
       return errorResponse('Portfolio name is required', 400);
     }
 
-    await dbConnect();
-
-    const portfolio = await Portfolio.create({
-      userId: session.user.email,
+    const portfolio = await createPortfolio(userId, {
       name: name.trim(),
-      description: description?.trim() || '',
-      holdings: [],
+      description: typeof description === 'string' ? description.trim() : '',
     });
 
     return NextResponse.json(portfolio, { status: 201 });
@@ -66,4 +60,4 @@ async function createPortfolio(request: Request) {
 }
 
 export const GET = withRateLimit(getPortfolios, RATE_LIMITS.API_DEFAULT);
-export const POST = withRateLimit(createPortfolio, RATE_LIMITS.API_DEFAULT);
+export const POST = withRateLimit(createNewPortfolio, RATE_LIMITS.API_DEFAULT);

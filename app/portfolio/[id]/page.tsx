@@ -41,6 +41,7 @@ import { ExportButton } from "@/components/ExportButton";
 import { exportPortfolioToCSV, exportPortfolioToPDF } from "@/lib/export-utils";
 
 interface Holding {
+  id: string;
   symbol: string;
   assetType: string;
   quantity: number;
@@ -50,7 +51,7 @@ interface Holding {
 }
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
   holdings: Holding[];
@@ -202,12 +203,12 @@ export default function PortfolioDetailPage() {
     }
   };
 
-  const deleteHolding = async (index: number) => {
+  const deleteHolding = async (positionId: string) => {
     if (!confirm("Are you sure you want to delete this holding?")) return;
 
     try {
       const res = await fetch(
-        `/api/portfolio/${params.id}/holdings?index=${index}`,
+        `/api/portfolio/${params.id}/holdings?positionId=${positionId}`,
         { method: "DELETE" }
       );
 
@@ -596,10 +597,10 @@ export default function PortfolioDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {portfolio.holdings.map((holding, index) => {
+                {portfolio.holdings.map((holding) => {
                   const vh = valuationBySymbol.get(holding.symbol);
                   return (
-                    <TableRow key={index}>
+                    <TableRow key={holding.id}>
                       <TableCell className="font-bold">{holding.symbol}</TableCell>
                       <TableCell>
                         <span className="px-2 py-1 bg-muted rounded text-xs">
@@ -653,7 +654,7 @@ export default function PortfolioDetailPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteHolding(index)}
+                          onClick={() => deleteHolding(holding.id)}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>

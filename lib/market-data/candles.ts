@@ -13,11 +13,18 @@
  *     provider for that asset class. Non-canonical data can fill gaps only.
  *
  * Provenance (sourceProvider, retrievedAt) is persisted with every candle.
+ *
+ * Storage is PostgreSQL (lib/db/repositories/candles.ts); this module maps
+ * between the provider-agnostic domain candle and the stored row shape.
  */
 
-import Candle, { ICandle, CandleInterval, AdjustmentMode } from '@/models/Candle';
+import {
+  upsertCandle,
+  readCandles,
+  type StoredCandle,
+} from '@/lib/db/repositories/candles';
 import { getCandlesFromProviders, CANONICAL_SOURCES } from './registry';
-import type { Candle as DomainCandle } from './domain';
+import type { Candle as DomainCandle, CandleInterval, AdjustmentMode } from './domain';
 
 /** Data classes keyed by asset type → canonical candle provider. */
 function canonicalFor(assetType: 'stock' | 'crypto' | 'forex'): 'twelvedata' | 'eulerpool' {
@@ -26,34 +33,18 @@ function canonicalFor(assetType: 'stock' | 'crypto' | 'forex'): 'twelvedata' | '
   return 'twelvedata';
 }
 
-function toDoc(c: DomainCandle): Partial<ICandle> {
+function toStored(c: DomainCandle): StoredCandle {
   return {
     symbol: c.symbol.toUpperCase(),
-    timestamp: new Date(c.timestamp),
-    interval: c.interval,
+    timestamp: new Date(c.timestamp).toISOString(),
     open: c.open,
     high: c.high,
     low: c.low,
     close: c.close,
     volume: c.volume,
+    interval: c.interval,
     adjustmentMode: c.adjustmentMode,
-    sourceProvider: c.provider,
-    retrievedAt: new Date(),
-  };
-}
-
-function toDomain(doc: ICandle): DomainCandle {
-  return {
-    symbol: doc.symbol,
-    timestamp: doc.timestamp.toISOString(),
-    open: doc.open,
-    high: doc.high,
-    low: doc.low,
-    close: doc.close,
-    volume: doc.volume,
-    interval: doc.interval,
-    adjustmentMode: doc.adjustmentMode,
-    provider: doc.sourceProvider,
+    provider: c.provider,
   };
 }
 
@@ -72,38 +63,32 @@ export async function persistCandles(
   let skippedNonCanonical = 0;
 
   for (const candle of candles) {
-    const filter = {
-      symbol: candle.symbol.toUpperCase(),
-      interval: candle.interval,
-      timestamp: new Date(candle.timestamp),
-      adjustmentMode: candle.adjustmentMode,
-    };
+    const result = await upsertCandle(
+      {
+        symbol: candle.symbol,
+        timestamp: new Date(candle.timestamp),
+        interval: candle.interval,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume,
+        adjustmentMode: candle.adjustmentMode,
+        sourceProvider: candle.provider,
+      },
+      candle.provider === canonical
+    );
 
-    const existing = await Candle.findOne(filter).lean<ICandle | null>();
-
-    if (existing) {
-      if (candle.provider !== canonical && existing.sourceProvider !== candle.provider) {
-        // Overlap conflict: canonical source owns the candle — skip silently
-        // mixing non-canonical values over it (§9/§13).
-        skippedNonCanonical += 1;
-        continue;
-      }
-      await Candle.updateOne(
-        { _id: existing._id },
-        { $set: { ...toDoc(candle), retrievedAt: new Date() } }
-      );
-      upserted += 1;
-    } else {
-      await Candle.create(toDoc(candle));
-      inserted += 1;
-    }
+    if (result === 'upserted') upserted += 1;
+    else if (result === 'inserted') inserted += 1;
+    else skippedNonCanonical += 1;
   }
 
   return { upserted, inserted, skippedNonCanonical };
 }
 
 /**
- * Storage-first read (§39/§40): serve from Mongo when the requested range is
+ * Storage-first read (§39/§40): serve from storage when the requested range is
  * sufficiently covered; fetch from providers only for what is missing.
  *
  * `minCoverage` = fraction of expected trading days that must be present in
@@ -125,21 +110,14 @@ export async function getCandles(
   const sym = symbol.toUpperCase();
   const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const stored = await Candle.find({
-    symbol: sym,
-    interval,
-    adjustmentMode,
-    timestamp: { $gte: from },
-  })
-    .sort({ timestamp: 1 })
-    .lean<ICandle[]>();
+  const stored = await readCandles({ symbol: sym, from, interval, adjustmentMode });
 
   // Trading-day coverage estimate: ~5 trading days per 7 calendar days.
   const expected = Math.floor(days * (5 / 7));
   const coverage = expected > 0 ? stored.length / expected : 0;
 
   if (coverage >= minCoverage && stored.length > 0) {
-    return { candles: stored.map(toDomain), source: 'storage' };
+    return { candles: stored.map(toDomainFromStored), source: 'storage' };
   }
 
   // Fetch from providers (registry applies the deterministic fallback policy).
@@ -149,8 +127,8 @@ export async function getCandles(
   // Merge: stored rows remain authoritative for their identity; fetched rows
   // fill gaps. (persistCandles already enforced the canonical-source rule.)
   if (stored.length > 0) {
-    const storedKeys = new Set(stored.map((d) => new Date(d.timestamp).toISOString()));
-    const merged = [...stored.map(toDomain)];
+    const storedKeys = new Set(stored.map((d) => d.timestamp));
+    const merged: DomainCandle[] = [...stored.map(toDomainFromStored)];
     for (const c of fetched) {
       if (!storedKeys.has(c.timestamp)) merged.push(c);
     }
@@ -161,7 +139,23 @@ export async function getCandles(
   return { candles: fetched, source: 'provider', provider: fetched[0]?.provider };
 }
 
+function toDomainFromStored(row: StoredCandle): DomainCandle {
+  return {
+    symbol: row.symbol,
+    timestamp: row.timestamp,
+    open: row.open,
+    high: row.high,
+    low: row.low,
+    close: row.close,
+    volume: row.volume,
+    interval: row.interval,
+    adjustmentMode: row.adjustmentMode,
+    provider: row.provider,
+  };
+}
+
 /** Test/utility hook: clear all stored candles (never call in production paths). */
 export async function clearCandles(): Promise<void> {
-  await Candle.deleteMany({});
+  const { deleteAllCandles } = await import('@/lib/db/repositories/candles');
+  await deleteAllCandles();
 }

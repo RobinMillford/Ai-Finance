@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Conversation from '@/models/Conversation';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getConversationThread,
+  appendMessage,
+  deleteConversation,
+} from '@/lib/db/repositories/conversations';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -17,18 +20,14 @@ async function getConversation(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
-    await dbConnect();
 
-    const conversation = await Conversation.findOne({
-      _id: id,
-      userId: session.user.email,
-    }).lean();
+    const conversation = await getConversationThread(userId, id);
 
     if (!conversation) {
       return errorResponse('Conversation not found', 404);
@@ -43,15 +42,16 @@ async function getConversation(
 
 /**
  * POST /api/conversations/[id]
- * Append a message (user reply or assistant answer).
+ * Append a message (user reply or assistant answer). The first user message
+ * on an untitled conversation renames it atomically inside the repository.
  */
-async function appendMessage(
+async function appendMessageRoute(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -66,42 +66,18 @@ async function appendMessage(
       return errorResponse('Message content is required', 400);
     }
 
-    const message: Record<string, unknown> = {
+    const conversation = await appendMessage(userId, id, {
       role,
       content: content.trim().slice(0, MAX_MESSAGE_LENGTH),
-      createdAt: new Date(),
-    };
-    if (typeof provider === 'string') message.provider = provider.slice(0, 100);
-    if (typeof agent === 'string') message.agent = agent.slice(0, 100);
+      provider: typeof provider === 'string' ? provider.slice(0, 100) : undefined,
+      agent: typeof agent === 'string' ? agent.slice(0, 100) : undefined,
+      retitleIfUntitled:
+        role === 'user' ? content.trim().slice(0, MAX_TITLE_CHARS) : undefined,
+    });
 
-    await dbConnect();
-
-    // Load enough to decide whether the title should be auto-derived from the
-    // first user message (conversations created without a title).
-    const existing = await Conversation.findOne(
-      { _id: id, userId: session.user.email },
-      { title: 1, messages: { $slice: 1 } }
-    ).lean();
-
-    if (!existing) {
+    if (!conversation) {
       return errorResponse('Conversation not found', 404);
     }
-
-    const shouldRetitle =
-      role === 'user' &&
-      (existing.messages?.length ?? 0) === 0 &&
-      (existing.title === 'New conversation' || !existing.title);
-
-    const conversation = await Conversation.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      {
-        $push: { messages: message },
-        ...(shouldRetitle
-          ? { $set: { title: content.trim().slice(0, MAX_TITLE_CHARS) } }
-          : {}),
-      },
-      { new: true }
-    );
 
     return NextResponse.json(conversation);
   } catch (error) {
@@ -114,25 +90,21 @@ async function appendMessage(
  * DELETE /api/conversations/[id]
  * Delete a conversation. Owner-only.
  */
-async function deleteConversation(
+async function deleteConversationRoute(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
-    await dbConnect();
 
-    const conversation = await Conversation.findOneAndDelete({
-      _id: id,
-      userId: session.user.email,
-    });
+    const deleted = await deleteConversation(userId, id);
 
-    if (!conversation) {
+    if (!deleted) {
       return errorResponse('Conversation not found', 404);
     }
 
@@ -144,5 +116,5 @@ async function deleteConversation(
 }
 
 export const GET = withRateLimit(getConversation, RATE_LIMITS.API_DEFAULT);
-export const POST = withRateLimit(appendMessage, RATE_LIMITS.API_DEFAULT);
-export const DELETE = withRateLimit(deleteConversation, RATE_LIMITS.API_DEFAULT);
+export const POST = withRateLimit(appendMessageRoute, RATE_LIMITS.API_DEFAULT);
+export const DELETE = withRateLimit(deleteConversationRoute, RATE_LIMITS.API_DEFAULT);

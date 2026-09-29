@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
-import User from '@/models/User';
+import { getUserByEmail } from '@/lib/db/repositories/users';
+import { registerUser } from '@/lib/db/repositories/auth';
 import { hashPassword } from '@/lib/auth-utils';
 import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -96,11 +96,8 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Connect to database
-    await dbConnect();
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    // Check if user already exists (email is case-insensitive unique)
+    const existingUser = await getUserByEmail(email);
     if (existingUser) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
@@ -108,21 +105,16 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    // Hash password and create the user
+    const passwordHash = await hashPassword(password);
     
-    // Create user
-    const user = await User.create({
+    const user = await registerUser({
       name,
       email,
-      password: hashedPassword,
-      watchlist: [],
-      trackedAssets: []
+      passwordHash,
     });
     
-    // Return success response (without password)
-    const { password: _, ...userWithoutPassword } = user.toObject();
-    return NextResponse.json({ user: userWithoutPassword });
+    return NextResponse.json({ user });
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(

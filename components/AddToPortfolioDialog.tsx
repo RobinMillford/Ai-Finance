@@ -18,7 +18,7 @@ import { Loader2, Plus, Briefcase } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
 }
@@ -68,7 +68,7 @@ export function AddToPortfolioDialog({
         const data = await res.json();
         setPortfolios(data);
         if (data.length > 0 && !selectedPortfolio) {
-          setSelectedPortfolio(data[0]._id);
+          setSelectedPortfolio(data[0].id);
         }
       }
     } catch (error) {
@@ -215,12 +215,12 @@ export function AddToPortfolioDialog({
               >
                 {portfolios.map((portfolio) => (
                   <div
-                    key={portfolio._id}
+                    key={portfolio.id}
                     className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-accent cursor-pointer"
                   >
-                    <RadioGroupItem value={portfolio._id} id={portfolio._id} />
+                    <RadioGroupItem value={portfolio.id} id={portfolio.id} />
                     <Label
-                      htmlFor={portfolio._id}
+                      htmlFor={portfolio.id}
                       className="flex-1 cursor-pointer"
                     >
                       <div className="font-medium">{portfolio.name}</div>

@@ -35,7 +35,7 @@ interface Holding {
 }
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
   holdings: Holding[];

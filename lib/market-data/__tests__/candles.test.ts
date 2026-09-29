@@ -10,87 +10,112 @@
  * Fixtures use day OFFSETS from today (the storage window in getCandles is
  * relative to `now`, so absolute dates would silently fall outside it).
  *
- * The Mongo layer is stubbed in-memory (schema identity index and validators
- * are exercised by integration/staging, not unit time).
+ * The PostgreSQL repository boundary is stubbed in-memory (schema identity
+ * uniqueness, NUMERIC precision and constraint behavior are exercised by
+ * verify:postgres against the real database, not unit time). The stub
+ * mirrors the repository contract exactly:
+ *   upsertCandle(row, isCanonical) → 'inserted' | 'upserted' | 'skippedNonCanonical'
+ *   readCandles({symbol, from, interval, adjustmentMode}) → StoredCandle[]
+ *   deleteAllCandles() → void
  */
 
-jest.mock('@/models/Candle', () => {
+jest.mock('@/lib/db/repositories/candles', () => {
   type Row = {
-    _id: string;
     symbol: string;
+    timestamp: string; // ISO
     interval: string;
-    timestamp: Date;
     adjustmentMode: string;
     open: number;
     high: number;
     low: number;
     close: number;
     volume: number | null;
-    sourceProvider: string;
-    retrievedAt: Date;
+    provider: string;
   };
 
   const rows = new Map<string, Row>();
-  let seq = 0;
 
-  const keyOf = (f: { symbol: string; interval: string; timestamp: Date; adjustmentMode: string }) =>
-    `${f.symbol}|${f.interval}|${new Date(f.timestamp).toISOString()}|${f.adjustmentMode}`;
+  const keyOf = (row: {
+    symbol: string;
+    interval: string;
+    timestamp: Date;
+    adjustmentMode: string;
+  }) => `${row.symbol}|${row.interval}|${new Date(row.timestamp).toISOString()}|${row.adjustmentMode}`;
 
-  const Candle: any = function (doc: any) {
-    return doc;
-  };
+  const upsertCandle = jest.fn(
+    async (
+      row: {
+        symbol: string;
+        timestamp: Date;
+        interval: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number | null;
+        adjustmentMode: string;
+        sourceProvider: string;
+      },
+      isCanonical: boolean
+    ) => {
+      const key = keyOf(row);
+      const existing = rows.get(key);
+      if (existing) {
+        // Non-canonical providers fill ONLY missing identities (§13).
+        if (!isCanonical) return 'skippedNonCanonical';
+        existing.open = row.open;
+        existing.high = row.high;
+        existing.low = row.low;
+        existing.close = row.close;
+        existing.volume = row.volume;
+        existing.provider = row.sourceProvider;
+        return 'upserted';
+      }
+      rows.set(key, {
+        symbol: row.symbol.toUpperCase(),
+        timestamp: new Date(row.timestamp).toISOString(),
+        interval: row.interval,
+        adjustmentMode: row.adjustmentMode,
+        open: row.open,
+        high: row.high,
+        low: row.low,
+        close: row.close,
+        volume: row.volume,
+        provider: row.sourceProvider,
+      });
+      return 'inserted';
+    }
+  );
 
-  Candle.findOne = jest.fn((filter: any) => {
-    const key = keyOf(filter);
-    return { lean: async () => rows.get(key) ?? null };
-  });
+  const readCandles = jest.fn(async (opts: {
+    symbol: string;
+    from: Date;
+    interval?: string;
+    adjustmentMode?: string;
+  }) =>
+    [...rows.values()]
+      .filter(
+        (r) =>
+          r.symbol === opts.symbol.toUpperCase() &&
+          r.interval === (opts.interval ?? '1day') &&
+          r.adjustmentMode === (opts.adjustmentMode ?? 'unknown') &&
+          new Date(r.timestamp) >= opts.from
+      )
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  );
 
-  Candle.updateOne = jest.fn(async (filter: any, update: any) => {
-    // candles.ts updates either by identity key or by _id.
-    const existing = filter._id
-      ? [...rows.values()].find((r) => r._id === filter._id)
-      : rows.get(keyOf(filter));
-    if (!existing) return { modifiedCount: 0 };
-    Object.assign(existing, update.$set, {
-      timestamp: new Date(update.$set.timestamp),
-      retrievedAt: new Date(update.$set.retrievedAt ?? Date.now()),
-    });
-    return { modifiedCount: 1 };
-  });
-
-  Candle.create = jest.fn(async (doc: any) => {
-    const key = keyOf(doc);
-    rows.set(key, { _id: `id-${seq++}`, ...doc, timestamp: new Date(doc.timestamp) });
-    return doc;
-  });
-
-  Candle.find = jest.fn((filter: any) => {
-    const from = new Date(filter.timestamp.$gte);
-    const matches = () =>
-      [...rows.values()]
-        .filter(
-          (r) =>
-            r.symbol === filter.symbol &&
-            r.interval === filter.interval &&
-            r.adjustmentMode === filter.adjustmentMode &&
-            r.timestamp >= from
-        )
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    // Mimic the mongoose query chain used by candles.ts: find().sort().lean()
-    return {
-      sort: () => ({ lean: async () => matches() }),
-      lean: async () => matches(),
-    };
-  });
-
-  Candle.deleteMany = jest.fn(async () => {
+  const deleteAllCandles = jest.fn(async () => {
     rows.clear();
-    return { deletedCount: 0 };
   });
 
-  (Candle as any).__rows = rows;
-
-  return { __esModule: true, default: Candle };
+  return {
+    __esModule: true,
+    upsertCandle,
+    readCandles,
+    deleteAllCandles,
+    __rows: rows,
+    __keyOf: keyOf,
+  };
 });
 
 jest.mock('@/lib/market-data/registry', () => ({
@@ -104,13 +129,28 @@ jest.mock('@/lib/market-data/registry', () => ({
   },
 }));
 
-import Candle from '@/models/Candle';
-import { persistCandles, getCandles, clearCandles } from '@/lib/market-data/candles';
+import {
+  persistCandles,
+  getCandles,
+  clearCandles,
+} from '@/lib/market-data/candles';
 import { getCandlesFromProviders } from '@/lib/market-data/registry';
 import type { Candle as DomainCandle } from '@/lib/market-data/domain';
 
+// The jest module factory's extra exports survive the mock registry.
+const candlesRepo = jest.requireMock('@/lib/db/repositories/candles') as {
+  __rows: Map<string, any>;
+  __keyOf: (row: {
+    symbol: string;
+    interval: string;
+    timestamp: Date;
+    adjustmentMode: string;
+  }) => string;
+};
+
 const mockedGetFromProviders = getCandlesFromProviders as jest.Mock;
-const rows = (Candle as any).__rows as Map<string, any>;
+const rows = candlesRepo.__rows;
+const keyOf = candlesRepo.__keyOf;
 
 /** UTC midnight `offsetDays` from today — always inside the read window. */
 function dayOffsetIso(offsetDays: number): string {
@@ -153,7 +193,7 @@ describe('persistCandles — canonical-source conflict policy (§13)', () => {
     const stored = [...rows.values()];
     expect(stored).toHaveLength(1);
     expect(stored[0].close).toBe(111);
-    expect(stored[0].sourceProvider).toBe('eulerpool');
+    expect(stored[0].provider).toBe('eulerpool');
   });
 
   it('non-canonical provider never overwrites canonical rows (skippedNonCanonical)', async () => {
@@ -164,7 +204,7 @@ describe('persistCandles — canonical-source conflict policy (§13)', () => {
     const stored = [...rows.values()];
     expect(stored).toHaveLength(1);
     expect(stored[0].close).toBe(111);
-    expect(stored[0].sourceProvider).toBe('eulerpool');
+    expect(stored[0].provider).toBe('eulerpool');
   });
 
   it('non-canonical provider fills gaps but never mixes values (insert, not overwrite)', async () => {
@@ -181,7 +221,7 @@ describe('persistCandles — canonical-source conflict policy (§13)', () => {
     const conflictDay = dayOffsetIso(-5);
     const gapDay = dayOffsetIso(-4);
     expect(rows.get(`AAPL|1day|${conflictDay}|unknown`).close).toBe(111);
-    expect(rows.get(`AAPL|1day|${gapDay}|unknown`).sourceProvider).toBe('twelvedata');
+    expect(rows.get(`AAPL|1day|${gapDay}|unknown`).provider).toBe('twelvedata');
   });
 
   it('same-provider re-persist upserts (refresh, not duplicate)', async () => {
@@ -240,7 +280,7 @@ describe('getCandles — storage-first read (§39/§40)', () => {
     expect(byDate.get(dayOffsetIso(-3).slice(0, 10))).toBe(201); // gap filled
     // Storage was updated to the canonical value (no duplicate rows).
     expect(rows.size).toBe(2);
-    expect(rows.get(`NVDA|1day|${dayOffsetIso(-2)}|unknown`).sourceProvider).toBe('eulerpool');
+    expect(rows.get(`NVDA|1day|${dayOffsetIso(-2)}|unknown`).provider).toBe('eulerpool');
   });
 
   it('pure provider path when storage is empty', async () => {
@@ -257,4 +297,3 @@ describe('getCandles — storage-first read (§39/§40)', () => {
     expect(rows.size).toBe(0);
   });
 });
-

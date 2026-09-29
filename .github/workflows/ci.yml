@@ -82,7 +82,7 @@ jobs:
         run: npm run build
         env:
           # Required - use dummy values for build if secrets not set
-          MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://localhost:27017/ai-finance-build' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ai_finance_build' }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'dummy-secret-for-build-only-min-32-chars-long' }}
           NEXTAUTH_URL: http://localhost:3000
           # API Keys for Multi-Agent System (server-only — no NEXT_PUBLIC_ prefix)
@@ -124,7 +124,7 @@ jobs:
         run: npx playwright test
         env:
           # Required
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: http://localhost:3000
           # API Keys (server-only)

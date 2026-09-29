@@ -7,14 +7,17 @@ jest.mock('next-auth/providers/google', () => jest.fn((opts) => ({ ...opts, name
 jest.mock('next-auth/providers/github', () => jest.fn((opts) => ({ ...opts, name: 'GitHub' })));
 jest.mock('next-auth/providers/credentials', () => jest.fn((opts) => ({ ...opts, name: 'Credentials', ...opts })));
 
-jest.mock('../mongodb', () => jest.fn(async () => Promise.resolve()));
+const mockFindCredentialsUser = jest.fn();
 
-const mockFindOne = jest.fn();
-const mockCreate = jest.fn();
+jest.mock('../db/repositories/auth', () => ({
+  findCredentialsUser: (...args: any[]) => mockFindCredentialsUser(...args),
+  findPublicUserById: jest.fn(),
+  registerUser: jest.fn(),
+}));
 
-jest.mock('../../models/User', () => ({
-  findOne: (...args: any[]) => mockFindOne(...args),
-  create: (...args: any[]) => mockCreate(...args),
+jest.mock('../db/repositories/users', () => ({
+  getUserByEmail: jest.fn(),
+  updateUserImage: jest.fn(),
 }));
 
 jest.mock('../auth-utils', () => ({
@@ -62,28 +65,41 @@ describe('Credentials authorize', () => {
   });
 
   test('returns null when user not found', async () => {
-    mockFindOne.mockResolvedValueOnce(null);
+    mockFindCredentialsUser.mockResolvedValueOnce(null);
     const authorize = findCredentialsAuthorize();
     const res = await authorize({ email: 'user@example.com', password: 'x' });
     expect(res).toBeNull();
-    expect(mockFindOne).toHaveBeenCalledWith({ email: 'user@example.com' });
+    expect(mockFindCredentialsUser).toHaveBeenCalledWith('user@example.com');
   });
 
   test('returns null when password invalid', async () => {
-    mockFindOne.mockResolvedValueOnce({ _id: '1', password: 'hash' });
+    mockFindCredentialsUser.mockResolvedValueOnce({ id: '1', passwordHash: 'hash' });
     const authorize = findCredentialsAuthorize();
     const res = await authorize({ email: 'user@example.com', password: 'wrong' });
     expect(res).toBeNull();
   });
 
+  test('returns null for OAuth-only account (no local password hash)', async () => {
+    mockFindCredentialsUser.mockResolvedValueOnce({ id: '1', passwordHash: null });
+    const authorize = findCredentialsAuthorize();
+    const res = await authorize({ email: 'user@example.com', password: 'valid' });
+    expect(res).toBeNull();
+  });
+
   test('throws when email not verified', async () => {
-    mockFindOne.mockResolvedValueOnce({ _id: '1', password: 'hash', emailVerificationToken: 't' });
+    mockFindCredentialsUser.mockResolvedValueOnce({ id: '1', passwordHash: 'hash', emailVerificationToken: 't' });
     const authorize = findCredentialsAuthorize();
     await expect(authorize({ email: 'user@example.com', password: 'valid' })).rejects.toThrow(/verify your email/);
   });
 
   test('returns user payload when valid', async () => {
-    mockFindOne.mockResolvedValueOnce({ _id: { toString: () => '42' }, password: 'hash', name: 'Joe', email: 'user@example.com', image: 'i' });
+    mockFindCredentialsUser.mockResolvedValueOnce({
+      id: '42',
+      passwordHash: 'hash',
+      name: 'Joe',
+      email: 'user@example.com',
+      image: 'i',
+    });
     const authorize = findCredentialsAuthorize();
     const res = await authorize({ email: 'user@example.com', password: 'valid' });
     expect(res).toEqual({ id: '42', name: 'Joe', email: 'user@example.com', image: 'i' });

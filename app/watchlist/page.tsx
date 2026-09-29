@@ -48,7 +48,7 @@ interface WatchlistAsset {
 }
 
 interface Watchlist {
-  _id: string;
+  id: string;
   name: string;
   assets: WatchlistAsset[];
   createdAt: string;
@@ -86,7 +86,7 @@ export default function WatchlistPage() {
         const data = await res.json();
         setWatchlists(data);
         if (data.length > 0 && !selectedWatchlistId) {
-          setSelectedWatchlistId(data[0]._id);
+          setSelectedWatchlistId(data[0].id);
         }
       } else {
         toast({
@@ -123,7 +123,7 @@ export default function WatchlistPage() {
       if (res.ok) {
         const newWatchlist = await res.json();
         setWatchlists([...watchlists, newWatchlist]);
-        setSelectedWatchlistId(newWatchlist._id);
+        setSelectedWatchlistId(newWatchlist.id);
         setIsCreateDialogOpen(false);
         setNewWatchlistName("");
         toast({
@@ -196,7 +196,7 @@ export default function WatchlistPage() {
 
       if (res.ok) {
         const updated = await res.json();
-        setWatchlists(watchlists.map((w) => (w._id === updated._id ? updated : w)));
+        setWatchlists(watchlists.map((w) => (w.id === updated.id ? updated : w)));
         setIsEditDialogOpen(false);
         toast({
           title: "Success",
@@ -228,10 +228,10 @@ export default function WatchlistPage() {
       });
 
       if (res.ok) {
-        const remaining = watchlists.filter((w) => w._id !== watchlistToDelete);
+        const remaining = watchlists.filter((w) => w.id !== watchlistToDelete);
         setWatchlists(remaining);
         if (selectedWatchlistId === watchlistToDelete) {
-          setSelectedWatchlistId(remaining.length > 0 ? remaining[0]._id : "");
+          setSelectedWatchlistId(remaining.length > 0 ? remaining[0].id : "");
         }
         setIsDeleteDialogOpen(false);
         setWatchlistToDelete(null);
@@ -269,7 +269,7 @@ export default function WatchlistPage() {
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
-  const selectedWatchlist = watchlists.find((w) => w._id === selectedWatchlistId);
+  const selectedWatchlist = watchlists.find((w) => w.id === selectedWatchlistId);
   const totalAssets = watchlists.reduce((sum, w) => sum + w.assets.length, 0);
   const assetsByType = watchlists.reduce(
     (acc, w) => {
@@ -476,7 +476,7 @@ export default function WatchlistPage() {
                       onChange={(e) => setSelectedWatchlistId(e.target.value)}
                     >
                       {watchlists.map((watchlist) => (
-                        <option key={watchlist._id} value={watchlist._id}>
+                        <option key={watchlist.id} value={watchlist.id}>
                           {watchlist.name} ({watchlist.assets.length} assets)
                         </option>
                       ))}
@@ -561,7 +561,7 @@ export default function WatchlistPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeAsset(selectedWatchlist._id, asset.symbol)}
+                            onClick={() => removeAsset(selectedWatchlist.id, asset.symbol)}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>

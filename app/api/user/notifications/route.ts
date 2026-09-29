@@ -1,40 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
-import User from '@/models/User';
-import { requireAuth } from '@/lib/middleware';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getUserById,
+  updateUserNotificationPreferences,
+} from '@/lib/db/repositories/users';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from '@/lib/db/schema';
+
+function coercePreferences(raw: unknown): NotificationPreferences {
+  const prefs: NotificationPreferences = {
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+  };
+  if (raw && typeof raw === 'object') {
+    const input = raw as Record<string, unknown>;
+    for (const key of Object.keys(prefs) as (keyof NotificationPreferences)[]) {
+      if (typeof input[key] === 'boolean') {
+        prefs[key] = input[key] as boolean;
+      }
+    }
+  }
+  return prefs;
+}
 
 export async function PUT(request: NextRequest) {
   try {
-    // Require authentication
-    const authResult = await requireAuth(request);
-    if (authResult.error) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
-    
-    const session = authResult.session;
-    // Check if session and user exist
-    if (!session || !session.user || !('id' in session.user)) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const preferences = await request.json();
-    
-    await dbConnect();
-    
-    const user = await User.findByIdAndUpdate(
-      session.user.id as string,
-      { 
-        $set: { 
-          notificationPreferences: preferences
-        } 
-      },
-      { new: true }
-    ).select('-password');
-    
+
+    const body = await request.json();
+    const preferences = coercePreferences(body);
+
+    const user = await updateUserNotificationPreferences(userId, preferences);
+
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ notificationPreferences: user.notificationPreferences });
   } catch (error) {
     console.error('Error updating notification preferences:', error);
@@ -44,26 +50,18 @@ export async function PUT(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    const authResult = await requireAuth(request);
-    if (authResult.error) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
-    
-    const session = authResult.session;
-    // Check if session and user exist
-    if (!session || !session.user || !('id' in session.user)) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    await dbConnect();
-    
-    const user = await User.findById(session.user.id as string).select('notificationPreferences');
-    
+
+    const user = await getUserById(userId);
+
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ notificationPreferences: user.notificationPreferences });
   } catch (error) {
     console.error('Error fetching notification preferences:', error);

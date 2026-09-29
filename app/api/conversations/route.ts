@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Conversation, { ConversationRole } from '@/models/Conversation';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  listConversations,
+  createConversation,
+} from '@/lib/db/repositories/conversations';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -15,36 +17,19 @@ function sanitizeTitle(raw: unknown): string {
 
 /**
  * GET /api/conversations
- * List the current user's conversations (newest first, without messages —
- * the thread is loaded per conversation on open).
+ * List the current user's conversations (newest first, without message
+ * bodies — counts + last activity only; the thread loads on open).
  */
-async function listConversations() {
+async function listConversationsRoute() {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
-    await dbConnect();
-    const conversations = await Conversation.find({ userId: session.user.email })
-      .select('title chatType createdAt updatedAt messages')
-      .sort({ createdAt: -1 })
-      .lean();
+    const conversations = await listConversations(userId);
 
-    // Derive counts + preview without shipping full message bodies.
-    return NextResponse.json(
-      conversations.map((c) => ({
-        _id: c._id,
-        title: c.title,
-        chatType: c.chatType,
-        messageCount: c.messages?.length ?? 0,
-        lastMessageAt: c.messages?.length
-          ? c.messages[c.messages.length - 1].createdAt
-          : c.createdAt,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-      }))
-    );
+    return NextResponse.json(conversations);
   } catch (error) {
     console.error('Error listing conversations:', error);
     return errorResponse('Failed to list conversations', 500);
@@ -55,10 +40,10 @@ async function listConversations() {
  * POST /api/conversations
  * Create a conversation. Accepts an optional initial message.
  */
-async function createConversation(request: Request) {
+async function createConversationRoute(request: Request) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -68,27 +53,18 @@ async function createConversation(request: Request) {
     const validChatTypes = ['main', 'stock', 'forex'];
     const resolvedChatType = validChatTypes.includes(chatType) ? chatType : 'main';
 
-    await dbConnect();
-
-    const messages: {
-      role: ConversationRole;
-      content: string;
-      createdAt: Date;
-    }[] = [];
-
+    let first: { role: 'user' | 'assistant'; content: string } | undefined;
     if (firstMessage && typeof firstMessage.content === 'string' && firstMessage.content.trim()) {
-      messages.push({
+      first = {
         role: firstMessage.role === 'assistant' ? 'assistant' : 'user',
         content: firstMessage.content.trim().slice(0, MAX_MESSAGE_LENGTH),
-        createdAt: new Date(),
-      });
+      };
     }
 
-    const conversation = await Conversation.create({
-      userId: session.user.email,
+    const conversation = await createConversation(userId, {
       title: sanitizeTitle(title ?? firstMessage?.content),
       chatType: resolvedChatType,
-      messages,
+      firstMessage: first,
     });
 
     return NextResponse.json(conversation, { status: 201 });
@@ -98,5 +74,5 @@ async function createConversation(request: Request) {
   }
 }
 
-export const GET = withRateLimit(listConversations, RATE_LIMITS.API_DEFAULT);
-export const POST = withRateLimit(createConversation, RATE_LIMITS.API_DEFAULT);
+export const GET = withRateLimit(listConversationsRoute, RATE_LIMITS.API_DEFAULT);
+export const POST = withRateLimit(createConversationRoute, RATE_LIMITS.API_DEFAULT);

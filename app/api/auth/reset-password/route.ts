@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
-import User from '@/models/User';
+import { getUserByEmail } from '@/lib/db/repositories/users';
+import {
+  issuePasswordResetToken,
+  consumePasswordResetToken,
+} from '@/lib/db/repositories/auth';
 import { hashPassword, hashResetToken } from '@/lib/auth-utils';
 import { sendPasswordResetEmail } from '@/lib/email';
 import { rateLimiter, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limiter';
@@ -13,7 +16,7 @@ function generateResetToken(): string {
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
-    
+
     const ip = getClientIdentifier(request);
     const rl = RATE_LIMITS.AUTH;
 
@@ -23,42 +26,37 @@ export async function POST(request: NextRequest) {
         { status: 429 }
       );
     }
-    
+
     if (!email) {
       return NextResponse.json(
         { error: 'Email is required' },
         { status: 400 }
       );
     }
-    
-    // Connect to database
-    await dbConnect();
-    
+
     // Find user
-    const user = await User.findOne({ email });
+    const user = await getUserByEmail(email);
     if (!user) {
       // Don't reveal if user exists or not for security
-      return NextResponse.json({ 
-        message: 'If an account exists with that email, a reset link has been sent.' 
+      return NextResponse.json({
+        message: 'If an account exists with that email, a reset link has been sent.'
       });
     }
-    
+
     // Generate reset token. Only the SHA-256 HASH is stored; the raw token
     // goes to the user by email and never touches the database (Phase 0).
     const resetToken = generateResetToken();
     const resetTokenHash = hashResetToken(resetToken);
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    
-    // Update user with the token hash
-    user.resetPasswordToken = resetTokenHash;
-    user.resetPasswordTokenExpiry = resetTokenExpiry;
-    await user.save();
-    
+
+    // Store the token hash (replaces any outstanding token)
+    await issuePasswordResetToken(user.id, resetTokenHash, resetTokenExpiry);
+
     const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     await sendPasswordResetEmail(email, resetToken, baseUrl);
-    
-    return NextResponse.json({ 
-      message: 'If an account exists with that email, a reset link has been sent.' 
+
+    return NextResponse.json({
+      message: 'If an account exists with that email, a reset link has been sent.'
     });
   } catch (error) {
     // Structured context only — no raw error (may embed request body/token data).
@@ -73,14 +71,14 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const { token, password } = await request.json();
-    
+
     if (!token || !password) {
       return NextResponse.json(
         { error: 'Token and password are required' },
         { status: 400 }
       );
     }
-    
+
     // Validate password strength
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
@@ -89,34 +87,22 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
-    
-    // Connect to database
-    await dbConnect();
-    
+
     // Hash the submitted token and match against the stored hash — the raw
     // token is never persisted, so lookup must go through hash(token).
+    // Validation + used_at + new password happen in ONE transaction.
     const tokenHash = hashResetToken(token);
-    const user = await User.findOne({
-      resetPasswordToken: tokenHash,
-      resetPasswordTokenExpiry: { $gt: new Date() }
-    });
-    
-    if (!user) {
+    const passwordHash = await hashPassword(password);
+
+    const consumed = await consumePasswordResetToken(tokenHash, passwordHash);
+
+    if (!consumed) {
       return NextResponse.json(
         { error: 'Invalid or expired reset token' },
         { status: 400 }
       );
     }
-    
-    // Hash new password
-    const hashedPassword = await hashPassword(password);
-    
-    // Update user password and clear reset token
-    user.password = hashedPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordTokenExpiry = undefined;
-    await user.save();
-    
+
     return NextResponse.json({ message: 'Password reset successfully' });
   } catch (error) {
     // Structured context only — no raw error (may embed submitted token data).

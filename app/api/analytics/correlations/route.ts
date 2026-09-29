@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { requireUserId } from '@/lib/api-auth';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 import { getCandles } from '@/lib/market-data/candles';
@@ -15,8 +15,8 @@ import type { PricePoint } from '@/lib/analytics/engine';
  */
 async function getCorrelations(request: Request) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 

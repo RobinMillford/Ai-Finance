@@ -56,9 +56,9 @@ export const env = {
     apiKey: getEnvVar('NEWS_API_KEY', 'NEXT_PUBLIC_NEWS_API_KEY', 'NEXT_PUBLIC_NEWSAPI_KEY') || '',
   },
 
-  // Database
-  mongodb: {
-    uri: getEnvVar('MONGODB_URI') || '',
+  // Database (PostgreSQL — server-only connection string)
+  database: {
+    url: getEnvVar('DATABASE_URL') || '',
   },
 
   // Authentication
@@ -111,7 +111,7 @@ export const env = {
 export function validateEnv() {
   const required = {
     'GROQ_API_KEY': env.groq.apiKey,
-    'MONGODB_URI': env.mongodb.uri,
+    'DATABASE_URL': env.database.url,
     'NEXTAUTH_SECRET': env.nextAuth.secret,
   };
 

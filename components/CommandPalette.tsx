@@ -31,13 +31,13 @@ import { signOut } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
 }
 
 interface Watchlist {
-  _id: string;
+  id: string;
   name: string;
   assets: any[];
 }
@@ -325,16 +325,16 @@ export function CommandPalette() {
             <CommandGroup heading="Portfolios">
               {portfolios.map((portfolio) => (
                 <CommandItem
-                  key={portfolio._id}
+                  key={portfolio.id}
                   keywords={[portfolio.name, portfolio.description || ""]}
                   onSelect={() =>
                     handleSelect(
-                      () => router.push(`/portfolio/${portfolio._id}`),
+                      () => router.push(`/portfolio/${portfolio.id}`),
                       {
-                        id: portfolio._id,
+                        id: portfolio.id,
                         label: portfolio.name,
                         type: "portfolio",
-                        path: `/portfolio/${portfolio._id}`,
+                        path: `/portfolio/${portfolio.id}`,
                       }
                     )
                   }
@@ -360,13 +360,13 @@ export function CommandPalette() {
             <CommandGroup heading="Watchlists">
               {watchlists.map((watchlist) => (
                 <CommandItem
-                  key={watchlist._id}
+                  key={watchlist.id}
                   keywords={[watchlist.name]}
                   onSelect={() =>
                     handleSelect(
                       () => router.push("/watchlist"),
                       {
-                        id: watchlist._id,
+                        id: watchlist.id,
                         label: watchlist.name,
                         type: "watchlist",
                         path: "/watchlist",

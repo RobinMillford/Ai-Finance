@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Portfolio from '@/models/Portfolio';
+import { requireUserId } from '@/lib/api-auth';
+import { getPortfolioById } from '@/lib/db/repositories/portfolios';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 import { valuePortfolio, portfolioHistory } from '@/lib/portfolio/valuation';
@@ -16,9 +15,9 @@ async function getValuation(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
+    const userId = await requireUserId();
 
-    if (!session?.user?.email) {
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -27,12 +26,7 @@ async function getValuation(
     const includeHistory = searchParams.get('history') === '1';
     const historyDays = Math.min(Math.max(Number(searchParams.get('days')) || 180, 30), 400);
 
-    await dbConnect();
-
-    const portfolio = await Portfolio.findOne({
-      _id: id,
-      userId: session.user.email,
-    }).lean();
+    const portfolio = await getPortfolioById(userId, id);
 
     if (!portfolio) {
       return errorResponse('Portfolio not found', 404);

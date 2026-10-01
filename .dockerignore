@@ -1,0 +1,29 @@
+# Keep the build context small and secrets out of the image.
+# (COPY . . in the builder stage would otherwise ship all of these.)
+
+# Dependencies and build output are produced inside the image
+node_modules
+.next
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Secrets — never bake these into an image
+.env
+.env.*
+!.env.example
+
+# Tests, coverage and CI artifacts
+coverage
+e2e
+test-results
+playwright-report
+.github
+
+# Local junk
+*.log
+.DS_Store
+.vscode
+.idea

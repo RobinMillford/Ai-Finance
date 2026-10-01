@@ -24,6 +24,10 @@ on:
 
 permissions:
   contents: write
+  # `gh pr comment` on excluded PRs (and `gh pr merge --auto`) both need
+  # PR write access. Dependabot-triggered runs get a read-only token by
+  # default, so the workflow's permissions block must grant the scope.
+  pull-requests: write
 
 jobs:
   enable-auto-merge:

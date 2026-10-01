@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Watchlist, { IWatchlistAsset } from '@/models/Watchlist';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getWatchlistById,
+  renameWatchlist,
+  deleteWatchlist,
+  addWatchlistItem,
+} from '@/lib/db/repositories/watchlists';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -14,20 +18,15 @@ async function getWatchlist(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
-    await dbConnect();
-    
-    const watchlist = await Watchlist.findOne({
-      _id: id,
-      userId: session.user.email,
-    }).lean();
+    const watchlist = await getWatchlistById(userId, id);
 
     if (!watchlist) {
       return errorResponse('Watchlist not found', 404);
@@ -49,9 +48,9 @@ async function updateWatchlist(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -60,17 +59,11 @@ async function updateWatchlist(
     const body = await request.json();
     const { name } = body;
 
-    if (!name) {
+    if (!name || typeof name !== 'string') {
       return errorResponse('Name is required', 400);
     }
 
-    await dbConnect();
-
-    const watchlist = await Watchlist.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      { name: name.trim() },
-      { new: true, runValidators: true }
-    );
+    const watchlist = await renameWatchlist(userId, id, name.trim());
 
     if (!watchlist) {
       return errorResponse('Watchlist not found', 404);
@@ -87,27 +80,22 @@ async function updateWatchlist(
  * DELETE /api/watchlist/[id]
  * Delete a watchlist
  */
-async function deleteWatchlist(
+async function deleteWatchlistRoute(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
-    await dbConnect();
+    const deleted = await deleteWatchlist(userId, id);
 
-    const watchlist = await Watchlist.findOneAndDelete({
-      _id: id,
-      userId: session.user.email,
-    });
-
-    if (!watchlist) {
+    if (!deleted) {
       return errorResponse('Watchlist not found', 404);
     }
 
@@ -120,16 +108,16 @@ async function deleteWatchlist(
 
 /**
  * POST /api/watchlist/[id]
- * Add asset to watchlist
+ * Add asset to watchlist (same symbol re-add refreshes notes/alert).
  */
 async function addAsset(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -146,21 +134,15 @@ async function addAsset(
       return errorResponse('Invalid asset type', 400);
     }
 
-    await dbConnect();
-
-    const newAsset: IWatchlistAsset = {
-      symbol: symbol.toUpperCase(),
+    const watchlist = await addWatchlistItem(userId, id, {
+      symbol: String(symbol),
       assetType,
-      addedAt: new Date(),
-      notes: notes || '',
-      alertPrice: alertPrice ? Number(alertPrice) : undefined,
-    };
-
-    const watchlist = await Watchlist.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      { $push: { assets: newAsset } },
-      { new: true, runValidators: true }
-    );
+      notes: typeof notes === 'string' ? notes : '',
+      alertPrice:
+        alertPrice !== undefined && alertPrice !== null && Number.isFinite(Number(alertPrice))
+          ? Number(alertPrice)
+          : undefined,
+    });
 
     if (!watchlist) {
       return errorResponse('Watchlist not found', 404);
@@ -175,5 +157,5 @@ async function addAsset(
 
 export const GET = withRateLimit(getWatchlist, RATE_LIMITS.API_DEFAULT);
 export const PUT = withRateLimit(updateWatchlist, RATE_LIMITS.API_DEFAULT);
-export const DELETE = withRateLimit(deleteWatchlist, RATE_LIMITS.API_DEFAULT);
+export const DELETE = withRateLimit(deleteWatchlistRoute, RATE_LIMITS.API_DEFAULT);
 export const POST = withRateLimit(addAsset, RATE_LIMITS.API_DEFAULT);

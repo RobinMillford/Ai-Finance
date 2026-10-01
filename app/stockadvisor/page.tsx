@@ -318,6 +318,12 @@ export default function StockAdvisor() {
                     // Incremental streaming - show partial responses
                     finalResponse += data.chunk;
                     setStreamingResponse(finalResponse);
+                  } else if (data.type === "token") {
+                    // Phase 1: true token streaming — render synthesis tokens
+                    // as they arrive. The `final` event still carries the full
+                    // message and authoritative-ly replaces this buffer.
+                    finalResponse += data.token;
+                    setStreamingResponse(finalResponse);
                   } else if (data.type === "error") {
                     throw new Error(data.error);
                   }

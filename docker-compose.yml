@@ -1,0 +1,54 @@
+# FinanceAI local infrastructure.
+#
+# `financeai-db` is the application's dedicated PostgreSQL instance:
+#   - bound to 127.0.0.1 only (never exposed on a public interface)
+#   - data persists in the named volume `financeai_pgdata`
+#   - healthcheck gates `financeai-web` startup
+#
+# The web service is OPTIONAL (commented); enable it when you want the full
+# stack locally. Configure the same credentials in .env.local via DATABASE_URL.
+#
+# After the database is healthy, apply the schema once:
+#   DATABASE_URL=postgresql://financeai:financeai@127.0.0.1:5432/financeai \
+#     npx drizzle-kit migrate
+
+services:
+  financeai-db:
+    image: postgres:16-alpine
+    container_name: financeai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: financeai
+      POSTGRES_PASSWORD: financeai
+      POSTGRES_DB: financeai
+      # Container-internal hardening: trusted local connections only.
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    ports:
+      # Loopback binding — the database is NOT reachable from other hosts.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - financeai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financeai -d financeai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Optional full-stack profile. Uncomment to run the app locally against
+  # financeai-db (build context expects the standard Next.js Dockerfile).
+  # financeai-web:
+  #   build: .
+  #   container_name: financeai-web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     financeai-db:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://financeai:financeai@financeai-db:5432/financeai
+  #     NEXTAUTH_URL: http://localhost:3000
+  #   ports:
+  #     - "3000:3000"
+
+volumes:
+  financeai_pgdata:

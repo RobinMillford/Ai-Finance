@@ -35,10 +35,22 @@ interface Holding {
 }
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
   holdings: Holding[];
+}
+
+interface Valuation {
+  holdings: {
+    symbol: string;
+    costBasis: number;
+    marketValue: number | null;
+    unrealizedPL: number | null;
+    unrealizedPLPercent: number | null;
+  }[];
+  history?: { date: string; value: number }[];
+  historyPartial?: boolean;
 }
 
 export default function PortfolioAnalyticsPage() {
@@ -46,6 +58,7 @@ export default function PortfolioAnalyticsPage() {
   const router = useRouter();
   const params = useParams();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [valuation, setValuation] = useState<Valuation | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +66,7 @@ export default function PortfolioAnalyticsPage() {
       router.push("/");
     } else if (status === "authenticated" && params.id) {
       fetchPortfolio();
+      fetchValuation();
     }
   }, [status, params.id, router]);
 
@@ -69,6 +83,18 @@ export default function PortfolioAnalyticsPage() {
       console.error("Error fetching portfolio:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchValuation = async () => {
+    try {
+      // history=1 → real historical value from persisted candles.
+      const res = await fetch(`/api/portfolio/${params.id}/valuation?history=1&days=180`);
+      if (res.ok) {
+        setValuation(await res.json());
+      }
+    } catch (error) {
+      console.error("Error fetching valuation:", error);
     }
   };
 
@@ -126,8 +152,19 @@ export default function PortfolioAnalyticsPage() {
           ) : (
             <div className="space-y-6">
               <PortfolioAnalytics
-                holdings={portfolio.holdings}
                 portfolioName={portfolio.name}
+                holdings={
+                  valuation?.holdings ??
+                  portfolio.holdings.map((h) => ({
+                    symbol: h.symbol,
+                    costBasis: h.quantity * h.purchasePrice,
+                    marketValue: null,
+                    unrealizedPL: null,
+                    unrealizedPLPercent: null,
+                  }))
+                }
+                history={valuation?.history}
+                historyPartial={valuation?.historyPartial}
               />
 
               {/* Correlation Matrix */}

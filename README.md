@@ -89,7 +89,7 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 | | |
 |---|---|
 | API | Next.js API Routes |
-| Database | MongoDB Atlas |
+| Database | PostgreSQL 16+ (Drizzle ORM) |
 | Authentication | NextAuth.js v4 |
 | Agent Orchestration | LangGraph (plan → parallel dispatch → synthesize) |
 | Tool Integration | LangChain |
@@ -99,7 +99,7 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 
 ### Data Sources
 
-- **Market Data**: Twelve Data API (stocks, forex, crypto)
+- **Market Data**: Dual-provider architecture — Twelve Data (quotes, indicators, crypto/forex) + Eulerpool (equity candles, company profiles, fundamentals). Canonical-source policy, deterministic fallback, and candle persistence are documented in [PROVIDER_POLICY.md](./PROVIDER_POLICY.md).
 - **News**: NewsAPI
 - **Community Sentiment**: Reddit API (15+ financial subreddits)
 - **Market Intelligence**: Tavily Search API
@@ -117,7 +117,7 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 ### Prerequisites
 
 - Node.js 18+ and npm
-- MongoDB Atlas account (free tier available)
+- PostgreSQL 16+ (`docker compose up -d financeai-db` for a local instance)
 - API keys (see [Environment Variables](#environment-variables))
 
 ### Installation
@@ -143,25 +143,62 @@ npm run build
 npm start
 ```
 
+## Dependency Security & Maintenance
+
+Dependency security is continuously monitored, not patched once:
+
+- **Dependabot** (`.github/dependabot.yml`) checks npm and GitHub Actions
+  dependencies weekly and opens grouped PRs for minor/patch updates.
+  Dependabot **security updates** open PRs for vulnerable dependencies as soon
+  as a patched version exists.
+- **Grouping**: production minor/patch and development minor/patch each form
+  one PR — fewer, meaningful review units. Major-version updates are never
+  auto-PR'd; they are handled manually (the weekly audit reports any advisory
+  whose only fix is a major bump, so nothing is silently missed).
+- **CI validation**: every PR (including dependency PRs) runs a severity-aware
+  security audit plus typecheck, tests, and production build. `npm ci` enforces
+  lockfile integrity.
+- **Audit policy**: production **critical/high** vulnerabilities fail CI;
+  moderate/low are reported without blocking. A scheduled weekly workflow
+  (`.github/workflows/security-audit.yml`) reports the full audit surface.
+- **Auto-merge**: Dependabot patch/minor PRs for non-framework packages are
+  auto-merged after all required CI checks pass. `next`, `react`, `react-dom`,
+  and any major-version update always require human review.
+- **Update policy**: security patches immediately · safe patch/minor via
+  grouped PRs · major updates scheduled and reviewed · unresolvable
+  vulnerabilities documented and tracked until an upstream fix exists.
+
+### Manual GitHub settings (owner)
+
+- Enable **Dependabot security updates** and **Dependabot alerts**
+  (Settings → Code security).
+- Protect `main`: require the CI checks (`security-audit`, `test`, `build`)
+  and require PRs before merging.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in your values:
 
 ```env
 # Database
-MONGODB_URI=your_mongodb_connection_string
+DATABASE_URL=postgresql://user:password@localhost:5432/financeai
 
 # Authentication
 NEXTAUTH_SECRET=your_nextauth_secret
 NEXTAUTH_URL=http://localhost:3000
 
-# AI — Multi-Agent System (required)
-NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key
+# AI — Multi-Agent System (required, server-only)
+# All provider keys are SERVER-ONLY — never use the NEXT_PUBLIC_ prefix for
+# provider secrets, or they will be compiled into the public browser bundle.
+GROQ_API_KEY=your_groq_api_key
 
-# Market Data (required)
-NEXT_PUBLIC_TWELVEDATA_API_KEY=your_twelve_data_key
-NEXT_PUBLIC_TAVILY_API_KEY=your_tavily_api_key
-NEXT_PUBLIC_NEWS_API_KEY=your_news_api_key
+# Market Data (required, server-only)
+TWELVE_DATA_API_KEY=your_twelve_data_key
+# Eulerpool (Phase 1: canonical equity candles/company/fundamentals) — optional
+# but strongly recommended; without it equity candles fall back to Twelve Data
+EULERPOOL_API_KEY=your_eulerpool_key
+TAVILY_API_KEY=your_tavily_api_key
+NEWS_API_KEY=your_news_api_key
 
 # Email — password reset (optional, logs to console if unset)
 RESEND_API_KEY=your_resend_key
@@ -183,7 +220,7 @@ LLM_MAX_RETRIES=2                         # transient-error retries
 
 ### Getting API Keys
 
-- **MongoDB**: [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+- **PostgreSQL**: any PostgreSQL 16+ instance (local via `docker compose up -d financeai-db`)
 - **Groq**: [Groq Cloud](https://console.groq.com/)
 - **Twelve Data**: [Twelve Data](https://twelvedata.com/)
 - **NewsAPI**: [NewsAPI](https://newsapi.org/)
@@ -264,9 +301,8 @@ Supervisor ── one structured call, temperature 0.1
 │   │       └── search.ts           # Tavily search (domain-configurable)
 │   ├── rate-limiter.ts             # Shared in-memory rate limiter
 │   ├── market-intelligence.ts      # Tavily market analysis
-│   ├── mongodb.ts                  # DB connection
+│   ├── db/                         # Drizzle client, schema, repositories
 │   └── sanitize.ts                 # DOMPurify XSS sanitization
-├── models/                         # MongoDB models
 ├── e2e/                            # Playwright E2E suites
 ├── middleware.ts                   # CSP nonces + auth middleware
 └── .env.example                    # All env vars documented
@@ -282,7 +318,23 @@ npm test               # Run unit tests
 npm run test:watch     # Unit tests in watch mode
 npm run test:coverage  # Unit tests with coverage report
 npx playwright test    # Run E2E tests
+npm run verify:postgres # Verify the PostgreSQL schema + repositories end-to-end
+npm run verify:providers # Verify provider integrations + persistence gates
 ```
+
+## Database (PostgreSQL + Drizzle)
+
+The schema lives in `lib/db/schema.ts`; committed migrations live in
+`drizzle/migrations/`. Apply them with your `DATABASE_URL` set:
+
+```bash
+npx drizzle-kit migrate
+```
+
+Identity is UUID (`users.id`); money and quantities use `NUMERIC` columns so
+no binary floating-point ever stores a financial value. All ownership queries
+are scoped by `user_id` — a foreign id is indistinguishable from a missing one
+(404, never 403).
 
 ## Testing & Quality Assurance
 
@@ -355,7 +407,8 @@ Please ensure tests pass (`npm test`) and documentation stays up to date.
 - [Groq](https://groq.com/) — Ultra-fast LLM inference
 - [shadcn/ui](https://ui.shadcn.com/) — UI components
 - [Recharts](https://recharts.org/) — Chart library
-- [Twelve Data](https://twelvedata.com/) — Market data
+- [Twelve Data](https://twelvedata.com/) — Market data (quotes, indicators, crypto/forex)
+- [Eulerpool](https://www.eulerpool.com/) — Equity candles, company profiles, fundamentals
 - [Tavily](https://tavily.com/) — AI-powered search
 
 ## License

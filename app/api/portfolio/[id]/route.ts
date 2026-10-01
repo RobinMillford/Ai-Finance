@@ -1,33 +1,31 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Portfolio from '@/models/Portfolio';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getPortfolioById,
+  updatePortfolio,
+  deletePortfolio,
+} from '@/lib/db/repositories/portfolios';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
 /**
  * GET /api/portfolio/[id]
- * Get a specific portfolio with current prices for P&L calculation
+ * Get a specific portfolio with its positions (holdings)
  */
 async function getPortfolio(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
-    await dbConnect();
-    
-    const portfolio = await Portfolio.findOne({
-      _id: id,
-      userId: session.user.email,
-    }).lean();
+    const portfolio = await getPortfolioById(userId, id);
 
     if (!portfolio) {
       return errorResponse('Portfolio not found', 404);
@@ -44,14 +42,14 @@ async function getPortfolio(
  * PUT /api/portfolio/[id]
  * Update portfolio details (name, description)
  */
-async function updatePortfolio(
+async function updatePortfolioRoute(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -60,16 +58,11 @@ async function updatePortfolio(
     const body = await request.json();
     const { name, description } = body;
 
-    await dbConnect();
+    const patch: { name?: string; description?: string } = {};
+    if (typeof name === 'string' && name.trim()) patch.name = name.trim();
+    if (typeof description === 'string') patch.description = description.trim();
 
-    const portfolio = await Portfolio.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      {
-        ...(name && { name: name.trim() }),
-        ...(description !== undefined && { description: description.trim() }),
-      },
-      { new: true, runValidators: true }
-    );
+    const portfolio = await updatePortfolio(userId, id, patch);
 
     if (!portfolio) {
       return errorResponse('Portfolio not found', 404);
@@ -84,29 +77,24 @@ async function updatePortfolio(
 
 /**
  * DELETE /api/portfolio/[id]
- * Delete a portfolio
+ * Delete a portfolio (cascades to positions + transactions)
  */
-async function deletePortfolio(
+async function deletePortfolioRoute(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
-    await dbConnect();
+    const deleted = await deletePortfolio(userId, id);
 
-    const portfolio = await Portfolio.findOneAndDelete({
-      _id: id,
-      userId: session.user.email,
-    });
-
-    if (!portfolio) {
+    if (!deleted) {
       return errorResponse('Portfolio not found', 404);
     }
 
@@ -118,5 +106,5 @@ async function deletePortfolio(
 }
 
 export const GET = withRateLimit(getPortfolio, RATE_LIMITS.API_DEFAULT);
-export const PUT = withRateLimit(updatePortfolio, RATE_LIMITS.API_DEFAULT);
-export const DELETE = withRateLimit(deletePortfolio, RATE_LIMITS.API_DEFAULT);
+export const PUT = withRateLimit(updatePortfolioRoute, RATE_LIMITS.API_DEFAULT);
+export const DELETE = withRateLimit(deletePortfolioRoute, RATE_LIMITS.API_DEFAULT);

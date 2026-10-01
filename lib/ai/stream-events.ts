@@ -7,6 +7,12 @@
  *
  * Replaces the old values-stream + state.next detection, which broke when the
  * graph moved to plan-once / parallel-dispatch architecture.
+ *
+ * Phase 1: TRUE token streaming (§37). `onFinalToken` (optional) receives
+ * synthesis tokens as they are generated. Tokens travel out-of-band through
+ * LangGraph `configurable` (per-request, thread-safe for the shared graph
+ * singleton) — the generator's agent/final event flow is unchanged, and
+ * consumers without a callback get the previous behavior exactly.
  */
 
 export interface AdvisorStreamEvent {
@@ -16,6 +22,20 @@ export interface AdvisorStreamEvent {
   message: string;
   data: Record<string, unknown>;
   timestamp: string;
+}
+
+/** Additive token event (Phase 1). The `final` event still carries the FULL message. */
+export interface AdvisorTokenEvent {
+  type: "token";
+  token: string;
+  timestamp: string;
+}
+
+export type AdvisorSseEvent = AdvisorStreamEvent | AdvisorTokenEvent;
+
+export interface AdvisorStreamOptions {
+  /** Called with each synthesis token as it is generated (may be omitted). */
+  onFinalToken?: (token: string) => void;
 }
 
 const WORKER_STATUS_MESSAGES: Record<string, string> = {
@@ -42,11 +62,18 @@ export async function* advisorStreamEvents(
   // that vary per compiled graph; runtime contract is (input, config) → async
   // iterable of update chunks.
   graph: { stream: (...args: any[]) => Promise<AsyncIterable<unknown>> },
-  input: unknown
-): AsyncGenerator<AdvisorStreamEvent> {
-  const eventStream = await graph.stream(input, {
-    streamMode: "updates",
-  });
+  input: unknown,
+  options?: AdvisorStreamOptions
+): AsyncGenerator<AdvisorSseEvent> {
+  const eventStream = await graph.stream(
+    input,
+    options?.onFinalToken
+      ? {
+          streamMode: "updates",
+          configurable: { onFinalToken: options.onFinalToken },
+        }
+      : { streamMode: "updates" }
+  );
 
   for await (const chunk of eventStream) {
     if (!chunk || typeof chunk !== "object") continue;

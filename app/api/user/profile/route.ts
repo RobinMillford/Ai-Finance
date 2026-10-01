@@ -1,41 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
-import User from '@/models/User';
-import { requireAuth } from '@/lib/middleware';
+import { requireUserId } from '@/lib/api-auth';
+import { updateUserProfile } from '@/lib/db/repositories/users';
+import { findPublicUserById } from '@/lib/db/repositories/auth';
 
 export async function PUT(request: NextRequest) {
   try {
-    // Require authentication
-    const authResult = await requireAuth(request);
-    if (authResult.error) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
-    
-    const session = authResult.session;
-    // Check if session and user exist
-    if (!session || !session.user || !('id' in session.user)) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { name, isPublic } = await request.json();
-    
-    await dbConnect();
-    
-    const user = await User.findByIdAndUpdate(
-      session.user.id as string,
-      { 
-        $set: { 
-          name: name || undefined,
-          isPublic: typeof isPublic === 'boolean' ? isPublic : undefined
-        } 
-      },
-      { new: true }
-    ).select('-password');
-    
-    if (!user) {
+
+    const patch: { name?: string; isPublic?: boolean } = {};
+    if (typeof name === 'string' && name.trim()) {
+      patch.name = name.trim();
+    }
+    if (typeof isPublic === 'boolean') {
+      patch.isPublic = isPublic;
+    }
+
+    const updated = await updateUserProfile(userId, patch);
+
+    if (!updated) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    
+
+    // Re-read through the public projection (never exposes hashes).
+    const user = await findPublicUserById(userId);
+
     return NextResponse.json({ user });
   } catch (error) {
     console.error('Error updating profile:', error);

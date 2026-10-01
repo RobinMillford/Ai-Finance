@@ -1,3 +1,10 @@
+/**
+ * News API
+ *
+ * Phase 0: key moved to the server-only NEWS_API_KEY variable (was
+ * NEXT_PUBLIC_NEWS_API_KEY, which exposed the secret in the client bundle).
+ */
+
 import { NextResponse } from "next/server";
 import { withRateLimit, errorResponse, validateEnvVars } from "@/lib/api-middleware";
 import { RATE_LIMITS } from "@/lib/rate-limiter";
@@ -5,15 +12,15 @@ import { RATE_LIMITS } from "@/lib/rate-limiter";
 /**
  * GET /api/news
  * Fetch news articles with rate limiting and improved error handling
- * 
+ *
  * Query params:
  * - q: search query (default: "finance")
  * - page: page number (default: 1)
  * - pageSize: articles per page (default: 10)
  */
 async function handler(request: Request) {
-  // Validate environment variables
-  const { valid, missing } = validateEnvVars(["NEXT_PUBLIC_NEWS_API_KEY"]);
+  // Validate environment variables (server-only key)
+  const { valid, missing } = validateEnvVars(["NEWS_API_KEY"]);
   if (!valid) {
     return errorResponse(`Missing environment variables: ${missing.join(", ")}`, 500);
   }
@@ -23,7 +30,7 @@ async function handler(request: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "10"), 100); // Cap at 100
 
-  const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
+  const apiKey = process.env.NEWS_API_KEY;
 
   // Build the NewsAPI URL
   const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(
@@ -32,7 +39,7 @@ async function handler(request: Request) {
 
   try {
     const response = await fetch(newsApiUrl);
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
       return errorResponse(

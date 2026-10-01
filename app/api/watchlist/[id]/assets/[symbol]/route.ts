@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Watchlist from '@/models/Watchlist';
+import { requireUserId } from '@/lib/api-auth';
+import { removeWatchlistItem } from '@/lib/db/repositories/watchlists';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -14,22 +13,15 @@ async function deleteAsset(
   { params }: { params: Promise<{ id: string; symbol: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id, symbol } = await params;
 
-    await dbConnect();
-
-    // Remove the asset from the watchlist
-    const watchlist = await Watchlist.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      { $pull: { assets: { symbol: symbol.toUpperCase() } } },
-      { new: true, runValidators: true }
-    );
+    const watchlist = await removeWatchlistItem(userId, id, symbol);
 
     if (!watchlist) {
       return errorResponse('Watchlist not found', 404);

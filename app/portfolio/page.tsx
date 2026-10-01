@@ -30,7 +30,7 @@ import {
 import { motion } from "framer-motion";
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
   holdings: Array<{
@@ -378,14 +378,14 @@ export default function PortfolioPage() {
 
               return (
                 <motion.div
-                  key={portfolio._id}
+                  key={portfolio.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
                   <Card
                     className="p-6 hover:shadow-lg transition-all cursor-pointer group border-2 hover:border-primary/50"
-                    onClick={() => router.push(`/portfolio/${portfolio._id}`)}
+                    onClick={() => router.push(`/portfolio/${portfolio.id}`)}
                   >
                     <div className="space-y-4">
                       {/* Portfolio Header */}

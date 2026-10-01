@@ -1,140 +1,74 @@
+/**
+ * Forex Detail API
+ *
+ * Returns time series + quote + price + EOD for a forex pair.
+ * Phase 0: migrated to the shared market-data domain service (server-only
+ * key, paced provider access, cached history). Parallel small-payload fetches
+ * replace the previous serial waterfall. Response shape preserved for the
+ * existing UI, plus `_meta` freshness.
+ */
+
 import { NextResponse } from 'next/server';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
+import { RATE_LIMITS } from '@/lib/rate-limiter';
+import { twelveDataFetch, twelveDataUrl, ProviderError, getQuote, getDailyHistory } from '@/lib/market-data';
+import { validateSymbol } from '@/lib/api-helpers';
 
-// Force dynamic rendering
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-// In-memory cache for forex data (symbol -> forex data)
-const forexCache = new Map();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-
-export async function GET(request: Request) {
-  const TWELVE_DATA_API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
-  if (!TWELVE_DATA_API_KEY) {
-    console.error("TWELVE_DATA_API_KEY is not set in environment variables");
-    return NextResponse.json(
-      { error: "Server configuration error: API key missing" },
-      { status: 500 }
-    );
-  }
-
+async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol");
+  const symbol = validateSymbol(searchParams.get('symbol'));
 
   if (!symbol) {
-    return NextResponse.json(
-      { error: "Symbol parameter is required" },
-      { status: 400 }
-    );
-  }
-
-  // Check cache
-  const cacheKey = symbol.toUpperCase();
-  const cachedData = forexCache.get(cacheKey);
-  const now = Date.now();
-  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log(`Returning cached forex data for symbol: ${symbol}`);
-    return NextResponse.json(cachedData.data);
+    return errorResponse('Symbol parameter is required', 400);
   }
 
   try {
-    // Fetch time series data
-    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=5000&apikey=${TWELVE_DATA_API_KEY}`;
-    console.log(`Fetching time series data for symbol: ${symbol} from Twelve Data...`);
-    const timeSeriesResponse = await fetch(timeSeriesUrl);
-    if (!timeSeriesResponse.ok) {
-      const errorData = await timeSeriesResponse.json();
-      console.error(`Twelve Data API error for time series (${symbol}):`, errorData);
-      return NextResponse.json(
-        { error: errorData.message || "Failed to fetch time series data from Twelve Data" },
-        { status: 500 }
-      );
-    }
-    const timeSeriesData = await timeSeriesResponse.json();
+    const timeSeriesValues = await getDailyHistory(symbol, 5000);
 
-    if (!timeSeriesData.values || timeSeriesData.status !== "ok") {
-      console.error(`No time series data found for symbol: ${symbol}`);
-      return NextResponse.json(
-        { error: "No time series data found for symbol: " + symbol },
-        { status: 404 }
-      );
-    }
+    const [quoteResult, priceResult, eodResult] = await Promise.allSettled([
+      getQuote(symbol),
+      twelveDataFetch<any>(twelveDataUrl('price', { symbol })),
+      twelveDataFetch<any>(twelveDataUrl('eod', { symbol })),
+    ]);
 
-    // Fetch quote data
-    let quoteData = null;
-    try {
-      const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching quote data for symbol: ${symbol} from Twelve Data...`);
-      const quoteResponse = await fetch(quoteUrl);
-      if (!quoteResponse.ok) {
-        const errorData = await quoteResponse.json();
-        console.error(`Twelve Data API error for quote (${symbol}):`, errorData);
-        throw new Error("Failed to fetch quote data");
-      }
-      quoteData = await quoteResponse.json();
-      console.log(`Successfully fetched quote data for symbol: ${symbol}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching quote data for symbol ${symbol}:`, errorMessage);
-      // Continue with null quote data
-    }
+    const quoteRaw = quoteResult.status === 'fulfilled' ? (quoteResult.value as any) : null;
+    const priceData = priceResult.status === 'fulfilled' ? priceResult.value : null;
+    const eodData = eodResult.status === 'fulfilled' ? eodResult.value : null;
 
-    // Fetch current price data
-    let priceData = null;
-    try {
-      const priceUrl = `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching current price data for symbol: ${symbol} from Twelve Data...`);
-      const priceResponse = await fetch(priceUrl);
-      if (!priceResponse.ok) {
-        const errorData = await priceResponse.json();
-        console.error(`Twelve Data API error for price (${symbol}):`, errorData);
-        throw new Error("Failed to fetch price data");
-      }
-      priceData = await priceResponse.json();
-      console.log(`Successfully fetched current price data for symbol: ${symbol}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching current price data for symbol ${symbol}:`, errorMessage);
-      // Continue with null price data
-    }
-
-    // Fetch EOD data
-    let eodData = null;
-    try {
-      const eodUrl = `https://api.twelvedata.com/eod?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
-      console.log(`Fetching EOD data for symbol: ${symbol} from Twelve Data...`);
-      const eodResponse = await fetch(eodUrl);
-      if (!eodResponse.ok) {
-        const errorData = await eodResponse.json();
-        console.error(`Twelve Data API error for EOD (${symbol}):`, errorData);
-        throw new Error("Failed to fetch EOD data");
-      }
-      eodData = await eodResponse.json();
-      console.log(`Successfully fetched EOD data for symbol: ${symbol}`);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching EOD data for symbol ${symbol}:`, errorMessage);
-      // Continue with null EOD data
-    }
-
-    // Combine all data
-    const forexData = {
-      timeSeries: timeSeriesData,
-      quote: quoteData,
+    return NextResponse.json({
+      timeSeries: {
+        meta: { symbol: quoteRaw?.symbol || symbol, interval: '1day' },
+        values: timeSeriesValues,
+        status: 'ok',
+      },
+      quote: quoteRaw,
       price: priceData,
       eod: eodData,
-    };
-
-    // Cache the result
-    forexCache.set(cacheKey, { data: forexData, timestamp: now });
-    console.log(`Successfully fetched and cached forex data for symbol: ${symbol}`);
-
-    return NextResponse.json(forexData);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Error fetching forex data for symbol ${symbol}:`, errorMessage);
-    return NextResponse.json(
-      { error: "Failed to fetch forex data: " + errorMessage },
-      { status: 500 }
-    );
+      _meta: {
+        asOf: quoteRaw?.asOf ?? null,
+        freshness: quoteRaw?.freshness ?? 'unknown',
+        partial:
+          quoteResult.status !== 'fulfilled' || priceResult.status !== 'fulfilled' || eodResult.status !== 'fulfilled',
+      },
+    });
+  } catch (error) {
+    if ((error as any)?.kind === 'bad_symbol') {
+      return errorResponse('Symbol not found or unsupported', 404);
+    }
+    if (error instanceof ProviderError) {
+      if (error.kind === 'bad_symbol') {
+        return errorResponse('Symbol not found or unsupported', 404);
+      }
+      if (error.kind === 'rate_limited') {
+        return errorResponse('Market data provider is rate limited. Please try again shortly.', 429);
+      }
+      return errorResponse('Market data provider is unavailable. Please try again later.', 502);
+    }
+    console.error('[Forex] Error for', symbol, error);
+    return errorResponse('Failed to fetch forex data', 500);
   }
 }
+
+export const GET = withRateLimit(handler, RATE_LIMITS.MARKET_DATA);

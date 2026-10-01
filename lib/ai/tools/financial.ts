@@ -1,57 +1,22 @@
 /**
  * Financial Tools
- * 
+ *
  * Tools for fetching cryptocurrency prices and technical indicators
- * from Twelve Data API
+ * from Twelve Data API.
+ *
+ * Phase 0: uses the shared provider client (server-only key, global pacing,
+ * typed errors) instead of a local fetch/retry implementation. Per-tool
+ * 5-minute cache preserved.
  */
 
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { API_KEYS } from "../config";
+import { twelveDataFetch, twelveDataUrl } from "@/lib/market-data";
+import { TTLCache } from "@/lib/market-data/cache";
 
 // Cache for API responses (5 minutes)
-const cache = new Map<string, { data: any; timestamp: number }>();
+const cache = new TTLCache(500);
 const CACHE_DURATION = 5 * 60 * 1000;
-
-/**
- * Utility: Fetch with retry logic for rate limits
- */
-async function fetchWithRetry(
-  url: string,
-  maxRetries: number = 3,
-  retryDelayMs: number = 10000
-): Promise<any> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const text = await response.text();
-        
-        // Handle rate limit (429)
-        if (response.status === 429) {
-          if (attempt === maxRetries) {
-            throw new Error("Rate limit exceeded after maximum retries");
-          }
-          console.warn(`Rate limit hit. Retrying (${attempt}/${maxRetries})...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-          continue;
-        }
-        
-        throw new Error(`API error: ${response.status} - ${text}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      
-      console.warn(`Fetch attempt ${attempt} failed. Retrying...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-    }
-  }
-  
-  throw new Error("Unexpected error in fetchWithRetry");
-}
 
 /**
  * Tool: Get Cryptocurrency Price
@@ -69,24 +34,22 @@ export const getCryptoPriceTool = new DynamicStructuredTool({
   }),
   func: async ({ symbol }) => {
     const cacheKey = `quote_${symbol.toUpperCase()}`;
-    const cached = cache.get(cacheKey);
-    const now = Date.now();
-    
+    const cached = cache.get<any>(cacheKey);
+
     // Return cached data if valid
-    if (cached && now - cached.timestamp < CACHE_DURATION) {
+    if (cached) {
       return JSON.stringify({
         cached: true,
-        ...cached.data,
+        ...cached.value,
       });
     }
-    
+
     try {
-      const url = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${API_KEYS.twelveData}`;
-      const data = await fetchWithRetry(url);
-      
+      const data = await twelveDataFetch<any>(twelveDataUrl("quote", { symbol }));
+
       // Cache the response
-      cache.set(cacheKey, { data, timestamp: now });
-      
+      cache.set(cacheKey, data, CACHE_DURATION);
+
       return JSON.stringify({
         symbol: data.symbol,
         name: data.name,
@@ -132,59 +95,55 @@ export const getTechnicalIndicatorsTool = new DynamicStructuredTool({
   }),
   func: async ({ symbol, indicator }) => {
     const cacheKey = `${indicator}_${symbol.toUpperCase()}`;
-    const cached = cache.get(cacheKey);
-    const now = Date.now();
-    
+    const cached = cache.get<any>(cacheKey);
+
     // Return cached data if valid
-    if (cached && now - cached.timestamp < CACHE_DURATION) {
+    if (cached) {
       return JSON.stringify({
         cached: true,
-        ...cached.data,
+        ...cached.value,
       });
     }
-    
+
     try {
-      // Build URL based on indicator type
-      const baseUrl = "https://api.twelvedata.com";
-      const params = new URLSearchParams({
+      // Build indicator-specific parameters
+      const params: Record<string, string | number> = {
         symbol,
         interval: "1day",
-        outputsize: "10",
-        apikey: API_KEYS.twelveData,
-      });
+        outputsize: 10,
+      };
       
       // Add indicator-specific parameters
       switch (indicator) {
         case "rsi":
-          params.append("time_period", "14");
+          params.time_period = 14;
           break;
         case "ema":
-          params.append("time_period", "20");
+          params.time_period = 20;
           break;
         case "macd":
-          params.append("fast_period", "12");
-          params.append("slow_period", "26");
-          params.append("signal_period", "9");
+          params.fast_period = 12;
+          params.slow_period = 26;
+          params.signal_period = 9;
           break;
         case "bbands":
-          params.append("time_period", "20");
-          params.append("sd", "2");
+          params.time_period = 20;
+          params.sd = 2;
           break;
         case "atr":
         case "adx":
-          params.append("time_period", "14");
+          params.time_period = 14;
           break;
         case "supertrend":
-          params.append("multiplier", "3");
-          params.append("period", "10");
+          params.multiplier = 3;
+          params.period = 10;
           break;
       }
-      
-      const url = `${baseUrl}/${indicator}?${params.toString()}`;
-      const data = await fetchWithRetry(url);
-      
+
+      const data = await twelveDataFetch<any>(twelveDataUrl(indicator, params));
+
       // Cache the response
-      cache.set(cacheKey, { data, timestamp: now });
+      cache.set(cacheKey, data, CACHE_DURATION);
       
       // Return simplified data structure
       return JSON.stringify({

@@ -1,72 +1,71 @@
 /**
  * Social Sentiment Tools
- * 
- * Tools for analyzing social sentiment from Reddit and other platforms
+ *
+ * Phase 0: the tool now calls the Reddit sentiment domain service directly
+ * (lib/social/reddit.ts) instead of making an HTTP request to the app's own
+ * /api/reddit route — removing the self-HTTP hop, the NEXT_PUBLIC_BASE_URL
+ * dependence, and localhost fragility.
  */
 
-import { DynamicStructuredTool } from "@langchain/core/tools";
-import { z } from "zod";
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { z } from 'zod';
+import { getRedditSentiment } from '@/lib/social/reddit';
 
 /**
  * Tool: Get Reddit Sentiment
- * Fetches social sentiment analysis from Reddit for a cryptocurrency
+ * Fetches social sentiment analysis from Reddit for a symbol
  */
 export const getRedditSentimentTool = new DynamicStructuredTool({
-  name: "get_reddit_sentiment",
+  name: 'get_reddit_sentiment',
   description:
-    "Analyzes social sentiment from Reddit crypto communities for a specific cryptocurrency. " +
-    "Returns bullish/bearish percentages, post count, and overall sentiment. " +
-    "Use this when users ask about community sentiment, social trends, or FOMO/FUD.",
+    'Analyzes social sentiment from Reddit financial communities for a specific asset ' +
+    '(crypto, stock, or forex pair). Returns bullish/bearish percentages, post count, ' +
+    'and overall sentiment. Use this when users ask about community sentiment, social ' +
+    'trends, or FOMO/FUD.',
   schema: z.object({
-    symbol: z.string().describe(
-      "Cryptocurrency symbol (e.g., 'BTC/USD', 'ETH/USD'). " +
-      "Will be normalized to base currency (BTC, ETH, etc.)"
-    ),
+    symbol: z
+      .string()
+      .describe(
+        "Asset symbol (e.g., 'BTC/USD', 'AAPL', 'EURUSD'). " +
+          'Will be normalized to its base form (BTC, AAPL, EURUSD).'
+      ),
   }),
   func: async ({ symbol }) => {
     try {
-      // Normalize symbol to base currency (BTC/USD -> BTC)
-      const baseCurrency = symbol.split("/")[0].toUpperCase();
-      
-      // Call internal API endpoint
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/reddit?symbol=${baseCurrency}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      
-      if (!response.ok) {
-        // Graceful degradation if Reddit API fails
+      // Normalize to the service's expected form:
+      // - crypto "BTC/USD" → "BTCUSD" (6-char forex-style matching works for pairs)
+      // - stocks stay as-is ("AAPL")
+      let normalized = symbol.trim().toUpperCase();
+      if (normalized.includes('/')) {
+        normalized = normalized.split('/').join('');
+      }
+
+      const data = await getRedditSentiment(normalized);
+
+      if (data.total_posts === 0) {
         return JSON.stringify({
-          symbol: baseCurrency,
-          sentiment: "unavailable",
-          message: "Reddit sentiment data temporarily unavailable",
+          symbol: normalized,
+          sentiment: 'unavailable',
+          message: 'No recent Reddit discussions found for this symbol',
         });
       }
-      
-      const data = await response.json();
-      
+
       return JSON.stringify({
-        symbol: baseCurrency,
-        bullish_percentage: data.bullish_percentage || 0,
-        bearish_percentage: data.bearish_percentage || 0,
-        neutral_percentage: data.neutral_percentage || 0,
-        total_posts: data.total_posts || 0,
-        overall_sentiment: data.overall_sentiment || "neutral",
-        confidence: data.confidence || "low",
-        analysis: data.analysis || "No detailed analysis available",
+        symbol: normalized,
+        bullish_percentage: data.bullish_percentage,
+        bearish_percentage: data.bearish_percentage,
+        neutral_percentage: data.neutral_percentage,
+        total_posts: data.total_posts,
+        overall_sentiment: data.overall_sentiment,
+        confidence: data.confidence,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
       // Return graceful error that won't break the agent
       return JSON.stringify({
-        symbol: symbol.split("/")[0],
-        sentiment: "error",
-        message: error instanceof Error ? error.message : "Failed to fetch sentiment",
+        symbol,
+        sentiment: 'error',
+        message: error instanceof Error ? error.message : 'Failed to fetch sentiment',
       });
     }
   },
@@ -75,6 +74,4 @@ export const getRedditSentimentTool = new DynamicStructuredTool({
 /**
  * Export all social sentiment tools
  */
-export const socialTools = [
-  getRedditSentimentTool,
-];
+export const socialTools = [getRedditSentimentTool];

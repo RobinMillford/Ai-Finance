@@ -1,149 +1,117 @@
-import { NextResponse } from "next/server";
+/**
+ * Crypto Detail API
+ *
+ * Returns quote + price + EOD + short time series for a crypto pair.
+ * Phase 0: migrated to the shared provider client (server-only key, global
+ * pacing, typed errors). The four payloads now fetch without artificial
+ * delays; quote goes through the normalized domain service. Response shape
+ * preserved for the existing UI, plus `_meta` freshness.
+ */
 
-// Force dynamic rendering
-export const dynamic = "force-dynamic";
+import { NextResponse } from 'next/server';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
+import { RATE_LIMITS } from '@/lib/rate-limiter';
+import {
+  twelveDataFetch,
+  twelveDataUrl,
+  ProviderError,
+  getQuote,
+  getDailyHistory,
+} from '@/lib/market-data';
+import { validateSymbol } from '@/lib/api-helpers';
 
-// In-memory cache for crypto data (symbol -> data)
-const cryptoCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+export const dynamic = 'force-dynamic';
 
-// Utility function to fetch with retry on rate limit
-const fetchWithRetry = async (
-  url: string,
-  maxRetries: number = 3,
-  baseDelay: number = 60000 // 60 seconds
-): Promise<Response> => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url);
-    if (response.status === 429) {
-      const delay = baseDelay * attempt; // Exponential backoff: 60s, 120s, 180s
-      console.log(
-        `Rate limit exceeded for URL ${url}. Retrying in ${delay / 1000} seconds... (Attempt ${attempt}/${maxRetries})`
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      continue;
-    }
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(
-        `Failed to fetch data: ${response.status} - ${errorData.message || response.statusText}`
-      );
-    }
-    return response;
-  }
-  throw new Error("Max retries reached due to rate limit (429)");
-};
-
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol");
+  const symbol = validateSymbol(searchParams.get('symbol'));
 
   if (!symbol) {
-    return NextResponse.json(
-      { error: "Symbol parameter is required" },
-      { status: 400 }
-    );
-  }
-
-  // Check cache
-  const cacheKey = symbol.toUpperCase();
-  const cachedData = cryptoCache.get(cacheKey);
-  const now = Date.now();
-  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-    console.log(`Returning cached crypto data for symbol: ${symbol}`);
-    return NextResponse.json(cachedData.data);
+    return errorResponse('Symbol parameter is required (e.g. BTC/USD)', 400);
   }
 
   try {
-    const apiKey = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY;
-    if (!apiKey) {
-      console.error("TWELVE_DATA_API_KEY is not set in environment variables");
-      return NextResponse.json(
-        { error: "API key is not configured" },
-        { status: 500 }
-      );
+    // The quote is mandatory (provider/quote failure fails the request); the
+    // other payloads degrade gracefully via `_meta.partial`.
+    const [quote, priceResult, eodResult, historyResult] = await Promise.all([
+      getQuote(symbol),
+      twelveDataFetch<any>(twelveDataUrl('price', { symbol })).catch(() => null),
+      twelveDataFetch<any>(twelveDataUrl('eod', { symbol })).catch(() => null),
+      getDailyHistory(symbol, 10).catch(() => []),
+    ]);
+
+    if (!quote) {
+      throw new ProviderError('No quote data available', 'unavailable', 502);
     }
 
-    // Fetch Quote Data
-    const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`;
-    console.log(`Fetching quote data for symbol: ${symbol} from Twelve Data...`);
-    const quoteResponse = await fetchWithRetry(quoteUrl);
-    const quoteData = await quoteResponse.json();
-    console.log(`Successfully fetched quote data for symbol: ${symbol}`);
+    const normalizedQuote = quote;
+    const priceData = priceResult;
+    const eodData = eodResult;
+    const historyValues = historyResult;
 
-    // Fetch Price Data
-    const priceUrl = `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${apiKey}`;
-    console.log(`Fetching price data for symbol: ${symbol} from Twelve Data...`);
-    const priceResponse = await fetchWithRetry(priceUrl);
-    const priceData = await priceResponse.json();
-    console.log(`Successfully fetched price data for symbol: ${symbol}`);
-
-    // Fetch EOD Data
-    const eodUrl = `https://api.twelvedata.com/eod?symbol=${symbol}&apikey=${apiKey}`;
-    console.log(`Fetching EOD data for symbol: ${symbol} from Twelve Data...`);
-    const eodResponse = await fetchWithRetry(eodUrl);
-    const eodData = await eodResponse.json();
-    console.log(`Successfully fetched EOD data for symbol: ${symbol}`);
-
-    // Fetch Time Series Data
-    const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=10&apikey=${apiKey}`; // Reduced outputsize to 10
-    console.log(`Fetching time series data for symbol: ${symbol} from Twelve Data...`);
-    const timeSeriesResponse = await fetchWithRetry(timeSeriesUrl);
-    const timeSeriesData = await timeSeriesResponse.json();
-    console.log("timeSeriesData:", timeSeriesData);
-    console.log(`Successfully fetched time series data for symbol: ${symbol}`);
-
-    // Construct the response
+    // Preserve the existing response shape.
     const response = {
       timeSeries: {
         meta: {
-          symbol: timeSeriesData.meta?.symbol || symbol,
-          interval: timeSeriesData.meta?.interval || "1day",
-          currency_base: symbol.split("/")[0],
-          currency_quote: symbol.split("/")[1],
-          type: "crypto",
+          symbol: normalizedQuote.symbol,
+          interval: '1day',
+          currency_base: symbol.split('/')[0] || symbol,
+          currency_quote: symbol.split('/')[1] || '',
+          type: 'crypto',
         },
-        values: timeSeriesData.values || [],
-        status: timeSeriesData.status || "ok",
+        values: historyValues,
+        status: 'ok',
       },
       quote: {
-        symbol: quoteData.symbol || symbol,
-        name: quoteData.name || "Unknown",
-        currency_base: symbol.split("/")[0],
-        currency_quote: symbol.split("/")[1],
-        datetime: quoteData.datetime || new Date().toISOString().split("T")[0],
-        open: quoteData.open || "0",
-        high: quoteData.high || "0",
-        low: quoteData.low || "0",
-        close: quoteData.close || "0",
-        previous_close: quoteData.previous_close || "0",
-        change: quoteData.change || "0",
-        percent_change: quoteData.percent_change || "0",
-        volume: quoteData.volume || "0",
+        symbol: normalizedQuote.symbol,
+        name: normalizedQuote.name || 'Unknown',
+        currency_base: symbol.split('/')[0] || symbol,
+        currency_quote: symbol.split('/')[1] || '',
+        datetime: normalizedQuote.asOf || new Date().toISOString().split('T')[0],
+        open: normalizedQuote.open ?? '0',
+        high: normalizedQuote.high ?? '0',
+        low: normalizedQuote.low ?? '0',
+        close: normalizedQuote.price ?? '0',
+        previous_close: normalizedQuote.previousClose ?? '0',
+        change: normalizedQuote.change ?? '0',
+        percent_change: normalizedQuote.percentChange ?? '0',
+        volume: normalizedQuote.volume ?? '0',
       },
       price: {
-        price: priceData.price || "0",
+        price: (priceData as any)?.price || '0',
       },
       eod: {
-        symbol: eodData.symbol || symbol,
-        currency_base: symbol.split("/")[0],
-        currency_quote: symbol.split("/")[1],
-        datetime: eodData.datetime || new Date().toISOString().split("T")[0],
-        close: eodData.close || "0",
+        symbol,
+        currency_base: symbol.split('/')[0] || symbol,
+        currency_quote: symbol.split('/')[1] || '',
+        datetime: (eodData as any)?.datetime || new Date().toISOString().split('T')[0],
+        close: (eodData as any)?.close || '0',
+      },
+      _meta: {
+        asOf: normalizedQuote.asOf,
+        freshness: normalizedQuote.freshness,
+        partial:
+          priceData === null || eodData === null || historyValues.length === 0,
       },
     };
 
-    // Cache the result
-    cryptoCache.set(cacheKey, { data: response, timestamp: now });
-    console.log(`Successfully fetched and cached crypto data for symbol: ${symbol}`);
-
     return NextResponse.json(response);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Error fetching crypto data for symbol ${symbol}:`, errorMessage);
-    return NextResponse.json(
-      { error: `Failed to fetch crypto data: ${errorMessage}` },
-      { status: 500 }
-    );
+  } catch (error) {
+    if ((error as any)?.kind === 'bad_symbol') {
+      return errorResponse('Symbol not found or unsupported', 404);
+    }
+    if (error instanceof ProviderError) {
+      if (error.kind === 'bad_symbol') {
+        return errorResponse('Symbol not found or unsupported', 404);
+      }
+      if (error.kind === 'rate_limited') {
+        return errorResponse('Market data provider is rate limited. Please try again shortly.', 429);
+      }
+      return errorResponse('Market data provider is unavailable. Please try again later.', 502);
+    }
+    console.error('[Crypto] Error for', symbol, error);
+    return errorResponse('Failed to fetch crypto data', 500);
   }
 }
+
+export const GET = withRateLimit(handler, RATE_LIMITS.MARKET_DATA);

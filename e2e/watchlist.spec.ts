@@ -10,9 +10,9 @@ test.describe('Watchlist Functionality', () => {
     await page.goto('/watchlist');
     await page.waitForLoadState('networkidle');
     
-    // Check that page loaded (may redirect to login or homepage)
+    // Check that page loaded (may redirect to login/signin)
     const url = page.url();
-    expect(url).toMatch(/\/(watchlist|login|api\/auth|\s*$)/);
+    expect(url).toMatch(/\/(watchlist|login|auth\/signin|api\/auth|\s*$)/);
   });
 
   test('should display watchlist page', async ({ page }) => {

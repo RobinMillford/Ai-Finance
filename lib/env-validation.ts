@@ -4,16 +4,17 @@
  */
 
 const requiredEnvVars = [
-  'MONGODB_URI',
+  'DATABASE_URL',
   'NEXTAUTH_SECRET',
   'NEXTAUTH_URL',
 ] as const;
 
 const optionalEnvVars = [
-  'NEXT_PUBLIC_TWELVEDATA_API_KEY',
-  'NEXT_PUBLIC_NEWS_API_KEY',
-  'NEXT_PUBLIC_GROQ_API_KEY',
-  'NEXT_PUBLIC_TAVILY_API_KEY',
+  // Server-only provider keys (never NEXT_PUBLIC_* — those leak to the bundle)
+  'TWELVE_DATA_API_KEY',
+  'NEWS_API_KEY',
+  'GROQ_API_KEY',
+  'TAVILY_API_KEY',
   'REDDIT_CLIENT_ID',
   'REDDIT_CLIENT_SECRET',
 ] as const;

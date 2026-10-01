@@ -1,21 +1,57 @@
-import { NextResponse } from 'next/server';
-import { getMarketIntelligence, getComprehensiveMarketOverview, getLatestNews, getGeopoliticalAnalysis, getMarketSentiment, getFundamentalAnalysis, getTechnicalAnalysis, getMacroeconomicAnalysis, getRegulatoryAnalysis, getMarketAlerts } from '@/lib/market-intelligence';
+/**
+ * Market Intelligence API
+ *
+ * Phase 0: uses the server-only Tavily key via lib/env (was
+ * NEXT_PUBLIC_TAVILY_API_KEY), rate-limited, and validates the `type`
+ * parameter.
+ */
 
-export async function GET(request: Request) {
+import { NextResponse } from 'next/server';
+import { withRateLimit, errorResponse } from '@/lib/api-middleware';
+import { RATE_LIMITS } from '@/lib/rate-limiter';
+import { env } from '@/lib/env';
+import {
+  getMarketIntelligence,
+  getComprehensiveMarketOverview,
+  getLatestNews,
+  getGeopoliticalAnalysis,
+  getMarketSentiment,
+  getFundamentalAnalysis,
+  getTechnicalAnalysis,
+  getMacroeconomicAnalysis,
+  getRegulatoryAnalysis,
+  getMarketAlerts,
+} from '@/lib/market-intelligence';
+import { validateSymbol } from '@/lib/api-helpers';
+
+const VALID_TYPES = new Set([
+  'comprehensive',
+  'news',
+  'geopolitical',
+  'sentiment',
+  'fundamental',
+  'technical',
+  'macroeconomic',
+  'regulatory',
+  'alerts',
+  'general',
+]);
+
+async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get('symbol');
+  const symbol = validateSymbol(searchParams.get('symbol'));
   const type = searchParams.get('type') || 'general';
 
-  // Check if API key is available
-  const apiKey = process.env.NEXT_PUBLIC_TAVILY_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ 
-      error: "NEXT_PUBLIC_TAVILY_API_KEY not found in environment variables. Market intelligence features are disabled." 
-    }, { status: 500 });
+  if (!env.tavily.apiKey) {
+    return errorResponse('Market intelligence is not configured (TAVILY_API_KEY missing)', 500);
   }
 
   if (!symbol) {
-    return NextResponse.json({ error: 'Symbol is required' }, { status: 400 });
+    return errorResponse('Symbol is required', 400);
+  }
+
+  if (!VALID_TYPES.has(type)) {
+    return errorResponse('Invalid type parameter', 400);
   }
 
   try {
@@ -52,16 +88,23 @@ export async function GET(request: Request) {
         result = await getMarketIntelligence(symbol, type);
         break;
     }
-    
+
     // Check if the result contains a rate limit error
-    if (result && typeof result === 'object' && 'error' in result && 
-        typeof result.error === 'string' && result.error.includes("Rate limit exceeded")) {
+    if (
+      result &&
+      typeof result === 'object' &&
+      'error' in result &&
+      typeof (result as any).error === 'string' &&
+      (result as any).error.includes('Rate limit exceeded')
+    ) {
       return NextResponse.json(result, { status: 429 });
     }
-    
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching market intelligence:', error);
-    return NextResponse.json({ error: 'Failed to fetch market intelligence' }, { status: 500 });
+    return errorResponse('Failed to fetch market intelligence', 502);
   }
 }
+
+export const GET = withRateLimit(handler, RATE_LIMITS.MARKET_DATA);

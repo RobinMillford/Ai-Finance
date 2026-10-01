@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Watchlist from '@/models/Watchlist';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  getUserWatchlists,
+  createWatchlist,
+} from '@/lib/db/repositories/watchlists';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
@@ -11,17 +13,13 @@ import { RATE_LIMITS } from '@/lib/rate-limiter';
  */
 async function getWatchlists(request: Request) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
-    await dbConnect();
-    
-    const watchlists = await Watchlist.find({ userId: session.user.email })
-      .sort({ createdAt: -1 })
-      .lean();
+    const watchlists = await getUserWatchlists(userId);
 
     return NextResponse.json(watchlists);
   } catch (error) {
@@ -34,11 +32,11 @@ async function getWatchlists(request: Request) {
  * POST /api/watchlist
  * Create a new watchlist
  */
-async function createWatchlist(request: Request) {
+async function createNewWatchlist(request: Request) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
@@ -49,13 +47,7 @@ async function createWatchlist(request: Request) {
       return errorResponse('Watchlist name is required', 400);
     }
 
-    await dbConnect();
-
-    const watchlist = await Watchlist.create({
-      userId: session.user.email,
-      name: name.trim(),
-      assets: [],
-    });
+    const watchlist = await createWatchlist(userId, name.trim());
 
     return NextResponse.json(watchlist, { status: 201 });
   } catch (error) {
@@ -65,4 +57,4 @@ async function createWatchlist(request: Request) {
 }
 
 export const GET = withRateLimit(getWatchlists, RATE_LIMITS.API_DEFAULT);
-export const POST = withRateLimit(createWatchlist, RATE_LIMITS.API_DEFAULT);
+export const POST = withRateLimit(createNewWatchlist, RATE_LIMITS.API_DEFAULT);

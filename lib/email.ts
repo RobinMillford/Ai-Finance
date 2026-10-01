@@ -25,9 +25,11 @@ async function sendEmail({ to, subject, html, text }: SendEmailOptions): Promise
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    // Dev / CI fallback — never silently discard
+    // Dev / CI fallback — never silently discard. Deliberately logs metadata
+    // only: password-reset email bodies contain the raw reset token, which must
+    // never reach server logs even in development.
     console.warn("[email] RESEND_API_KEY not set. Email not sent.");
-    console.info(`[email] To: ${to}\n[email] Subject: ${subject}\n[email] Body:\n${text}`);
+    console.info(`[email] To: ${to}\n[email] Subject: ${subject}\n[email] Body length: ${text.length} chars (body not logged — may contain secrets)`);
     return;
   }
 

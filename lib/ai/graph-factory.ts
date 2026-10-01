@@ -17,6 +17,7 @@ import {
   StateGraph,
   Annotation,
   Send,
+  type LangGraphRunnableConfig,
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
@@ -24,11 +25,13 @@ import {
   AIMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { smartLLM, fastLLM, routingLLM } from "./config";
 import { socialTools } from "./tools/social";
 import { createSearchTools } from "./tools/search";
+import { boundDataPayload } from "./content-boundary";
 import { collectToolResults, withRetry } from "./utils";
 import {
   normalizePlan,
@@ -74,6 +77,14 @@ export interface AdvisorGraphConfig {
    * Omit or pass empty array for unrestricted search.
    */
   searchDomains?: string[];
+
+  /**
+   * Phase 0: optional pre-built research toolset. When provided it overrides
+   * `searchDomains` entirely, letting a domain control exactly which research
+   * tools exist (e.g. the stock advisor excludes the crypto-flavored
+   * market-intelligence tool).
+   */
+  researchTools?: StructuredToolInterface[];
 
   /**
    * Domain-specific routing hints injected into the supervisor's system prompt.
@@ -244,7 +255,7 @@ User query is the last message in the conversation. Decide which specialists it 
   }
 
   // ── Market Researcher ───────────────────────────────────────────────────────
-  const researchTools = createSearchTools(cfg.searchDomains);
+  const researchTools = cfg.researchTools ?? createSearchTools(cfg.searchDomains);
 
   async function marketResearcherNode(state: typeof AgentState.State) {
     const llmWithTools = fastLLM.bindTools(researchTools);
@@ -274,10 +285,19 @@ User query is the last message in the conversation. Decide which specialists it 
     };
   }
 
-  // ── Final Response ──────────────────────────────────────────────────────────
-  async function finalResponseNode(state: typeof AgentState.State) {
+  // ── Final Response ─────────────────────────────────────────────────────
+  async function finalResponseNode(
+    state: typeof AgentState.State,
+    config?: LangGraphRunnableConfig
+  ) {
+    // Phase 0: bound the collected data before it enters the synthesis
+    // prompt. Raw tool payloads could previously grow without limit (413 /
+    // TPM failures). boundDataPayload truncates long strings and caps the
+    // serialized size while preserving the most useful entries.
+    const { data: boundedData } = boundDataPayload(state.data);
+
     // All collected data is already serialized into the system prompt via
-    // cfg.finalSystemPrompt(state.data). Replaying the full message history
+    // cfg.finalSystemPrompt(boundedData). Replaying the full message history
     // (raw tool payloads, worker summaries, plan chatter) would double-count
     // tokens for zero synthesis value — and blows small TPM budgets.
     const lastUserMessage = [...state.messages]
@@ -288,17 +308,42 @@ User query is the last message in the conversation. Decide which specialists it 
           : m?.type === "human" || m?.role === "user" || m?.role === "human"
       );
 
-    const response = await withRetry(() =>
-      smartLLM.invoke([
-        new SystemMessage(cfg.finalSystemPrompt(state.data)),
-        ...(lastUserMessage ? [lastUserMessage] : []),
-      ])
-    );
+    const messages = [
+      new SystemMessage(cfg.finalSystemPrompt(boundedData)),
+      ...(lastUserMessage ? [lastUserMessage] : []),
+    ];
 
-    const cleanedContent =
-      typeof response.content === "string"
-        ? response.content.trim()
-        : response.content;
+    // Phase 1: TRUE token streaming (§37). The per-request callback arrives
+    // via LangGraph `configurable` (thread-safe — the graph itself is a
+    // singleton and must never hold per-request state). When no callback is
+    // provided the original invoke path is used unchanged.
+    const onToken = config?.configurable?.onFinalToken as
+      | ((token: string) => void)
+      | undefined;
+
+    let cleanedContent: string;
+    if (typeof onToken === "function") {
+      const parts: string[] = [];
+      const tokenStream = await smartLLM.stream(messages);
+      for await (const chunk of tokenStream) {
+        const token = typeof chunk.content === "string" ? chunk.content : "";
+        if (!token) continue;
+        parts.push(token);
+        try {
+          onToken(token);
+        } catch {
+          // A failing consumer must never abort synthesis — the final
+          // event still carries the complete message.
+        }
+      }
+      cleanedContent = parts.join("").trim();
+    } else {
+      const response = await withRetry(() => smartLLM.invoke(messages));
+      cleanedContent =
+        typeof response.content === "string"
+          ? response.content.trim()
+          : (response.content as any);
+    }
 
     return {
       messages: [new AIMessage(cleanedContent)],

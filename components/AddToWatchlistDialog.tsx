@@ -28,7 +28,7 @@ interface AddToWatchlistDialogProps {
 }
 
 interface Watchlist {
-  _id: string;
+  id: string;
   name: string;
   assets: Array<{
     symbol: string;
@@ -79,7 +79,7 @@ export function AddToWatchlistDialog({
         const data = await response.json();
         setWatchlists(data);
         if (data.length > 0) {
-          setSelectedWatchlistId(data[0]._id);
+          setSelectedWatchlistId(data[0].id);
         }
       } else {
         toast({
@@ -120,7 +120,7 @@ export function AddToWatchlistDialog({
       if (response.ok) {
         const newWatchlist = await response.json();
         setWatchlists([...watchlists, newWatchlist]);
-        setSelectedWatchlistId(newWatchlist._id);
+        setSelectedWatchlistId(newWatchlist.id);
         setShowCreateNew(false);
         setNewWatchlistName("");
         toast({
@@ -292,7 +292,7 @@ export function AddToWatchlistDialog({
                     onChange={(e) => setSelectedWatchlistId(e.target.value)}
                   >
                     {watchlists.map((watchlist) => (
-                      <option key={watchlist._id} value={watchlist._id}>
+                      <option key={watchlist.id} value={watchlist.id}>
                         {watchlist.name} ({watchlist.assets.length} assets)
                       </option>
                     ))}

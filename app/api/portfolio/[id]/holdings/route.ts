@@ -1,26 +1,30 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import dbConnect from '@/lib/mongodb';
-import Portfolio, { IHolding } from '@/models/Portfolio';
+import { requireUserId } from '@/lib/api-auth';
+import {
+  addPosition,
+  updatePosition,
+  deletePosition,
+} from '@/lib/db/repositories/portfolios';
 import { withRateLimit, errorResponse } from '@/lib/api-middleware';
 import { RATE_LIMITS } from '@/lib/rate-limiter';
 
 /**
  * POST /api/portfolio/[id]/holdings
- * Add a new holding to the portfolio
+ * Add a new holding (position) to the portfolio.
+ * Re-adding the same (symbol, assetType) merges lots via weighted-average cost.
  */
 async function addHolding(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
-    const { id } = await params; // Await params before using
+    const { id } = await params;
 
     const body = await request.json();
     const { symbol, assetType, quantity, purchasePrice, purchaseDate, notes } = body;
@@ -34,26 +38,20 @@ async function addHolding(
       return errorResponse('Invalid asset type', 400);
     }
 
-    if (quantity <= 0 || purchasePrice <= 0) {
+    const qty = Number(quantity);
+    const price = Number(purchasePrice);
+    if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price <= 0) {
       return errorResponse('Quantity and price must be positive', 400);
     }
 
-    await dbConnect();
-
-    const newHolding: IHolding = {
-      symbol: symbol.toUpperCase(),
+    const portfolio = await addPosition(userId, id, {
+      symbol: String(symbol),
       assetType,
-      quantity: Number(quantity),
-      purchasePrice: Number(purchasePrice),
+      quantity: qty,
+      purchasePrice: price,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
-      notes: notes || '',
-    };
-
-    const portfolio = await Portfolio.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      { $push: { holdings: newHolding } },
-      { new: true, runValidators: true }
-    );
+      notes: typeof notes === 'string' ? notes : '',
+    });
 
     if (!portfolio) {
       return errorResponse('Portfolio not found', 404);
@@ -68,43 +66,50 @@ async function addHolding(
 
 /**
  * PUT /api/portfolio/[id]/holdings
- * Update a holding in the portfolio
+ * Update one position by its stable id (replaces the old array-index API).
+ * Body: { positionId, quantity?, purchasePrice?, notes? }
  */
 async function updateHolding(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
     const body = await request.json();
-    const { holdingIndex, quantity, purchasePrice, notes } = body;
+    const { positionId, quantity, purchasePrice, notes } = body;
 
-    if (holdingIndex === undefined) {
-      return errorResponse('Holding index is required', 400);
+    if (!positionId || typeof positionId !== 'string') {
+      return errorResponse('Position id is required', 400);
     }
 
-    await dbConnect();
+    const patch: { quantity?: number; purchasePrice?: number; notes?: string } = {};
+    if (quantity !== undefined) {
+      const qty = Number(quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return errorResponse('Quantity must be positive', 400);
+      }
+      patch.quantity = qty;
+    }
+    if (purchasePrice !== undefined) {
+      const price = Number(purchasePrice);
+      if (!Number.isFinite(price) || price <= 0) {
+        return errorResponse('Purchase price must be positive', 400);
+      }
+      patch.purchasePrice = price;
+    }
+    if (notes !== undefined) patch.notes = String(notes);
 
-    const updateFields: any = {};
-    if (quantity !== undefined) updateFields[`holdings.${holdingIndex}.quantity`] = Number(quantity);
-    if (purchasePrice !== undefined) updateFields[`holdings.${holdingIndex}.purchasePrice`] = Number(purchasePrice);
-    if (notes !== undefined) updateFields[`holdings.${holdingIndex}.notes`] = notes;
-
-    const portfolio = await Portfolio.findOneAndUpdate(
-      { _id: id, userId: session.user.email },
-      { $set: updateFields },
-      { new: true, runValidators: true }
-    );
+    const portfolio = await updatePosition(userId, id, positionId, patch);
 
     if (!portfolio) {
-      return errorResponse('Portfolio not found', 404);
+      return errorResponse('Position not found', 404);
     }
 
     return NextResponse.json(portfolio);
@@ -115,42 +120,34 @@ async function updateHolding(
 }
 
 /**
- * DELETE /api/portfolio/[id]/holdings
- * Remove a holding from the portfolio
+ * DELETE /api/portfolio/[id]/holdings?positionId=<uuid>
+ * Remove one position by id (replaces the old array-index API).
  */
 async function deleteHolding(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.email) {
+    const userId = await requireUserId();
+
+    if (!userId) {
       return errorResponse('Unauthorized', 401);
     }
 
     const { id } = await params;
 
     const { searchParams } = new URL(request.url);
-    const holdingIndex = searchParams.get('index');
+    const positionId = searchParams.get('positionId');
 
-    if (holdingIndex === null) {
-      return errorResponse('Holding index is required', 400);
+    if (!positionId) {
+      return errorResponse('Position id is required', 400);
     }
 
-    await dbConnect();
-
-    const portfolio = await Portfolio.findOne({
-      _id: id,
-      userId: session.user.email,
-    });
+    const portfolio = await deletePosition(userId, id, positionId);
 
     if (!portfolio) {
-      return errorResponse('Portfolio not found', 404);
+      return errorResponse('Position not found', 404);
     }
-
-    portfolio.holdings.splice(Number(holdingIndex), 1);
-    await portfolio.save();
 
     return NextResponse.json(portfolio);
   } catch (error) {

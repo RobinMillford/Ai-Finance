@@ -15,7 +15,7 @@ interface Holding {
 }
 
 interface Portfolio {
-  _id: string;
+  id: string;
   name: string;
   description?: string;
   holdings: Holding[];
@@ -31,7 +31,7 @@ interface WatchlistAsset {
 }
 
 interface Watchlist {
-  _id: string;
+  id: string;
   name: string;
   assets: WatchlistAsset[];
 }

@@ -14,9 +14,10 @@ test.describe('Portfolio Management', () => {
     // Page should load (may redirect to login or homepage if not authenticated)
     await page.waitForLoadState('networkidle');
     
-    // Check that we're either on portfolio page, login page, or redirected to homepage
+    // Check that we're either on portfolio page, login page, or redirected to
+    // signin (Phase 0 proxy now enforces page protection).
     const url = page.url();
-    expect(url).toMatch(/\/(portfolio|login|api\/auth|\s*$)/);
+    expect(url).toMatch(/\/(portfolio|login|auth\/signin|api\/auth|\s*$)/);
   });
 
   test('should display portfolio page elements', async ({ page }) => {

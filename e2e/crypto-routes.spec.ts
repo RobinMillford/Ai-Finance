@@ -1,32 +1,30 @@
 import { test, expect } from '@playwright/test';
 
+// The proxy (proxy.ts) requires a session for asset detail pages — only the
+// market-listing pages (/stocks, /forexs, /cryptos, ...) are public. These
+// specs therefore verify that anonymous visitors are bounced to NextAuth's
+// sign-in page with a callbackUrl pointing back at the requested route, so
+// they land on the right asset page after authenticating.
 test.describe('Crypto Routes', () => {
-  test('should handle /crypto/[symbol]/[currency] route', async ({ page }) => {
-    // Test the nested route pattern /crypto/888/USD
-    await page.goto('/crypto/888/USD', { waitUntil: 'networkidle' });
-    
-    // Wait for client-side navigation to complete
-    await page.waitForTimeout(2000);
-    
-    // Check that we were redirected to the correct URL format
-    // The redirect should convert /crypto/888/USD to /crypto/888%2FUSD
-    const url = page.url();
-    
-    // Accept either format since webkit/Safari may handle routing differently
-    const hasCorrectFormat = url.includes('/crypto/888%2FUSD') || 
-                            url.includes('/crypto/888/USD');
-    expect(hasCorrectFormat).toBeTruthy();
+  test('should redirect unauthenticated users to sign-in for /crypto/[symbol]/[currency]', async ({ page }) => {
+    await page.goto('/crypto/888/USD');
+
+    // Anonymous access is redirected to /auth/signin?callbackUrl=/crypto/888/USD
+    await page.waitForURL(/\/auth\/signin/);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe('/auth/signin');
+    expect(url.searchParams.get('callbackUrl')).toBe('/crypto/888/USD');
   });
 
-  test('should handle standard crypto route format', async ({ page }) => {
-    // Test the standard route format with URL-encoded slash
+  test('should redirect unauthenticated users to sign-in for standard crypto route format', async ({ page }) => {
     await page.goto('/crypto/BTC%2FUSD');
-    
-    // Wait for page to load
-    await page.waitForLoadState('networkidle');
-    
-    // Verify we're on the crypto page
-    const url = page.url();
-    expect(url).toContain('/crypto/BTC%2FUSD');
+
+    // The URL-encoded path survives the redirect: URLSearchParams decodes the
+    // double-encoded %252F back to %2F, so callbackUrl round-trips to the
+    // exact requested path.
+    await page.waitForURL(/\/auth\/signin/);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe('/auth/signin');
+    expect(url.searchParams.get('callbackUrl')).toBe('/crypto/BTC%2FUSD');
   });
 });

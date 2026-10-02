@@ -28,7 +28,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    target-branch: "main"
+    # Target development (not main): dependency bumps must flow through the
+    # dev -> main PR so package.json/package-lock.json never diverge between
+    # branches. Merging Dependabot straight into main is what caused the
+    # recurring merge conflicts on dev -> main PRs.
+    target-branch: "development"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -53,6 +57,7 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    target-branch: "development"
     commit-message:
       prefix: "ci"
       include: "scope"

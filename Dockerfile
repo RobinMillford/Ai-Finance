@@ -39,6 +39,9 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js ./next.config.js
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/drizzle ./drizzle
+# Verification tooling (verify:postgres / verify:providers) executes lib/ at
+# runtime via ts-node + tsconfig-paths, so lib/ must ship in the image.
+COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 

@@ -8,8 +8,8 @@ test.describe('Market Data Pages', () => {
     const heading = page.getByRole('heading', { name: /stock/i }).first();
     await expect(heading).toBeVisible();
     
-    // Just verify page loaded successfully
-    await page.waitForLoadState('networkidle');
+    // NOTE: no waitForLoadState('networkidle') here. Market pages poll
+    // TwelveData and get 429s in CI, so the network never settles.
   });
 
   test('should load forex page', async ({ page }) => {
@@ -22,10 +22,6 @@ test.describe('Market Data Pages', () => {
 
   test('should load crypto page', async ({ page }) => {
     await page.goto('/cryptos');
-    
-    // Wait for page to load (crypto may take longer)
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
     
     // Check for page heading or just verify URL
     const url = page.url();
@@ -48,9 +44,6 @@ test.describe('Market Data Pages', () => {
   test('should navigate between market pages', async ({ page }) => {
     await page.goto('/stocks');
     
-    // Wait for page to load
-    await page.waitForLoadState('networkidle');
-    
     // Navigate to forex (look for navigation link)
     const forexLink = page.locator('a[href*="forex"]').first();
     if (await forexLink.isVisible()) {
@@ -61,9 +54,6 @@ test.describe('Market Data Pages', () => {
 
   test('should display market data in table', async ({ page }) => {
     await page.goto('/stocks');
-    
-    // Wait for data to load
-    await page.waitForTimeout(2000);
     
     // Just verify page loaded successfully
     const url = page.url();

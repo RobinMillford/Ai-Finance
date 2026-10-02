@@ -12,7 +12,6 @@ test.describe('Portfolio Management', () => {
     await page.goto('/portfolio');
     
     // Page should load (may redirect to login or homepage if not authenticated)
-    await page.waitForLoadState('networkidle');
     
     // Check that we're either on portfolio page, login page, or redirected to
     // signin (Phase 0 proxy now enforces page protection).
@@ -22,7 +21,6 @@ test.describe('Portfolio Management', () => {
 
   test('should display portfolio page elements', async ({ page }) => {
     await page.goto('/portfolio');
-    await page.waitForLoadState('networkidle');
     
     // Just verify page loaded without errors
     const url = page.url();
@@ -31,7 +29,6 @@ test.describe('Portfolio Management', () => {
 
   test('should handle unauthenticated access gracefully', async ({ page }) => {
     await page.goto('/portfolio');
-    await page.waitForLoadState('networkidle');
     
     // Should either show portfolio page or redirect to auth/homepage
     // All are acceptable behaviors

@@ -8,7 +8,6 @@ test.describe('Watchlist Functionality', () => {
   test('should navigate to watchlist page', async ({ page }) => {
     // Try to navigate to watchlist
     await page.goto('/watchlist');
-    await page.waitForLoadState('networkidle');
     
     // Check that page loaded (may redirect to login/signin)
     const url = page.url();
@@ -17,7 +16,6 @@ test.describe('Watchlist Functionality', () => {
 
   test('should display watchlist page', async ({ page }) => {
     await page.goto('/watchlist');
-    await page.waitForLoadState('networkidle');
     
     // Just verify page loaded
     const url = page.url();
@@ -26,7 +24,6 @@ test.describe('Watchlist Functionality', () => {
 
   test('should handle unauthenticated access', async ({ page }) => {
     await page.goto('/watchlist');
-    await page.waitForLoadState('networkidle');
     
     // Should handle gracefully
     const url = page.url();

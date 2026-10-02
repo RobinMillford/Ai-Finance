@@ -116,7 +116,8 @@
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
     "tailwindcss": "^4.2.4",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0"
   },
   "overrides": {
     "drizzle-orm": "0.45.3",

@@ -14,11 +14,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Build-time placeholders only.
-# Runtime secrets are supplied through Docker Compose/.env.
+# Secret lifecycle: the image is built with NO provider credentials.
+# All runtime secrets (DATABASE_URL, NEXTAUTH_SECRET, GROQ_API_KEY, etc.)
+# are injected at container runtime via Docker Compose / environment config.
 ENV NODE_ENV=production
-ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
-ENV NEXTAUTH_SECRET=build-only-placeholder
 RUN npm run build
 
 # ============================================================

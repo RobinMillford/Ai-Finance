@@ -146,8 +146,10 @@ export function hasValidGroqKey(): boolean {
   );
 }
 
-// Run validation on import (but don't throw in production builds)
-if (typeof window === 'undefined') {
-  // Server-side only
+// Run validation on import — server-side only. Skipped during `next build`
+// (NEXT_PHASE=phase-production-build): the build must not require runtime
+// secrets. Validation still runs whenever the server process actually starts,
+// so production keeps the same explicit missing-variable warnings.
+if (typeof window === 'undefined' && process.env.NEXT_PHASE !== 'phase-production-build') {
   validateEnv();
 }

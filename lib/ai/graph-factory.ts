@@ -28,7 +28,10 @@ import {
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { smartLLM, fastLLM, routingLLM } from "./config";
+// LLM clients are lazy singletons (see lib/ai/config.ts): resolved here on
+// first runtime use — never at module import — so `next build` needs no
+// production provider secrets.
+import { getSmartLLM, getFastLLM, getRoutingLLM } from "./config";
 import { socialTools } from "./tools/social";
 import { createSearchTools } from "./tools/search";
 import { boundDataPayload } from "./content-boundary";
@@ -152,7 +155,7 @@ ${cfg.supervisorRouteHint}
 
 User query is the last message in the conversation. Decide which specialists it needs.`;
 
-    const llmWithStructure = routingLLM.withStructuredOutput(planSchema);
+    const llmWithStructure = getRoutingLLM().withStructuredOutput(planSchema);
     let response;
     try {
       response = await withRetry(() =>
@@ -195,7 +198,7 @@ User query is the last message in the conversation. Decide which specialists it 
 
   // ── Technical Analyst ───────────────────────────────────────────────────────
   async function technicalAnalystNode(state: typeof AgentState.State) {
-    const llmWithTools = fastLLM.bindTools(cfg.technicalTools);
+    const llmWithTools = getFastLLM().bindTools(cfg.technicalTools);
     log("TechnicalAnalyst", `Processing with ${state.messages.length} messages`);
 
     const response = await withRetry(() => llmWithTools.invoke([
@@ -227,7 +230,7 @@ User query is the last message in the conversation. Decide which specialists it 
 
   // ── Sentiment Analyst ───────────────────────────────────────────────────────
   async function sentimentAnalystNode(state: typeof AgentState.State) {
-    const llmWithTools = fastLLM.bindTools(socialTools);
+    const llmWithTools = getFastLLM().bindTools(socialTools);
 
     const response = await withRetry(() => llmWithTools.invoke([
       new SystemMessage(cfg.sentimentSystemPrompt),
@@ -258,7 +261,7 @@ User query is the last message in the conversation. Decide which specialists it 
   const researchTools = cfg.researchTools ?? createSearchTools(cfg.searchDomains);
 
   async function marketResearcherNode(state: typeof AgentState.State) {
-    const llmWithTools = fastLLM.bindTools(researchTools);
+    const llmWithTools = getFastLLM().bindTools(researchTools);
 
     const response = await withRetry(() => llmWithTools.invoke([
       new SystemMessage(cfg.researchSystemPrompt),
@@ -321,10 +324,13 @@ User query is the last message in the conversation. Decide which specialists it 
       | ((token: string) => void)
       | undefined;
 
+    // Lazy singleton — constructed (and GROQ_API_KEY validated) on first use.
+    const synthesisLLM = getSmartLLM();
+
     let cleanedContent: string;
     if (typeof onToken === "function") {
       const parts: string[] = [];
-      const tokenStream = await smartLLM.stream(messages);
+      const tokenStream = await synthesisLLM.stream(messages);
       for await (const chunk of tokenStream) {
         const token = typeof chunk.content === "string" ? chunk.content : "";
         if (!token) continue;
@@ -338,7 +344,7 @@ User query is the last message in the conversation. Decide which specialists it 
       }
       cleanedContent = parts.join("").trim();
     } else {
-      const response = await withRetry(() => smartLLM.invoke(messages));
+      const response = await withRetry(() => synthesisLLM.invoke(messages));
       cleanedContent =
         typeof response.content === "string"
           ? response.content.trim()

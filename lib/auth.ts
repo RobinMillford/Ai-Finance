@@ -23,6 +23,18 @@ import { env } from './env';
  * id — email is a unique attribute, never a foreign key.
  */
 export const authOptions: NextAuthOptions = {
+  /**
+   * OAuth cookies behind the production Nginx TLS termination:
+   * intentionally NO `cookies`/`useSecureCookies` override here. NextAuth v4
+   * derives `useSecureCookies` from the https:// NEXTAUTH_URL, emitting
+   * `__Secure-next-auth.state`, `__Secure-next-auth.pkce.code_verifier` and
+   * `__Host-next-auth.csrf-token` (HttpOnly, Secure, SameSite=Lax, Path=/).
+   * The state/PKCE cookies carry a 15-minute Expires attribute — proxies in
+   * front of the app must not buffer, cache or rewrite /api/auth responses,
+   * otherwise the state cookie is lost and the provider callback fails with
+   * OAUTH_CALLBACK_ERROR "State cookie was missing" (google + github alike).
+   * Regression coverage: lib/__tests__/auth-cookie-config.test.ts
+   */
   providers: [
     GoogleProvider({
       clientId: env.google.clientId,

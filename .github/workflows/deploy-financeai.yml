@@ -25,6 +25,25 @@ name: Deploy FinanceAI to Production VPS
 #   - migration runs with the NEW image BEFORE the web service is recreated
 #   - production Nginx/HTTPS are never modified
 #
+# Compose configuration design:
+#   Production runs docker-compose.prod.yml ONLY, selected explicitly for
+#   every Compose call (validation, migration, build, recreate, health checks
+#   and rollback) through the script's single dc() wrapper, together with
+#   --env-file. docker-compose.yml is the LOCAL DEVELOPMENT stack and is
+#   never used on the VPS. This removes the previous state where production
+#   depended on an uncommitted local edit of a tracked file — the change that
+#   blocked deployments on the dirty-working-tree guard.
+#
+# Required production variables are declared with ${VAR:?message} in
+# docker-compose.prod.yml, so a missing or empty secret fails during
+# `docker compose config`, before any build, migration or restart. Values are
+# never printed.
+#
+# Working-tree rule:
+#   Tracked files are owned by Git — any local modification is a hard failure.
+#   Untracked files are owned by the operator — never deleted; only an
+#   explicit, narrow allow-list of production-local artefacts is tolerated.
+#
 # NOTE: workflow_run-triggered workflows are only evaluated when this file
 # exists on the default branch (main). Merging development → main activates
 # the automation.
@@ -152,34 +171,146 @@ jobs:
           PROD_URL=https://financeai-ai.duckdns.org
           VERIFY_LOG=/tmp/financeai-verify.log
 
+          # ── Deployment configuration (single source of truth) ─────────
+          # Production configuration is tracked in Git. If the architecture
+          # ever changes to a base file plus an override, the dc() wrapper
+          # below is the ONLY thing that has to change.
+          DEPLOY_BRANCH=main
+          COMPOSE_FILE=docker-compose.prod.yml
+          ENV_FILE="${FINANCEAI_ENV_FILE:-.env}"
+          LOCK_FILE=/tmp/financeai-deploy.lock
+          LOCK_WAIT_SECONDS=600
+          MIN_FREE_MIB=2048
+
+          # Production-local, non-Git artefacts that are tolerated so a preserved
+          # artefact cannot block deployments forever. Anything else untracked is a
+          # hard failure. This list is never deleted or modified by the script.
+          ALLOWED_UNTRACKED="docker-compose.yml.backup"
+
+          # Every Compose invocation goes through this wrapper, so the production
+          # file is selected identically for validation, migration, build, recreate,
+          # health checks and rollback. The development file (docker-compose.yml) is
+          # never used on this host.
+          dc() {
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+          }
+
           echo "=============================================================="
           echo " FinanceAI production deploy"
           echo " CI-verified SHA (VERIFIED_SHA): $VERIFIED_SHA"
+          echo " Compose file                  : $COMPOSE_FILE"
+          echo " Env file                      : $ENV_FILE"
           echo "=============================================================="
 
           cd "$APP_DIR"
 
-          # ── Pre-flight: fetch, checkout, dirty check, reachability ──
-          echo ">>> [1/8] Pre-flight: fetching origin main"
-          git fetch origin main
-          git checkout main
+          # ============================================================
+          # >>> [1/8] Pre-flight — lock, host, repository, configuration
+          # ============================================================
+          echo ">>> [1/8] Pre-flight"
 
-          DIRTY="$(git status --porcelain)"
-          if [ -n "$DIRTY" ]; then
-            echo "FATAL: working tree is dirty — refusing to deploy."
-            echo "$DIRTY"
-            echo "(untracked/modified files are NEVER auto-deleted; resolve manually)"
+          # ── Deployment lock ────────────────────────────────────────────
+          # Complements the workflow concurrency group: two operators (or a
+          # manual SSH session and the workflow) can never mutate the working
+          # tree or recreate the same containers at the same time. flock(1) is
+          # advisory and tied to the file descriptor, so the lock is released
+          # automatically if a run is cancelled or the SSH connection drops —
+          # it can never become permanently stale.
+          echo "--- deploy lock ---"
+          exec 9>>"$LOCK_FILE"
+          if command -v flock >/dev/null 2>&1; then
+            if ! flock -w "$LOCK_WAIT_SECONDS" 9; then
+              echo "FATAL: another deployment holds $LOCK_FILE (waited ${LOCK_WAIT_SECONDS}s)."
+              echo "Refusing to touch the working tree or any container."
+              exit 1
+            fi
+            echo "Deploy lock acquired (auto-released when this process exits)."
+          else
+            echo "WARNING: flock(1) unavailable — relying on the workflow concurrency group only."
+          fi
+
+          # ── Host prerequisites ─────────────────────────────────────────
+          echo "--- docker daemon ---"
+          if ! docker info >/dev/null 2>&1; then
+            echo "FATAL: Docker daemon is not reachable."
             exit 1
           fi
-          echo "Working tree clean."
+          echo "Docker daemon reachable."
 
-          if ! git merge-base --is-ancestor "$VERIFIED_SHA" origin/main; then
-            echo "FATAL: VERIFIED_SHA $VERIFIED_SHA is no longer reachable from origin/main"
+          echo "--- disk space ---"
+          DOCKER_ROOT="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)"
+          FREE_MIB="$(df -Pm "$DOCKER_ROOT" 2>/dev/null | awk 'NR==2 {print $4}' || true)"
+          if [[ "$FREE_MIB" =~ ^[0-9]+$ ]]; then
+            if [ "$FREE_MIB" -lt "$MIN_FREE_MIB" ]; then
+              echo "FATAL: only ${FREE_MIB} MiB free on $DOCKER_ROOT (need >= ${MIN_FREE_MIB} MiB to build)."
+              exit 1
+            fi
+            echo "Free space on $DOCKER_ROOT: ${FREE_MIB} MiB"
+          else
+            echo "NOTE: could not determine free space on $DOCKER_ROOT; continuing."
+          fi
+
+          # ── Repository state ───────────────────────────────────────────
+          echo "--- git: fetch origin/$DEPLOY_BRANCH ---"
+          git fetch origin "$DEPLOY_BRANCH"
+          git checkout "$DEPLOY_BRANCH"
+
+          # RULE (deliberate, replaces the blanket `git status --porcelain` test):
+          #   * Tracked files are owned by Git. Any local modification to a tracked
+          #     file is a HARD FAILURE — production configuration is no longer a
+          #     local edit, it is docker-compose.prod.yml, which is tracked.
+          #   * Untracked files are owned by the operator. Nothing is ever deleted.
+          #     Only the explicit ALLOWED_UNTRACKED artefacts are tolerated; every
+          #     other untracked file is a HARD FAILURE.
+          echo "--- git: tracked files must be pristine ---"
+          TRACKED_DIRTY="$(git diff --name-only HEAD)"
+          if [ -n "$TRACKED_DIRTY" ]; then
+            echo "FATAL: tracked files differ from $DEPLOY_BRANCH — refusing to deploy."
+            echo "$TRACKED_DIRTY"
+            echo "Production configuration is tracked in $COMPOSE_FILE."
+            echo "To discard a local edit on this host (inspect it first):"
+            echo "    git -C $APP_DIR diff -- <file>       # inspect"
+            echo "    git -C $APP_DIR checkout -- <file>   # discard"
+            echo "Nothing has been changed by this deployment."
+            exit 1
+          fi
+          echo "All tracked files match $DEPLOY_BRANCH."
+
+          echo "--- git: untracked files ---"
+          UNTRACKED="$(git ls-files --others --exclude-standard)"
+          UNEXPECTED=""
+          while IFS= read -r f; do
+            if [ -z "$f" ]; then
+              continue
+            fi
+            if [[ " $ALLOWED_UNTRACKED " == *" $f "* ]]; then
+              echo "NOTE: tolerated production-local artefact: $f (never modified, never deleted)"
+            else
+              UNEXPECTED="${UNEXPECTED}${f}
+          "
+            fi
+          done <<EOF
+          $UNTRACKED
+          EOF
+          if [ -n "$UNEXPECTED" ]; then
+            echo "FATAL: unexpected untracked file(s) — refusing to deploy."
+            printf '%s' "$UNEXPECTED"
+            echo "(untracked files are NEVER auto-deleted; move or remove them yourself)"
+            exit 1
+          fi
+
+          echo "--- git: target commit reachability ---"
+          if ! git merge-base --is-ancestor "$VERIFIED_SHA" "origin/$DEPLOY_BRANCH"; then
+            echo "FATAL: VERIFIED_SHA $VERIFIED_SHA is no longer reachable from origin/$DEPLOY_BRANCH"
             echo "(force-push or history rewrite) — failing safely, deploying nothing."
             exit 1
           fi
-          echo "VERIFIED_SHA is reachable from origin/main."
+          echo "VERIFIED_SHA is reachable from origin/$DEPLOY_BRANCH."
 
+          # The local branch was 7 commits behind origin/main at the time of the
+          # incident; `reset --hard` is what advances it, so being behind is safe.
+          # A DIVERGED or force-pushed local main is caught by the dirty/reachability
+          # checks above before this point.
           git reset --hard "$VERIFIED_SHA"
           ACTUAL="$(git rev-parse HEAD)"
           if [ "$ACTUAL" != "$VERIFIED_SHA" ]; then
@@ -188,14 +319,239 @@ jobs:
           fi
           echo "VPS HEAD verified: $ACTUAL"
 
-          # ── Ensure financeai-db is running and healthy ──────────────
+          # ── Production configuration validation ────────────────────────
+          echo "--- production compose file ---"
+          if [ ! -f "$COMPOSE_FILE" ]; then
+            echo "FATAL: $COMPOSE_FILE is not present in the deployed commit."
+            echo "The deploy script and the repository are out of sync; deploying nothing."
+            exit 1
+          fi
+          echo "Compose file present: $COMPOSE_FILE"
+
+          echo "--- production env file ---"
+          if [ ! -r "$ENV_FILE" ]; then
+            echo "FATAL: env file '$ENV_FILE' is missing or unreadable in $APP_DIR."
+            echo "It holds production secrets, is git-ignored, and is never created by"
+            echo "this script. Deployment stopped before any build, migration or restart."
+            exit 1
+          fi
+          if [ ! -s "$ENV_FILE" ]; then
+            echo "FATAL: env file '$ENV_FILE' is empty."
+            exit 1
+          fi
+          ENV_MODE="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || echo unknown)"
+          echo "Env file present (mode $ENV_MODE; contents are never logged)."
+          case "$ENV_MODE" in
+            400 | 600) : ;;
+            *) echo "WARNING: $ENV_FILE mode is $ENV_MODE but it holds production secrets. Consider: chmod 600 $ENV_FILE" ;;
+          esac
+
+          # `--quiet` validates syntax and interpolation without printing the resolved
+          # configuration. Required variables use ${VAR:?message} in $COMPOSE_FILE, so a
+          # missing or empty secret aborts HERE — before a build, a migration or a
+          # container recreation. Compose names the variable; it never prints a value.
+          echo "--- compose config validation ---"
+          if ! CFG_ERR="$(dc config --quiet 2>&1)"; then
+            echo "FATAL: invalid production Compose configuration."
+            printf '%s\n' "$CFG_ERR" | sed -n '1,20p'
+            echo "(Compose reports the NAME of any missing variable, never its value)"
+            exit 1
+          fi
+          echo "Compose configuration is valid."
+
+          # Static guards, analysed directly on the source file. These do not depend on
+          # any Compose version's output format, so they cannot drift into false
+          # failures. PostgreSQL must never gain a published host port in production.
+          echo "--- compose topology assertions (source) ---"
+          if awk '/^  financeai-db:[[:space:]]*$/ { f=1; next }
+                     f && /^  [^[:space:]]/        { f=0 }
+                     f && /^[[:space:]]+ports:/    { found=1 }
+                     END { exit found ? 0 : 1 }' "$COMPOSE_FILE"; then
+            echo "FATAL: $COMPOSE_FILE publishes a host port for financeai-db."
+            echo "PostgreSQL must stay reachable only from inside the 'financeai' network."
+            exit 1
+          fi
+          echo "  financeai-db publishes no host port (private)."
+          for svc in financeai-db financeai-web; do
+            if ! grep -qE "^  ${svc}:[[:space:]]*$" "$COMPOSE_FILE"; then
+              echo "FATAL: $COMPOSE_FILE does not define service '$svc'."
+              exit 1
+            fi
+          done
+          echo "  both production services are defined."
+
+          # Deep assertions on the RESOLVED configuration. `docker compose config`
+          # changes its output shape between versions (short vs long port/volume
+          # syntax), so anything this check cannot interpret is reported as a warning
+          # rather than blocking a deploy. Only unambiguous safety violations abort.
+          echo "--- compose topology assertions (resolved) ---"
+          if command -v python3 >/dev/null 2>&1; then
+            if dc config --format json | python3 -c '
+          import json, sys
+
+          c = json.load(sys.stdin)
+          s = c.get("services", {})
+          hard, soft, unknown = [], [], []
+
+
+          def ports_of(svc):
+              """Return [(host_ip, target)] or None if the shape is unrecognised."""
+              out = []
+              for e in svc.get("ports") or []:
+                  if isinstance(e, str):
+                      parts = e.split(":")
+                      host = parts[0] if len(parts) == 3 else ""
+                      out.append((host, parts[-1]))
+                  elif isinstance(e, dict) and e.get("target") is not None:
+                      out.append((e.get("host_ip") or "", str(e["target"])))
+                  else:
+                      return None
+              return out
+
+
+          def mounts_of(svc):
+              out = []
+              for v in svc.get("volumes") or []:
+                  if isinstance(v, str):
+                      src, _, tgt = v.partition(":")
+                      out.append((src.strip(), tgt.strip()))
+                  elif isinstance(v, dict) and v.get("target"):
+                      out.append((str(v.get("source") or ""), str(v["target"])))
+                  else:
+                      return None
+              return out
+
+
+          def nets_of(svc):
+              n = svc.get("networks")
+              if n is None:
+                  return []
+              if isinstance(n, list):
+                  return [str(x) for x in n]
+              if isinstance(n, dict):
+                  return [str(x) for x in n]
+              return None
+
+
+          names = sorted(s)
+          if names != ["financeai-db", "financeai-web"]:
+              hard.append("service set is %s, expected [financeai-db, financeai-web]" % names)
+
+          db = s.get("financeai-db", {})
+          web = s.get("financeai-web", {})
+
+          db_ports = ports_of(db)
+          if db_ports is None:
+              unknown.append("cannot interpret financeai-db ports format")
+          elif db_ports:
+              hard.append("financeai-db publishes host ports: %s" % (db_ports,))
+
+          web_ports = ports_of(web)
+          if web_ports is None:
+              unknown.append("cannot interpret financeai-web ports format")
+          elif web_ports != [("127.0.0.1", "10000")]:
+              hard.append("financeai-web publishes %s, expected only [(\"127.0.0.1\", \"10000\")]" % (web_ports,))
+
+          m = mounts_of(db)
+          if m is None:
+              unknown.append("cannot interpret financeai-db volume format")
+          elif not any(src.endswith("financeai_pgdata") and tgt == "/var/lib/postgresql/data" for src, tgt in m):
+              soft.append("financeai-db mounts %s, expected financeai_pgdata at /var/lib/postgresql/data" % (m,))
+
+          for name, svc in (("financeai-db", db), ("financeai-web", web)):
+              n = nets_of(svc)
+              if n is None:
+                  unknown.append("cannot interpret %s networks format" % name)
+              elif n != ["financeai"]:
+                  soft.append("%s is on networks %s, expected [\"financeai\"]" % (name, n))
+
+          if "financeai_pgdata" not in (c.get("volumes") or {}):
+              soft.append("named volume financeai_pgdata is not declared at top level")
+          if "financeai" not in (c.get("networks") or {}):
+              soft.append("network financeai is not declared at top level")
+          if web.get("security_opt") != ["no-new-privileges:true"]:
+              soft.append("financeai-web security_opt is %s" % (web.get("security_opt"),))
+
+          for m_ in soft:
+              print("WARNING: " + m_, file=sys.stderr)
+          for m_ in unknown:
+              print("NOTE: " + m_, file=sys.stderr)
+          for m_ in hard:
+              print("ERROR: " + m_, file=sys.stderr)
+          sys.exit(1 if hard else 0)
+          '; then
+              echo "  resolved configuration matches the production topology."
+            else
+              echo "FATAL: resolved production configuration violates the production topology (see above)."
+              exit 1
+            fi
+          else
+            echo "NOTE: python3 unavailable — resolved-configuration assertions skipped."
+          fi
+
+          # ── Live stack inventory (read-only) ───────────────────────────
+          # Answers, on every run, the questions that caused the incident:
+          # which Compose files created the running containers, which project
+          # and volume they belong to, and what is actually published.
+          echo "--- live container inventory (read-only) ---"
+          for c in financeai-db financeai-web; do
+            if docker inspect "$c" >/dev/null 2>&1; then
+              printf '  %-13s project=%s config_files=%s\n' "$c" \
+                "$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$c" 2>/dev/null || true)" \
+                "$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' "$c" 2>/dev/null || true)"
+              printf '  %-13s published_ports=%s\n' "$c" \
+                "$(docker inspect -f '{{ json .NetworkSettings.Ports }}' "$c" 2>/dev/null || echo unknown)"
+            else
+              echo "  $c: not present (first deployment of this service)"
+            fi
+          done
+
+          # The Compose project name determines the real volume and network names
+          # (<project>_financeai_pgdata / _financeai). If the file selection stopped
+          # resolving to the same project, Compose would provision EMPTY replacements
+          # and the app would start against a blank database. Detect that here.
+          echo "--- compose project consistency ---"
+          for svc in financeai-db financeai-web; do
+            if docker inspect "$svc" >/dev/null 2>&1; then
+              RESOLVED_CID="$(dc ps -q "$svc" 2>/dev/null || true)"
+              if [ -z "$RESOLVED_CID" ]; then
+                echo "FATAL: container '$svc' exists but is NOT in the Compose project resolved from"
+                echo "         --env-file $ENV_FILE -f $COMPOSE_FILE"
+                echo "  The project/volume/network name would change, so Compose would create"
+                echo "  empty replacements and the app would see a blank database."
+                echo "  Live project label: $(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$svc" 2>/dev/null || true)"
+                echo "  Live data volume:   $(docker inspect -f '{{ range .Mounts }}{{ if eq .Destination "/var/lib/postgresql/data" }}{{ .Name }}{{ end }}{{ end }}' "$svc" 2>/dev/null || true)"
+                echo "  Refusing to deploy. Do NOT pass --project-name to silence this without"
+                echo "  first confirming which volume holds the production data."
+                exit 1
+              fi
+              echo "  $svc resolves to container ${RESOLVED_CID:0:12}… in the same Compose project."
+            fi
+          done
+
+          if docker inspect financeai-db >/dev/null 2>&1; then
+            DB_VOLUME="$(docker inspect -f '{{ range .Mounts }}{{ if eq .Destination "/var/lib/postgresql/data" }}{{ .Name }}{{ end }}{{ end }}' financeai-db 2>/dev/null || true)"
+            if [ -z "$DB_VOLUME" ]; then
+              echo "FATAL: financeai-db has no named volume at /var/lib/postgresql/data."
+              echo "  The production data location could not be confirmed — deploying nothing."
+              exit 1
+            fi
+            case "$DB_VOLUME" in
+              *financeai_pgdata) echo "  PostgreSQL data volume: $DB_VOLUME (never pruned, never removed)" ;;
+              *) echo "  WARNING: PostgreSQL data volume is '$DB_VOLUME', expected a name ending in financeai_pgdata." ;;
+            esac
+          fi
+
+          echo ">>> Pre-flight complete."
+
+          # ── Ensure financeai-db is running and healthy ─────────────────
           echo ">>> [2/8] Ensuring financeai-db is running and healthy"
-          DB_CID="$(docker compose ps -q financeai-db || true)"
+          DB_CID="$(dc ps -q financeai-db || true)"
           if [ -z "$DB_CID" ] \
             || [ "$(docker inspect -f '{{.State.Status}}' "$DB_CID" 2>/dev/null || echo missing)" != "running" ]; then
             echo "financeai-db not running — starting existing service (data volume untouched)."
-            docker compose up -d financeai-db
-            DB_CID="$(docker compose ps -q financeai-db)"
+            dc up -d financeai-db
+            DB_CID="$(dc ps -q financeai-db)"
           fi
           DB_HEALTHY=0
           for i in $(seq 1 30); do
@@ -207,52 +563,56 @@ jobs:
           done
           if [ "$DB_HEALTHY" != "1" ]; then
             echo "FATAL: financeai-db did not become healthy."
-            docker compose ps || true
+            dc ps || true
             exit 1
           fi
           echo "financeai-db healthy."
 
-          # ── Capture previous web image (for app-only rollback) ─────
-          WEB_CID="$(docker compose ps -q financeai-web || true)"
+          # ── Capture previous web image (for app-only rollback) ─────────
+          WEB_CID="$(dc ps -q financeai-web || true)"
           PREV_IMAGE_ID=""
           if [ -n "$WEB_CID" ]; then
             PREV_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$WEB_CID")"
             echo "Previous financeai-web image retained for rollback: ${PREV_IMAGE_ID:0:19}…"
           fi
-          WEB_IMAGE_NAME="$(docker compose config --images | grep 'financeai-web' | head -n1 || true)"
-          if [ -z "$WEB_IMAGE_NAME" ]; then
-            echo "FATAL: docker compose defines no image for service financeai-web."
+          WEB_IMAGE_NAME="$(dc config --images | sed -n '1p')"
+          IMAGE_COUNT="$(dc config --images | sed -n '$=')"
+          if [ "$IMAGE_COUNT" != "1" ] || [ -z "$WEB_IMAGE_NAME" ]; then
+            echo "FATAL: expected exactly one buildable image in $COMPOSE_FILE, found ${IMAGE_COUNT:-0}."
             exit 1
           fi
+          echo "Rollback target image name: $WEB_IMAGE_NAME"
 
           # App-only rollback: retag previous image, recreate web only.
           # Never touches PostgreSQL or its volume.
+          # NOTE: Drizzle migrations are forward-only; this restores the APPLICATION
+          # image, it does not undo schema changes.
           rollback_app() {
             if [ -n "$PREV_IMAGE_ID" ]; then
               echo ">>> App-only rollback: restoring previous financeai-web image."
               docker tag "$PREV_IMAGE_ID" "$WEB_IMAGE_NAME"
-              docker compose up -d --force-recreate financeai-web || true
+              dc up -d --force-recreate financeai-web || true
             else
               echo "No previous financeai-web image captured — nothing to roll back."
             fi
           }
 
-          # ── Build the verified image ────────────────────────────────
+          # ── Build the verified image ───────────────────────────────────
           echo ">>> [3/8] Building financeai-web from commit $ACTUAL"
-          docker compose build financeai-web
+          dc build financeai-web
 
-          # ── Migrate with the NEW image BEFORE recreating web ───────
+          # ── Migrate with the NEW image BEFORE recreating web ───────────
           echo ">>> [4/8] Running Drizzle migrations (new image → financeai-db)"
-          docker compose run --rm --no-deps financeai-web npx drizzle-kit migrate
+          dc run --rm --no-deps financeai-web npx drizzle-kit migrate
           echo "Drizzle migrations applied."
 
-          # ── PostgreSQL verification gate ───────────────────────────
+          # ── PostgreSQL verification gate ───────────────────────────────
           # scripts/verify-postgres.ts is production-safe: it writes only
           # synthetic rows tagged verify-*@example.com, removes them at
           # the end (and on failure, via finally), never logs secrets,
           # and exits non-zero on any failed check.
           echo ">>> [5/8] Running PostgreSQL verification suite (14 checks)"
-          if ! docker compose run --rm --no-deps financeai-web npm run verify:postgres > "$VERIFY_LOG" 2>&1; then
+          if ! dc run --rm --no-deps financeai-web npm run verify:postgres > "$VERIFY_LOG" 2>&1; then
             echo "FATAL: PostgreSQL verification failed. Last 40 lines of output:"
             tail -n 40 "$VERIFY_LOG"
             exit 1
@@ -265,13 +625,13 @@ jobs:
           echo "PostgreSQL verification: 14 passed, 0 failed ✓"
           tail -n 3 "$VERIFY_LOG"
 
-          # ── Recreate ONLY the web service ──────────────────────────
+          # ── Recreate ONLY the web service ──────────────────────────────
           echo ">>> [6/8] Recreating financeai-web (financeai-db and volumes untouched)"
-          docker compose up -d --force-recreate financeai-web
+          dc up -d --force-recreate financeai-web
 
           WEB_OK=0
           for i in $(seq 1 60); do
-            WEB_CID="$(docker compose ps -q financeai-web || true)"
+            WEB_CID="$(dc ps -q financeai-web || true)"
             if [ -n "$WEB_CID" ] \
               && [ "$(docker inspect -f '{{.State.Status}}' "$WEB_CID" 2>/dev/null || echo missing)" = "running" ]; then
               WEB_OK=1
@@ -281,7 +641,7 @@ jobs:
           done
           if [ "$WEB_OK" != "1" ]; then
             echo "FATAL: financeai-web did not reach running state."
-            docker compose ps || true
+            dc ps || true
             if [ -n "${WEB_CID:-}" ]; then
               echo "--- recent financeai-web logs ---"
               docker logs --tail 100 "$WEB_CID" || true
@@ -291,9 +651,9 @@ jobs:
           fi
 
           echo ">>> Container status:"
-          docker compose ps
+          dc ps
 
-          # ── Smoke tests ────────────────────────────────────────────
+          # ── Smoke tests ────────────────────────────────────────────────
           echo ">>> [7/8] Smoke tests"
 
           echo "--- local HTTP (127.0.0.1:10000) ---"
@@ -334,7 +694,7 @@ jobs:
           SESSION="$(curl --fail --silent --show-error --max-time 15 "$PROD_URL/api/auth/session")"
           echo "Session endpoint responded: $SESSION"
 
-          # ── Targeted fatal-pattern log scan ────────────────────────
+          # ── Targeted fatal-pattern log scan ────────────────────────────
           # Intentionally narrow: DB/Postgres connection failures, boot
           # exceptions, unhandled fatal errors, NextAuth config errors.
           # Rate-limit traffic and harmless warnings do NOT match.
@@ -350,7 +710,7 @@ jobs:
           fi
           echo "Log scan: no fatal patterns detected."
 
-          # ── Cleanup (success only; images only, NEVER volumes) ─────
+          # ── Cleanup (success only; images only, NEVER volumes) ─────────
           echo ">>> [8/8] Pruning dangling images (volumes untouched)"
           docker image prune -f
 
@@ -358,6 +718,7 @@ jobs:
           echo " DEPLOY SUCCESS: $VERIFIED_SHA is live and production smoke tests passed."
           echo "   CI-verified SHA : $VERIFIED_SHA"
           echo "   VPS actual SHA  : $ACTUAL"
+          echo "   Compose file    : $COMPOSE_FILE"
           echo "   Migration       : drizzle-kit migrate OK"
           echo "   Postgres verify : 14 passed, 0 failed"
           echo "   Local smoke     : OK"

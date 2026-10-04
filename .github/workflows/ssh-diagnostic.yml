@@ -11,6 +11,13 @@ name: Diagnose VPS SSH Fingerprint
 #   3. Compares it with the `VPS_FINGERPRINT` secret and fails loudly on
 #      mismatch, so a deploy blocked by fingerprint verification can be
 #      diagnosed without exposing any secret value.
+#   4. Opens a real SSH connection with the same host, key, port and
+#      fingerprint verification the deploy uses, and runs only read-only
+#      commands (`whoami`, `hostname`) to prove authentication works.
+#      This touches no application, database or service state.
+#
+# The two steps isolate the two failure classes: step 1 covers network
+# reachability + fingerprint mismatch, step 2 covers credentials/authorized_keys.
 #
 # SECURITY NOTE — `ssh-keyscan` is UNAUTHENTICATED: it reports whatever key
 # the host presents, which is why this workflow only *compares* and never
@@ -20,7 +27,8 @@ name: Diagnose VPS SSH Fingerprint
 # from that value — never from this workflow's output alone, which a
 # man-in-the-middle could have produced.
 #
-# Reads only the three deployment SSH secrets; adds no new secrets.
+# Reads only the deployment SSH secrets (VPS_HOST, VPS_USER, VPS_SSH_PORT,
+# SSH_PRIVATE_KEY, VPS_FINGERPRINT); adds no new ones.
 
 on:
   workflow_dispatch: {}
@@ -58,3 +66,18 @@ jobs:
             echo "::error::Fingerprint does not match the configured secret."
             exit 1
           fi
+
+      - name: Test SSH connection with appleboy
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || '22' }}
+          fingerprint: ${{ secrets.VPS_FINGERPRINT }}
+          command_timeout: 30s
+          script: |
+            set -e
+            echo "SSH connection successful"
+            whoami
+            hostname

@@ -11,13 +11,19 @@ name: Diagnose VPS SSH Fingerprint
 #   3. Compares it with the `VPS_FINGERPRINT` secret and fails loudly on
 #      mismatch, so a deploy blocked by fingerprint verification can be
 #      diagnosed without exposing any secret value.
-#   4. Opens a real SSH connection with the same host, key, port and
-#      fingerprint verification the deploy uses, and runs only read-only
-#      commands (`whoami`, `hostname`) to prove authentication works.
+#   4. Repeats the verification with the native OpenSSH client: pins the
+#      scanned key into a dedicated known_hosts file, re-checks its
+#      fingerprint, then connects with `StrictHostKeyChecking=yes`.
+#      Read-only remote commands only (`whoami && hostname`).
+#   5. Repeats the connection with appleboy/ssh-action — the same client
+#      implementation the production deploy uses.
 #      This touches no application, database or service state.
 #
-# The two steps isolate the two failure classes: step 1 covers network
-# reachability + fingerprint mismatch, step 2 covers credentials/authorized_keys.
+# The steps isolate the failure classes:
+#   step 1 — network reachability + fingerprint mismatch
+#   step 2 — native OpenSSH: server config, key auth, authorized_keys
+#   step 3 — appleboy only: native already proved host/key/port are fine,
+#            so a failure here is specific to the action's SSH client
 #
 # SECURITY NOTE — `ssh-keyscan` is UNAUTHENTICATED: it reports whatever key
 # the host presents, which is why this workflow only *compares* and never
@@ -66,6 +72,34 @@ jobs:
             echo "::error::Fingerprint does not match the configured secret."
             exit 1
           fi
+
+      - name: Test SSH with native OpenSSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          EXPECTED: ${{ secrets.VPS_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/financeai_key
+          chmod 600 ~/.ssh/financeai_key
+          ssh-keyscan -T 10 -p "$PORT" -t ed25519 "$VPS_HOST" \
+            2>/dev/null > ~/.ssh/financeai_known_hosts
+          ACTUAL=$(ssh-keygen -lf ~/.ssh/financeai_known_hosts -E sha256 | awk '{print $2}')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Host key verification failed."
+            exit 1
+          fi
+          ssh -i ~/.ssh/financeai_key \
+            -p "$PORT" \
+            -o UserKnownHostsFile=~/.ssh/financeai_known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" \
+            'whoami && hostname'
 
       - name: Test SSH connection with appleboy
         uses: appleboy/ssh-action@v1.2.5

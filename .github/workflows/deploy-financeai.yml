@@ -1,0 +1,323 @@
+name: Deploy FinanceAI to Production VPS
+
+# Automatic production deployment — gated on the repository's authoritative
+# CI workflow ("CI/CD", .github/workflows/ci.yml) completing successfully.
+#
+# Trigger design:
+#   A workflow_run event fires for EVERY completed CI/CD run (success,
+#   failure, cancelled, timed out, any branch, any PR). The job-level `if`
+#   below admits ONLY:
+#       github.event.workflow_run.conclusion == 'success'
+#       AND github.event.workflow_run.head_branch == 'main'
+#   So: failed/cancelled/timed-out CI, develop, feature branches and pull
+#   requests never deploy. Pushes to main alone (without green CI/CD) also
+#   never deploy.
+#
+# Exact-commit design:
+#   VERIFIED_SHA = github.event.workflow_run.head_sha — the exact commit CI
+#   verified. The VPS is moved to that SHA and verified with
+#   `git rev-parse HEAD`, never to "whatever origin/main happens to be".
+#
+# Safety invariants (enforced in the SSH script):
+#   - never `git clean`, never delete untracked files, never touch .env
+#   - never `docker compose down -v`, never delete volumes
+#   - financeai-db is ensured running/healthy, never recreated
+#   - migration runs with the NEW image BEFORE the web service is recreated
+#   - production Nginx/HTTPS are never modified
+#
+# NOTE: workflow_run-triggered workflows are only evaluated when this file
+# exists on the default branch (main). Merging development → main activates
+# the automation.
+
+on:
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy CI-verified commit to production VPS
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      # Serialize production deployments; a newer successful deploy waits
+      # for the running one instead of cancelling it halfway through.
+      group: financeai-production-deploy
+      cancel-in-progress: false
+    env:
+      VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Deployment target summary
+        run: |
+          echo "Gate workflow : CI/CD (.github/workflows/ci.yml)"
+          echo "CI conclusion : ${{ github.event.workflow_run.conclusion }}"
+          echo "CI branch     : ${{ github.event.workflow_run.head_branch }}"
+          echo "CI-verified SHA (VERIFIED_SHA): $VERIFIED_SHA"
+
+      - name: Verify required deployment secrets are configured
+        # VPS_SSH_PORT is optional (defaults to 22 inside the SSH step).
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_FINGERPRINT: ${{ secrets.VPS_FINGERPRINT }}
+        run: |
+          missing=0
+          for v in VPS_HOST VPS_USER SSH_PRIVATE_KEY VPS_FINGERPRINT; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Required deployment secret '$v' is not set."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Deploy over SSH (pre-flight, build, migrate, verify, recreate, smoke)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || '22' }}
+          # SHA256 fingerprint of the VPS host key — REQUIRED. Never use
+          # insecure host-key skipping.
+          fingerprint: ${{ secrets.VPS_FINGERPRINT }}
+          envs: VERIFIED_SHA
+          # Full deploy must fit inside this; job timeout is 45m.
+          command_timeout: 35m
+          script: |
+            set -euo pipefail
+
+            # ============================================================
+            # FinanceAI production deploy — executes ON the VPS.
+            # Strict failure mode (`set -euo pipefail`): any failing
+            # command aborts the deployment. appleboy/ssh-action v1.2.5
+            # removed `script_stop`; `set -e` is its documented
+            # replacement.
+            #
+            # NEVER: git clean, delete untracked files, touch .env,
+            #        `docker compose down -v`, delete volumes,
+            #        modify Nginx/HTTPS, recreate financeai-db.
+            # ============================================================
+
+            APP_DIR=/home/deployer/Ai-Finance
+            PROD_URL=https://financeai-ai.duckdns.org
+            VERIFY_LOG=/tmp/financeai-verify.log
+
+            echo "=============================================================="
+            echo " FinanceAI production deploy"
+            echo " CI-verified SHA (VERIFIED_SHA): $VERIFIED_SHA"
+            echo "=============================================================="
+
+            cd "$APP_DIR"
+
+            # ── Pre-flight: fetch, checkout, dirty check, reachability ──
+            echo ">>> [1/8] Pre-flight: fetching origin main"
+            git fetch origin main
+            git checkout main
+
+            DIRTY="$(git status --porcelain)"
+            if [ -n "$DIRTY" ]; then
+              echo "FATAL: working tree is dirty — refusing to deploy."
+              echo "$DIRTY"
+              echo "(untracked/modified files are NEVER auto-deleted; resolve manually)"
+              exit 1
+            fi
+            echo "Working tree clean."
+
+            if ! git merge-base --is-ancestor "$VERIFIED_SHA" origin/main; then
+              echo "FATAL: VERIFIED_SHA $VERIFIED_SHA is no longer reachable from origin/main"
+              echo "(force-push or history rewrite) — failing safely, deploying nothing."
+              exit 1
+            fi
+            echo "VERIFIED_SHA is reachable from origin/main."
+
+            git reset --hard "$VERIFIED_SHA"
+            ACTUAL="$(git rev-parse HEAD)"
+            if [ "$ACTUAL" != "$VERIFIED_SHA" ]; then
+              echo "FATAL: VPS HEAD ($ACTUAL) != VERIFIED_SHA ($VERIFIED_SHA)"
+              exit 1
+            fi
+            echo "VPS HEAD verified: $ACTUAL"
+
+            # ── Ensure financeai-db is running and healthy ──────────────
+            echo ">>> [2/8] Ensuring financeai-db is running and healthy"
+            DB_CID="$(docker compose ps -q financeai-db || true)"
+            if [ -z "$DB_CID" ] \
+              || [ "$(docker inspect -f '{{.State.Status}}' "$DB_CID" 2>/dev/null || echo missing)" != "running" ]; then
+              echo "financeai-db not running — starting existing service (data volume untouched)."
+              docker compose up -d financeai-db
+              DB_CID="$(docker compose ps -q financeai-db)"
+            fi
+            DB_HEALTHY=0
+            for i in $(seq 1 30); do
+              if [ "$(docker inspect -f '{{.State.Health.Status}}' "$DB_CID" 2>/dev/null || echo unknown)" = "healthy" ]; then
+                DB_HEALTHY=1
+                break
+              fi
+              sleep 2
+            done
+            if [ "$DB_HEALTHY" != "1" ]; then
+              echo "FATAL: financeai-db did not become healthy."
+              docker compose ps || true
+              exit 1
+            fi
+            echo "financeai-db healthy."
+
+            # ── Capture previous web image (for app-only rollback) ─────
+            WEB_CID="$(docker compose ps -q financeai-web || true)"
+            PREV_IMAGE_ID=""
+            if [ -n "$WEB_CID" ]; then
+              PREV_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$WEB_CID")"
+              echo "Previous financeai-web image retained for rollback: ${PREV_IMAGE_ID:0:19}…"
+            fi
+            WEB_IMAGE_NAME="$(docker compose config --images | grep 'financeai-web' | head -n1 || true)"
+            if [ -z "$WEB_IMAGE_NAME" ]; then
+              echo "FATAL: docker compose defines no image for service financeai-web."
+              exit 1
+            fi
+
+            # App-only rollback: retag previous image, recreate web only.
+            # Never touches PostgreSQL or its volume.
+            rollback_app() {
+              if [ -n "$PREV_IMAGE_ID" ]; then
+                echo ">>> App-only rollback: restoring previous financeai-web image."
+                docker tag "$PREV_IMAGE_ID" "$WEB_IMAGE_NAME"
+                docker compose up -d --force-recreate financeai-web || true
+              else
+                echo "No previous financeai-web image captured — nothing to roll back."
+              fi
+            }
+
+            # ── Build the verified image ────────────────────────────────
+            echo ">>> [3/8] Building financeai-web from commit $ACTUAL"
+            docker compose build financeai-web
+
+            # ── Migrate with the NEW image BEFORE recreating web ───────
+            echo ">>> [4/8] Running Drizzle migrations (new image → financeai-db)"
+            docker compose run --rm --no-deps financeai-web npx drizzle-kit migrate
+            echo "Drizzle migrations applied."
+
+            # ── PostgreSQL verification gate ───────────────────────────
+            # scripts/verify-postgres.ts is production-safe: it writes only
+            # synthetic rows tagged verify-*@example.com, removes them at
+            # the end (and on failure, via finally), never logs secrets,
+            # and exits non-zero on any failed check.
+            echo ">>> [5/8] Running PostgreSQL verification suite (14 checks)"
+            if ! docker compose run --rm --no-deps financeai-web npm run verify:postgres > "$VERIFY_LOG" 2>&1; then
+              echo "FATAL: PostgreSQL verification failed. Last 40 lines of output:"
+              tail -n 40 "$VERIFY_LOG"
+              exit 1
+            fi
+            if ! grep -q '^Result: 14 passed, 0 failed' "$VERIFY_LOG"; then
+              echo "FATAL: verification did not report 'Result: 14 passed, 0 failed'."
+              tail -n 40 "$VERIFY_LOG"
+              exit 1
+            fi
+            echo "PostgreSQL verification: 14 passed, 0 failed ✓"
+            tail -n 3 "$VERIFY_LOG"
+
+            # ── Recreate ONLY the web service ──────────────────────────
+            echo ">>> [6/8] Recreating financeai-web (financeai-db and volumes untouched)"
+            docker compose up -d --force-recreate financeai-web
+
+            WEB_OK=0
+            for i in $(seq 1 60); do
+              WEB_CID="$(docker compose ps -q financeai-web || true)"
+              if [ -n "$WEB_CID" ] \
+                && [ "$(docker inspect -f '{{.State.Status}}' "$WEB_CID" 2>/dev/null || echo missing)" = "running" ]; then
+                WEB_OK=1
+                break
+              fi
+              sleep 2
+            done
+            if [ "$WEB_OK" != "1" ]; then
+              echo "FATAL: financeai-web did not reach running state."
+              docker compose ps || true
+              if [ -n "${WEB_CID:-}" ]; then
+                echo "--- recent financeai-web logs ---"
+                docker logs --tail 100 "$WEB_CID" || true
+              fi
+              rollback_app || true
+              exit 1
+            fi
+
+            echo ">>> Container status:"
+            docker compose ps
+
+            # ── Smoke tests ────────────────────────────────────────────
+            echo ">>> [7/8] Smoke tests"
+
+            echo "--- local HTTP (127.0.0.1:10000) ---"
+            if ! curl --fail --silent --show-error --max-time 15 http://127.0.0.1:10000/ > /dev/null; then
+              echo "FATAL: local HTTP smoke failed."
+              if [ -n "${WEB_CID:-}" ]; then docker logs --tail 100 "$WEB_CID" || true; fi
+              rollback_app || true
+              exit 1
+            fi
+            echo "Local HTTP: OK"
+
+            echo "--- public HTTPS ($PROD_URL) ---"
+            if ! curl --fail --silent --show-error --max-time 15 "$PROD_URL/" > /dev/null; then
+              echo "FATAL: public HTTPS smoke failed."
+              rollback_app || true
+              exit 1
+            fi
+            echo "Public HTTPS: OK"
+
+            echo "--- auth providers ($PROD_URL/api/auth/providers) ---"
+            PROVIDERS="$(curl --fail --silent --show-error --max-time 15 "$PROD_URL/api/auth/providers")"
+            echo "$PROVIDERS"
+            case "$PROVIDERS" in
+              *google*) : ;;
+              *) echo "FATAL: 'google' provider missing from /api/auth/providers"
+                 rollback_app || true
+                 exit 1 ;;
+            esac
+            case "$PROVIDERS" in
+              *github*) : ;;
+              *) echo "FATAL: 'github' provider missing from /api/auth/providers"
+                 rollback_app || true
+                 exit 1 ;;
+            esac
+            echo "Auth providers: OK (google + github present)"
+
+            echo "--- auth session endpoint (no login required) ---"
+            SESSION="$(curl --fail --silent --show-error --max-time 15 "$PROD_URL/api/auth/session")"
+            echo "Session endpoint responded: $SESSION"
+
+            # ── Targeted fatal-pattern log scan ────────────────────────
+            # Intentionally narrow: DB/Postgres connection failures, boot
+            # exceptions, unhandled fatal errors, NextAuth config errors.
+            # Rate-limit traffic and harmless warnings do NOT match.
+            echo "--- scanning financeai-web logs for fatal patterns (last 10m) ---"
+            FATAL_LOG="$(docker logs --since 10m "$WEB_CID" 2>&1 \
+              | grep -iE 'ECONNREFUSED|ETIMEDOUT|ENOTFOUND|password authentication failed|relation .* does not exist|EADDRINUSE|unhandled|Cannot find module|\[next-auth\]\[error\]|FATAL' \
+              || true)"
+            if [ -n "$FATAL_LOG" ]; then
+              echo "FATAL: unexpected error patterns found in financeai-web logs:"
+              echo "$FATAL_LOG"
+              rollback_app || true
+              exit 1
+            fi
+            echo "Log scan: no fatal patterns detected."
+
+            # ── Cleanup (success only; images only, NEVER volumes) ─────
+            echo ">>> [8/8] Pruning dangling images (volumes untouched)"
+            docker image prune -f
+
+            echo "=============================================================="
+            echo " DEPLOY SUCCESS: $VERIFIED_SHA is live and production smoke tests passed."
+            echo "   CI-verified SHA : $VERIFIED_SHA"
+            echo "   VPS actual SHA  : $ACTUAL"
+            echo "   Migration       : drizzle-kit migrate OK"
+            echo "   Postgres verify : 14 passed, 0 failed"
+            echo "   Local smoke     : OK"
+            echo "   Public HTTPS    : OK"
+            echo "   Auth providers  : OK (google + github)"
+            echo "=============================================================="

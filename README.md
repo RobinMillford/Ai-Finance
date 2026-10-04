@@ -149,6 +149,11 @@ baked in** — `DATABASE_URL`, `NEXTAUTH_SECRET` and provider keys are injected
 at runtime via Docker Compose. Deployments are CI-gated: only a green `CI/CD`
 run on `main` deploys, and it deploys the exact commit CI verified.
 
+Compose files are split by environment: `docker-compose.yml` is the local
+development stack, and `docker-compose.prod.yml` is the standalone production
+stack used on the server (private PostgreSQL, loopback-only app port, secrets
+from a git-ignored `.env`).
+
 ## Dependency Security & Maintenance
 
 Dependency security is continuously monitored, not patched once:

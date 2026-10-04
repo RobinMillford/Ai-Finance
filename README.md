@@ -144,8 +144,10 @@ npm run build
 npm start
 ```
 
-For the production VPS, deployment is fully automated — it runs only after a
-green `CI/CD` run on `main`. See [Production Deployment](#production-deployment).
+Production also ships as a Docker image (`Dockerfile`) built with **no secrets
+baked in** — `DATABASE_URL`, `NEXTAUTH_SECRET` and provider keys are injected
+at runtime via Docker Compose. Deployments are CI-gated: only a green `CI/CD`
+run on `main` deploys, and it deploys the exact commit CI verified.
 
 ## Dependency Security & Maintenance
 
@@ -183,83 +185,6 @@ Dependency security is continuously monitored, not patched once:
   (Settings → Code security).
 - Protect `main`: require the CI checks (`security-audit`, `test`, `build`)
   and require PRs before merging.
-- Add the five deployment secrets used by the auto-deploy workflow
-  (see [Production Deployment](#production-deployment) for the list).
-
-## Production Deployment
-
-Production runs on a VPS behind Nginx (TLS termination → `127.0.0.1:10000` →
-`financeai-web` → `financeai-db:5432`). Deployment is automated by
-[`.github/workflows/deploy-financeai.yml`](./.github/workflows/deploy-financeai.yml)
-and is gated on the complete green result of the repository's authoritative CI
-workflow (`CI/CD`, `.github/workflows/ci.yml`) — it never deploys on a bare
-push to `main`.
-
-### Trigger rules
-
-A `workflow_run` event fires whenever the `CI/CD` workflow finishes; the deploy
-job runs only when **both** conditions hold:
-
-- `github.event.workflow_run.conclusion == 'success'`
-- `github.event.workflow_run.head_branch == 'main'`
-
-Failed, cancelled or timed-out CI, `develop`, feature branches and pull
-requests never reach production.
-
-### Deployment sequence
-
-1. **Exact-commit guarantee** — deploys `github.event.workflow_run.head_sha`,
-   the exact commit CI verified — never "whatever `origin/main` is now". The
-   VPS first verifies the SHA is still reachable from `origin/main`
-   (a force-push fails the deploy safely) and that `git rev-parse HEAD`
-   matches it after the reset.
-2. **Pre-flight** — refuses to deploy on a dirty working tree; never
-   auto-cleans, never deletes untracked files, never touches the VPS `.env`,
-   never removes volumes.
-3. **Database first, app second** — ensures `financeai-db` is running and
-   healthy (never recreated), builds the verified image, runs
-   `npx drizzle-kit migrate` **with the new image before the web service is
-   recreated**, then gates on `npm run verify:postgres` reporting
-   `Result: 14 passed, 0 failed`. The verifier is idempotent and
-   production-safe: it writes only synthetic `verify-*@example.com` rows and
-   removes them even on failure.
-4. **Cutover + smoke tests** — `docker compose up -d --force-recreate
-   financeai-web` runs only after migration and verification pass. The
-   workflow then waits for the container, checks `docker compose ps`,
-   smoke-tests local HTTP (`127.0.0.1:10000`), public HTTPS, the auth
-   providers endpoint (Google + GitHub must be present) and the session
-   endpoint, and scans startup logs for targeted fatal patterns (rate-limit
-   traffic and harmless warnings are ignored).
-5. **Failure safety** — if anything fails before recreation, the previous
-   web container keeps serving. If the new container fails after cutover, an
-   app-only rollback to the previous image restores the old build without
-   ever touching PostgreSQL. Dangling images are pruned only after success;
-   volumes are never pruned.
-
-Deployments are serialized (`concurrency: financeai-production-deploy`,
-`cancel-in-progress: false`) with a 45-minute job timeout. SSH connects via
-`appleboy/ssh-action` with **host fingerprint verification required** — no
-insecure host-key skipping — and production Nginx/HTTPS are never modified by
-the workflow.
-
-### Required GitHub secrets (deployment only)
-
-| Secret | Purpose |
-|---|---|
-| `VPS_HOST` | Deployment host address |
-| `VPS_USER` | SSH user (e.g. `deployer`) |
-| `VPS_SSH_PORT` | SSH port (defaults to `22` when unset) |
-| `SSH_PRIVATE_KEY` | Deploy key (private key content) |
-| `VPS_FINGERPRINT` | SHA256 fingerprint of the VPS host key |
-
-No application secrets are stored in GitHub: `DATABASE_URL`,
-`NEXTAUTH_SECRET` and provider API keys live only in the VPS
-`/home/deployer/Ai-Finance/.env`, consumed by Docker Compose there. The
-workflow never prints secret values.
-
-> **Note:** `workflow_run`-triggered workflows are only evaluated when the
-> workflow file exists on the default branch. The automation activates once
-> this file is merged to `main` (PRs `develop → main` use a merge commit).
 
 ## Environment Variables
 
@@ -447,6 +372,8 @@ are scoped by `user_id` — a foreign id is indistinguishable from a missing one
   state/PKCE expiry. Reverse proxies must not buffer, cache or rewrite
   `/api/auth` responses, or the state cookie is lost and the provider callback
   fails (regression-tested in `lib/__tests__/auth-cookie-config.test.ts`)
+- **No application secrets in CI** — the deploy workflow holds only SSH access
+  to the host; every runtime secret lives in that host's `.env`
 - Secrets kept server-side; browser-facing keys restricted to public prefixes
 
 ## Roadmap
@@ -464,7 +391,7 @@ are scoped by `user_id` — a foreign id is indistinguishable from a missing one
 - [x] E2E + unit testing with CI/CD
 - [x] Security hardening (nonce-based CSP, DOMPurify v3, rate limiting)
 - [x] OAuth cookie hardening behind TLS-terminating proxy (state/PKCE lifecycle regression-tested)
-- [x] CI-gated production auto-deploy to VPS (exact-commit, migration + PostgreSQL verification gates, smoke tests)
+- [x] CI-gated production auto-deploy (exact-commit rollout, migration + schema verification gates)
 - [x] Production-audit-green dependency posture (`eslint-config-next` as devDependency, reconciled lockfile)
 
 ### In Progress

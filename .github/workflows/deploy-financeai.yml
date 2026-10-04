@@ -568,29 +568,76 @@ jobs:
           fi
           echo "financeai-db healthy."
 
-          # ── Capture previous web image (for app-only rollback) ─────────
-          WEB_CID="$(dc ps -q financeai-web || true)"
-          PREV_IMAGE_ID=""
-          if [ -n "$WEB_CID" ]; then
-            PREV_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$WEB_CID")"
-            echo "Previous financeai-web image retained for rollback: ${PREV_IMAGE_ID:0:19}…"
+          # ── Assert financeai-web is the buildable service ──────────────
+          # `dc config --images` lists the image of EVERY service, so it can
+          # never distinguish "exactly one buildable service" from "one image
+          # per service". financeai-db uses a prebuilt postgres image while
+          # financeai-web is built from source, so the count is always >= 2.
+          # Validate the build configuration of financeai-web directly instead.
+          echo "--- financeai-web build configuration ---"
+          WEB_BUILD_OK=0
+          if command -v jq >/dev/null 2>&1; then
+            if dc config --format json \
+              | jq -e '.services["financeai-web"].build != null' >/dev/null; then
+              WEB_BUILD_OK=1
+            fi
+          elif command -v python3 >/dev/null 2>&1; then
+            if dc config --format json | python3 -c '
+          import json, sys
+          c = json.load(sys.stdin)
+          sys.exit(0 if c.get("services", {}).get("financeai-web", {}).get("build") else 1)
+          '; then
+              WEB_BUILD_OK=1
+            fi
+          else
+            # No JSON parser: fall back to a static source assertion, which
+            # depends on no tool beyond awk and cannot drift with Compose's
+            # output format.
+            if awk '/^  financeai-web:[[:space:]]*$/ { f=1; next }
+                       f && /^  [^[:space:]]/        { f=0 }
+                       f && /^[[:space:]]+build:/    { found=1 }
+                       END { exit found ? 0 : 1 }' "$COMPOSE_FILE"; then
+              WEB_BUILD_OK=1
+            fi
           fi
-          WEB_IMAGE_NAME="$(dc config --images | sed -n '1p')"
-          IMAGE_COUNT="$(dc config --images | sed -n '$=')"
-          if [ "$IMAGE_COUNT" != "1" ] || [ -z "$WEB_IMAGE_NAME" ]; then
-            echo "FATAL: expected exactly one buildable image in $COMPOSE_FILE, found ${IMAGE_COUNT:-0}."
+          if [ "$WEB_BUILD_OK" != "1" ]; then
+            echo "FATAL: financeai-web is missing its build configuration in $COMPOSE_FILE."
+            echo "  Only financeai-web is built from source; financeai-db uses a prebuilt image."
+            echo "  Refusing to deploy — the web image could not be rebuilt from this commit."
             exit 1
           fi
-          echo "Rollback target image name: $WEB_IMAGE_NAME"
+          echo "  financeai-web is buildable from this repository."
+
+          # ── Capture previous web image (for app-only rollback) ─────────
+          # Both values come from the RUNNING container, never from
+          # `dc config`, so the rollback target is exactly the image that is
+          # serving now. Not hardcoded: the reference is read from the live
+          # container (e.g. ai-finance-financeai-web).
+          WEB_CID="$(dc ps -q financeai-web || true)"
+          PREV_IMAGE_ID=""
+          WEB_IMAGE_NAME=""
+          if [ -n "$WEB_CID" ]; then
+            PREV_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$WEB_CID")"
+            WEB_IMAGE_NAME="$(docker inspect -f '{{.Config.Image}}' "$WEB_CID")"
+            echo "Previous financeai-web image retained for rollback: ${PREV_IMAGE_ID:0:19}…"
+          fi
+          if [ -n "$PREV_IMAGE_ID" ] && [ -z "$WEB_IMAGE_NAME" ]; then
+            echo "FATAL: could not determine the previous financeai-web image reference."
+            echo "  A rollback would have no safe target, so nothing will be deployed."
+            exit 1
+          fi
+          echo "Rollback target image name: ${WEB_IMAGE_NAME:-none}"
 
           # App-only rollback: retag previous image, recreate web only.
           # Never touches PostgreSQL or its volume.
           # NOTE: Drizzle migrations are forward-only; this restores the APPLICATION
           # image, it does not undo schema changes.
           rollback_app() {
-            if [ -n "$PREV_IMAGE_ID" ]; then
+            if [ -n "$PREV_IMAGE_ID" ] && [ -n "$WEB_IMAGE_NAME" ]; then
               echo ">>> App-only rollback: restoring previous financeai-web image."
               docker tag "$PREV_IMAGE_ID" "$WEB_IMAGE_NAME"
+              # Recreates ONLY financeai-web. financeai-db and its volume are
+              # never referenced here, so PostgreSQL is untouched.
               dc up -d --force-recreate financeai-web || true
             else
               echo "No previous financeai-web image captured — nothing to roll back."

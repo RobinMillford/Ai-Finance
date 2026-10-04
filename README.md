@@ -1,10 +1,10 @@
 # FinanceAI - AI-Powered Financial Analysis Platform
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-black)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-blue)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.3-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-73%20Unit%20%7C%206%20E2E%20Suites-brightgreen)](https://github.com/RobinMillford/Ai-Finance)
+[![Tests](https://img.shields.io/badge/Tests-230%20Unit%20%7C%206%20E2E%20Suites-brightgreen)](https://github.com/RobinMillford/Ai-Finance)
 
 > A production-ready financial analysis platform with a parallel multi-agent AI pipeline, real-time market data, portfolio management, and advanced search.
 
@@ -77,7 +77,7 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 | | |
 |---|---|
 | Framework | Next.js 16 (App Router) |
-| Language | TypeScript 5.9 |
+| Language | TypeScript 6.0 |
 | Styling | Tailwind CSS v4 |
 | UI Components | shadcn/ui |
 | Animations | Framer Motion |
@@ -109,7 +109,8 @@ FinanceAI combines real-time market data with AI-powered insights across crypto,
 
 - **Testing**: Jest 30, React Testing Library, Playwright
 - **E2E Testing**: Playwright (multi-browser + mobile)
-- **CI/CD**: GitHub Actions
+- **CI/CD**: GitHub Actions — `CI/CD` pipeline (security-audit, test, build,
+  E2E) plus CI-gated production auto-deploy to the VPS
 - **Security**: isomorphic-dompurify v3 (XSS prevention), axe-core
 
 ## Quick Start
@@ -143,6 +144,9 @@ npm run build
 npm start
 ```
 
+For the production VPS, deployment is fully automated — it runs only after a
+green `CI/CD` run on `main`. See [Production Deployment](#production-deployment).
+
 ## Dependency Security & Maintenance
 
 Dependency security is continuously monitored, not patched once:
@@ -158,6 +162,11 @@ Dependency security is continuously monitored, not patched once:
 - **CI validation**: every PR (including dependency PRs) runs a severity-aware
   security audit plus typecheck, tests, and production build. `npm ci` enforces
   lockfile integrity.
+- **Lint tooling stays out of production**: `eslint-config-next` is a
+  devDependency with zero runtime references, keeping the production audit gate
+  green while an unpatched transitive advisory remains in its toolchain
+  (GHSA-vfj7-8cjw-p6xm — affects all `braces` releases; documented and tracked
+  until upstream ships a fix).
 - **Audit policy**: production **critical/high** vulnerabilities fail CI;
   moderate/low are reported without blocking. A scheduled weekly workflow
   (`.github/workflows/security-audit.yml`) reports the full audit surface.
@@ -174,6 +183,83 @@ Dependency security is continuously monitored, not patched once:
   (Settings → Code security).
 - Protect `main`: require the CI checks (`security-audit`, `test`, `build`)
   and require PRs before merging.
+- Add the five deployment secrets used by the auto-deploy workflow
+  (see [Production Deployment](#production-deployment) for the list).
+
+## Production Deployment
+
+Production runs on a VPS behind Nginx (TLS termination → `127.0.0.1:10000` →
+`financeai-web` → `financeai-db:5432`). Deployment is automated by
+[`.github/workflows/deploy-financeai.yml`](./.github/workflows/deploy-financeai.yml)
+and is gated on the complete green result of the repository's authoritative CI
+workflow (`CI/CD`, `.github/workflows/ci.yml`) — it never deploys on a bare
+push to `main`.
+
+### Trigger rules
+
+A `workflow_run` event fires whenever the `CI/CD` workflow finishes; the deploy
+job runs only when **both** conditions hold:
+
+- `github.event.workflow_run.conclusion == 'success'`
+- `github.event.workflow_run.head_branch == 'main'`
+
+Failed, cancelled or timed-out CI, `develop`, feature branches and pull
+requests never reach production.
+
+### Deployment sequence
+
+1. **Exact-commit guarantee** — deploys `github.event.workflow_run.head_sha`,
+   the exact commit CI verified — never "whatever `origin/main` is now". The
+   VPS first verifies the SHA is still reachable from `origin/main`
+   (a force-push fails the deploy safely) and that `git rev-parse HEAD`
+   matches it after the reset.
+2. **Pre-flight** — refuses to deploy on a dirty working tree; never
+   auto-cleans, never deletes untracked files, never touches the VPS `.env`,
+   never removes volumes.
+3. **Database first, app second** — ensures `financeai-db` is running and
+   healthy (never recreated), builds the verified image, runs
+   `npx drizzle-kit migrate` **with the new image before the web service is
+   recreated**, then gates on `npm run verify:postgres` reporting
+   `Result: 14 passed, 0 failed`. The verifier is idempotent and
+   production-safe: it writes only synthetic `verify-*@example.com` rows and
+   removes them even on failure.
+4. **Cutover + smoke tests** — `docker compose up -d --force-recreate
+   financeai-web` runs only after migration and verification pass. The
+   workflow then waits for the container, checks `docker compose ps`,
+   smoke-tests local HTTP (`127.0.0.1:10000`), public HTTPS, the auth
+   providers endpoint (Google + GitHub must be present) and the session
+   endpoint, and scans startup logs for targeted fatal patterns (rate-limit
+   traffic and harmless warnings are ignored).
+5. **Failure safety** — if anything fails before recreation, the previous
+   web container keeps serving. If the new container fails after cutover, an
+   app-only rollback to the previous image restores the old build without
+   ever touching PostgreSQL. Dangling images are pruned only after success;
+   volumes are never pruned.
+
+Deployments are serialized (`concurrency: financeai-production-deploy`,
+`cancel-in-progress: false`) with a 45-minute job timeout. SSH connects via
+`appleboy/ssh-action` with **host fingerprint verification required** — no
+insecure host-key skipping — and production Nginx/HTTPS are never modified by
+the workflow.
+
+### Required GitHub secrets (deployment only)
+
+| Secret | Purpose |
+|---|---|
+| `VPS_HOST` | Deployment host address |
+| `VPS_USER` | SSH user (e.g. `deployer`) |
+| `VPS_SSH_PORT` | SSH port (defaults to `22` when unset) |
+| `SSH_PRIVATE_KEY` | Deploy key (private key content) |
+| `VPS_FINGERPRINT` | SHA256 fingerprint of the VPS host key |
+
+No application secrets are stored in GitHub: `DATABASE_URL`,
+`NEXTAUTH_SECRET` and provider API keys live only in the VPS
+`/home/deployer/Ai-Finance/.env`, consumed by Docker Compose there. The
+workflow never prints secret values.
+
+> **Note:** `workflow_run`-triggered workflows are only evaluated when the
+> workflow file exists on the default branch. The automation activates once
+> this file is merged to `main` (PRs `develop → main` use a merge commit).
 
 ## Environment Variables
 
@@ -292,19 +378,23 @@ Supervisor ── one structured call, temperature 0.1
 │   │   ├── graph.ts                # Crypto advisor (thin config wrapper)
 │   │   ├── stock-graph.ts          # Stock advisor (thin config wrapper)
 │   │   ├── forex-graph.ts          # Forex advisor (thin config wrapper)
-│   │   ├── __tests__/              # Unit tests (73 tests)
+│   │   ├── __tests__/              # AI unit tests (graph factory, planning, request boundaries)
 │   │   └── tools/
 │   │       ├── financial.ts        # Crypto price & indicators
 │   │       ├── forex.ts            # Forex quotes & indicators
 │   │       ├── stock.ts            # Stock quotes & indicators
 │   │       ├── social.ts           # Reddit sentiment
 │   │       └── search.ts           # Tavily search (domain-configurable)
+│   ├── market-data/                # Dual-provider market data (adapters, cache, candles, indicators, registry)
+│   ├── analytics/                  # Portfolio analytics engine
+│   ├── __tests__/                  # lib-wide unit tests (auth, cookie config, api helpers, reset tokens)
 │   ├── rate-limiter.ts             # Shared in-memory rate limiter
 │   ├── market-intelligence.ts      # Tavily market analysis
 │   ├── db/                         # Drizzle client, schema, repositories
 │   └── sanitize.ts                 # DOMPurify XSS sanitization
 ├── e2e/                            # Playwright E2E suites
 ├── middleware.ts                   # CSP nonces + auth middleware
+├── .github/workflows/              # CI/CD + production auto-deploy workflows
 └── .env.example                    # All env vars documented
 ```
 
@@ -338,9 +428,9 @@ are scoped by `user_id` — a foreign id is indistinguishable from a missing one
 
 ## Testing & Quality Assurance
 
-- **Unit Tests** (73): AI utilities, plan normalization, retry logic, rate limiter, export utils, auth
+- **Unit Tests** (230 across 16 suites): AI pipeline (graph factory, planning boundaries, request validation), market data (adapters, cache, candles, indicators, registry), analytics engine, auth (credentials + OAuth cookie config), reset tokens, rate limiter, export utils, API helpers
 - **E2E Tests**: 6 Playwright suites — navigation, search, portfolio, watchlist, market pages — across Chrome/Firefox/Safari + mobile viewports
-- **CI/CD**: Automated test → build → E2E on every push and PR
+- **CI/CD**: Automated test → build → E2E on every push and PR, plus CI-gated auto-deploy to the production VPS after green CI on `main`
 - **Coverage thresholds** enforced with Codecov reporting
 
 ## Security
@@ -351,6 +441,12 @@ are scoped by `user_id` — a foreign id is indistinguishable from a missing one
 - Input sanitization with isomorphic-dompurify v3
 - CSRF protection via NextAuth.js
 - Environment variable validation at startup
+- **OAuth cookies hardened behind TLS termination** — NextAuth v4 derives
+  `useSecureCookies` from the https `NEXTAUTH_URL`, emitting `__Secure-`- and
+  `__Host-`-prefixed cookies (HttpOnly, Secure, SameSite=Lax) with 15-minute
+  state/PKCE expiry. Reverse proxies must not buffer, cache or rewrite
+  `/api/auth` responses, or the state cookie is lost and the provider callback
+  fails (regression-tested in `lib/__tests__/auth-cookie-config.test.ts`)
 - Secrets kept server-side; browser-facing keys restricted to public prefixes
 
 ## Roadmap
@@ -367,6 +463,9 @@ are scoped by `user_id` — a foreign id is indistinguishable from a missing one
 - [x] Data visualizations (6 chart types)
 - [x] E2E + unit testing with CI/CD
 - [x] Security hardening (nonce-based CSP, DOMPurify v3, rate limiting)
+- [x] OAuth cookie hardening behind TLS-terminating proxy (state/PKCE lifecycle regression-tested)
+- [x] CI-gated production auto-deploy to VPS (exact-commit, migration + PostgreSQL verification gates, smoke tests)
+- [x] Production-audit-green dependency posture (`eslint-config-next` as devDependency, reconciled lockfile)
 
 ### In Progress
 

@@ -1,0 +1,60 @@
+name: Diagnose VPS SSH Fingerprint
+
+# Manual troubleshooting helper for the production auto-deploy
+# (.github/workflows/deploy-financeai.yml), which authenticates to the VPS
+# with host fingerprint verification.
+#
+# What it does:
+#   1. Scans the VPS host key from a GitHub runner (the network path CI
+#      actually uses — not your laptop).
+#   2. Prints the SHA256 fingerprint the runner sees.
+#   3. Compares it with the `VPS_FINGERPRINT` secret and fails loudly on
+#      mismatch, so a deploy blocked by fingerprint verification can be
+#      diagnosed without exposing any secret value.
+#
+# SECURITY NOTE — `ssh-keyscan` is UNAUTHENTICATED: it reports whatever key
+# the host presents, which is why this workflow only *compares* and never
+# auto-accepts. To bootstrap or rotate `VPS_FINGERPRINT`, read the key from
+# the VPS console/provider console (out-of-band, e.g.
+# `sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`) and set the secret
+# from that value — never from this workflow's output alone, which a
+# man-in-the-middle could have produced.
+#
+# Reads only the three deployment SSH secrets; adds no new secrets.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Compare VPS host fingerprint with configured secret
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check VPS host fingerprint
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_SSH_PORT }}
+          EXPECTED: ${{ secrets.VPS_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+
+          PORT="${VPS_PORT:-22}"
+          echo "Checking host: $VPS_HOST"
+          echo "Checking port: $PORT"
+          ssh-keyscan -T 10 -p "$PORT" -t ed25519 "$VPS_HOST" \
+            2>/dev/null > /tmp/vps-host-key
+          if [ ! -s /tmp/vps-host-key ]; then
+            echo "::error::No ED25519 host key received."
+            exit 1
+          fi
+          ACTUAL=$(ssh-keygen -lf /tmp/vps-host-key -E sha256 | awk '{print $2}')
+          echo "Fingerprint seen by GitHub runner: $ACTUAL"
+          if [ "$ACTUAL" = "$EXPECTED" ]; then
+            echo "Fingerprint matches the GitHub secret."
+          else
+            echo "::error::Fingerprint does not match the configured secret."
+            exit 1
+          fi
